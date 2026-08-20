@@ -29,6 +29,11 @@ const tournamentSchema = new mongoose.Schema(
     maxParticipants: {
       type: Number,
       default: 20,
+      immutable: true,
+      validate: {
+        validator: (value) => value === 20,
+        message: "Code Arena tournaments must have exactly 20 participants",
+      },
     },
 
     currentRound: {

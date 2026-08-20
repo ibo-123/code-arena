@@ -25,6 +25,17 @@ const contestSchema = new mongoose.Schema(
       default: null,
     },
 
+    matchNumber: {
+      type: Number,
+      default: null,
+    },
+
+    match: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Match",
+      default: null,
+    },
+
     name: {
       type: String,
       required: true,
@@ -74,6 +85,15 @@ const contestSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+contestSchema.index(
+  { tournament: 1, round: 1, group: 1 },
+  { unique: true, partialFilterExpression: { group: { $type: "string" } } }
+);
+contestSchema.index(
+  { tournament: 1, round: 1, matchNumber: 1 },
+  { unique: true, partialFilterExpression: { matchNumber: { $type: "number" } } }
 );
 
 module.exports = mongoose.model(

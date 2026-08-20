@@ -9,13 +9,16 @@ const {
   protect,
   authorize,
 } = require("./middleware/authMiddleware");
+const contestRoutes = require("./routes/contestRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 app.use(cors());
 app.use(express.json());
 
-
+app.use("/api/tournaments/:tournamentId/contests", contestRoutes);
 app.use("/api/tournaments", participantRoutes);
 app.use("/api/tournaments", tournamentRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 // app.get(
 //   "/api/admin-test",
 //   protect,

@@ -3,6 +3,7 @@ const express = require("express");
 const {
   joinTournament,
   getParticipants,
+  getGroups,
 } = require("../controllers/participantController");
 
 const {
@@ -21,5 +22,7 @@ router.get(
   "/:id/participants",
   getParticipants
 );
+
+router.get("/:id/groups", getGroups);
 
 module.exports = router;

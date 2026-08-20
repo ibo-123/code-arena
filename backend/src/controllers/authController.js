@@ -137,9 +137,9 @@ const register = async (req, res) => {
   } catch (error) {
     console.error("Registration error:", error);
 
-    res.status(500).json({
+    res.status(error.code === 11000 ? 409 : 500).json({
       success: false,
-      message: "Server error",
+      message: error.code === 11000 ? "User already exists" : "Server error",
     });
   }
 };

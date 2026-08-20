@@ -6,6 +6,13 @@ const joinTournament = async (req, res) => {
     const tournamentId = req.params.id;
     const userId = req.user.userId;
 
+    if (req.user.role !== "PARTICIPANT") {
+      return res.status(403).json({
+        success: false,
+        message: "Only participants can join a tournament",
+      });
+    }
+
     // Find tournament
     const tournament = await Tournament.findById(tournamentId);
 
@@ -72,6 +79,10 @@ const joinTournament = async (req, res) => {
 
 const getParticipants = async (req, res) => {
   try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: "Tournament not found" });
+    }
     const participants = await Participant.find({
       tournament: req.params.id,
     })
@@ -96,7 +107,25 @@ const getParticipants = async (req, res) => {
   }
 };
 
+const getGroups = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
+    const participants = await Participant.find({ tournament: tournament._id })
+      .populate("user", "name username codeforcesUsername").sort({ seed: 1 });
+    const groups = { A: [], B: [], C: [], D: [] };
+    participants.forEach((participant) => {
+      if (participant.group) groups[participant.group].push(participant);
+    });
+    return res.json({ success: true, groups });
+  } catch (error) {
+    console.error("Get groups error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   joinTournament,
   getParticipants,
+  getGroups,
 };
