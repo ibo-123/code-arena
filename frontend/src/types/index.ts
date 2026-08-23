@@ -5,122 +5,130 @@ export type TournamentStatus = 'REGISTRATION' | 'GROUP_STAGE' | 'QUARTER_FINAL' 
 export type Round = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
 
 export interface User {
-  _id: string
+  _id?: string
+  id?: string
   name: string
   username: string
-  email: string
+  email?: string
   codeforcesUsername: string
   role: Role
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Tournament {
   _id: string
   name: string
   description?: string
-  status: TournamentStatus
-  currentRound: Round
+  status: TournamentStatus | string
+  currentRound: Round | string
   maxParticipants: number
   startDate?: string
   endDate?: string
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Participant {
   _id: string
   user: User
-  tournament: string
-  group: string
-  seed: number
-  status: ParticipantStatus
-  currentRound: Round
-  score: number
-  solved: number
-  penalty: number
+  tournament?: string
+  group?: string
+  seed?: number
+  status: ParticipantStatus | string
+  currentRound?: Round | string
+  score?: number
+  solved?: number
+  penalty?: number
   rank?: number
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Contest {
   _id: string
   name: string
-  tournament: string
-  round: Round
+  tournament?: string
+  round: Round | string
   group?: string
   matchNumber?: number
   codeforcesContestId: number
   codeforcesUrl: string
-  status: ContestStatus
+  status: ContestStatus | string
   startTime: string
   durationMinutes: number
   lastSyncedAt?: string
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ProblemResult {
-  problemIndex: string
-  status: 'SOLVED' | 'FAILED' | 'NOT_ATTEMPTED'
-  points: number
-  attempts: number
+  problemIndex?: string
+  status: 'SOLVED' | 'FAILED' | 'NOT_ATTEMPTED' | string
+  points?: number
+  attempts?: number
 }
 
 export interface ContestResult {
   _id: string
   participant: Participant
-  contest: Contest
+  contest?: Contest
   rank: number
   score: number
   solved: number
   penalty: number
-  problemResults: ProblemResult[]
-  createdAt: string
+  problemResults?: ProblemResult[]
+  createdAt?: string
+}
+
+export interface Result {
+  _id: string
+  participant: Participant
+  contest?: Contest | string
+  rank: number
+  score: number
+  solved: number
+  penalty: number
+  problemResults?: ProblemResult[]
+  createdAt?: string
 }
 
 export interface LeaderboardEntry {
   participantId: string
   username: string
-  name: string
+  name?: string
   codeforcesUsername: string
-  group: string
+  group?: string
   rank: number
   score: number
   solved: number
   penalty: number
-  status: ParticipantStatus
+  status?: ParticipantStatus | string
   problemResults?: ProblemResult[]
 }
 
 export interface Match {
   matchNumber: number
-  round: Round
+  round?: Round | string
   participants: Participant[]
   winner?: Participant
   contest?: Contest
-  status: 'PENDING' | 'LIVE' | 'COMPLETED'
+  status?: 'PENDING' | 'LIVE' | 'COMPLETED' | string
 }
 
 export interface Bracket {
-  groupStage: {
-    A: Participant[]
-    B: Participant[]
-    C: Participant[]
-    D: Participant[]
-  }
-  quarterFinal: Match[]
-  semiFinal: Match[]
-  final: Match | null
-  champion?: Participant
+  groupStage?: Record<string, Participant[]>
+  quarterFinal?: Match[]
+  semiFinal?: Match[]
+  final?: Match | null
+  champion?: Participant | null
 }
 
 export interface AuditLog {
   _id: string
-  tournament: string
+  tournament?: string
   action: string
-  admin: User
+  admin?: { name?: string; username?: string; email?: string }
   target?: string
   description: string
   metadata?: Record<string, unknown>

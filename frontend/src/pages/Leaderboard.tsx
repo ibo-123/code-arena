@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Navbar } from '../components/layout/Navbar'
 import { Card } from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
 import { LoadingState } from '../components/ui/LoadingState'
 import { ErrorState } from '../components/ui/ErrorState'
 import { EmptyState } from '../components/ui/EmptyState'
 import { tournamentApi } from '../services/tournamentApi'
-import { LeaderboardEntry } from '../types'
+import type { LeaderboardEntry } from '../types'
 
 export const Leaderboard = () => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
@@ -29,7 +28,7 @@ export const Leaderboard = () => {
           setEntries(result.leaderboard)
         }
       })
-      .catch((err) => setError(err.message))
+      .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -38,7 +37,7 @@ export const Leaderboard = () => {
       .filter((entry) => {
         const matchesGroup = group === 'ALL' || entry.group === group
         const matchesSearch = entry.username.toLowerCase().includes(query.toLowerCase()) ||
-          entry.codeforcesUsername.toLowerCase().includes(query.toLowerCase())
+          (entry.codeforcesUsername && entry.codeforcesUsername.toLowerCase().includes(query.toLowerCase()))
         return matchesGroup && matchesSearch
       })
       .sort((a, b) => a.rank - b.rank)
