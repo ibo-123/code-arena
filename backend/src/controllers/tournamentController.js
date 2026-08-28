@@ -609,12 +609,16 @@ const getLeaderboard = async (req, res) => {
           .populate("contest", "name round group tournament codeforcesContestId");
 
         return {
-          participant,
+          participantId: participant._id,
+          username: participant.user?.username || participant.user?.name || 'Unknown',
+          name: participant.user?.name,
+          codeforcesUsername: participant.user?.codeforcesUsername || '',
           group: participant.group || null,
           groupRank: null,
           currentRound: participant.currentRound || null,
           status: participant.status || null,
 
+          rank: null,
           latestRank: latestResult?.rank ?? null,
           solved: latestResult?.solved ?? 0,
           score: latestResult?.score ?? 0,
