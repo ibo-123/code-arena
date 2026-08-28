@@ -703,12 +703,12 @@ const getLeaderboard = async (req, res) => {
         return penaltyA - penaltyB;
       }
 
-      return Number(a.participant?.seed || 9999) -
-        Number(b.participant?.seed || 9999);
+      return Number(a.latestResult?.participant?.seed || 9999) -
+        Number(b.latestResult?.participant?.seed || 9999);
     });
 
     leaderboard.forEach((entry, index) => {
-      entry.overallRank = index + 1;
+      entry.rank = index + 1;
     });
 
     return res.status(200).json({
