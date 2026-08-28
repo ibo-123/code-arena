@@ -614,6 +614,7 @@ const getLeaderboard = async (req, res) => {
           name: participant.user?.name,
           codeforcesUsername: participant.user?.codeforcesUsername || '',
           group: participant.group || null,
+          seed: participant.seed || 9999,
           groupRank: null,
           currentRound: participant.currentRound || null,
           status: participant.status || null,
