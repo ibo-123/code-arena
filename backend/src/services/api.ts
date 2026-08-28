@@ -29,10 +29,4 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Export services
-export * from './authApi';
-export * from './tournamentApi';
-export * from './contestApi';
-export * from './adminApi';
-
 export default apiClient;

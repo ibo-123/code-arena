@@ -1,18 +1,12 @@
 import { useEffect, useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  LoadingState,
-} from "../../components/ui";
+import { useNavigate } from "react-router-dom";
+import { Badge, Card, ErrorState, LoadingState } from "../../components/ui";
 import {
   Trophy,
   Users,
   Clock,
   CheckCircle,
   AlertCircle,
-  TrendingUp,
   Play,
   ArrowRight,
   Crown,
@@ -20,11 +14,13 @@ import {
   Sparkles,
   BarChart3,
   Medal,
+  Plus,
 } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import type { Tournament, Participant } from "../../types";
 
 export const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,11 +172,33 @@ export const AdminDashboard = () => {
             display: "flex",
             alignItems: "center",
             gap: "12px",
+            flexWrap: "wrap",
           }}
         >
           <Badge tone={isCompleted ? "gold" : isRegistration ? "blue" : "blue"}>
             {tournament?.status || "NO TOURNAMENT"}
           </Badge>
+
+          <button
+            onClick={() => navigate("/admin/tournaments/create")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #FFD700, #FFA000)",
+              border: "none",
+              color: "#0a0e1a",
+              fontWeight: "700",
+              fontSize: "13px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.3s ease",
+            }}
+          >
+            <Plus size={16} />
+            Create Tournament
+          </button>
 
           <button
             onClick={handleRefresh}
@@ -563,7 +581,7 @@ export const AdminDashboard = () => {
           quarter-finals, semi-finals, and grand final completion.
         </p>
 
-        {tournament && (
+        {tournament ? (
           <div
             style={{
               display: "flex",
@@ -670,6 +688,43 @@ export const AdminDashboard = () => {
                 Tournament Completed
               </div>
             )}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "20px",
+              textAlign: "center",
+              background: "rgba(255,255,255,0.03)",
+              borderRadius: "12px",
+              border: "1px dashed rgba(255,255,255,0.1)",
+            }}
+          >
+            <p
+              style={{
+                color: "rgba(255,255,255,0.4)",
+                marginBottom: "12px",
+              }}
+            >
+              No tournament exists yet. Create one to get started!
+            </p>
+            <button
+              onClick={() => navigate("/admin/tournaments/create")}
+              style={{
+                padding: "10px 24px",
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, #FFD700, #FFA000)",
+                border: "none",
+                color: "#0a0e1a",
+                fontWeight: "700",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <Plus size={16} />
+              Create Tournament
+            </button>
           </div>
         )}
       </Card>

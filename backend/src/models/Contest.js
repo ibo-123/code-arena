@@ -1,85 +1,70 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const contestSchema = new mongoose.Schema(
+const ContestSchema = new mongoose.Schema(
   {
-    tournament: {
+    tournamentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Tournament",
+      ref: 'Tournament',
       required: true,
     },
-
-    round: {
-      type: String,
-      enum: [
-        "GROUP_STAGE",
-        "QUARTER_FINAL",
-        "SEMI_FINAL",
-        "FINAL",
-      ],
-      required: true,
-    },
-
-    group: {
-      type: String,
-      enum: ["A", "B", "C", "D", null],
-      default: null,
-    },
-
-    matchNumber: {
-      type: Number,
-      default: null,
-    },
-
-    match: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Match",
-      default: null,
-    },
-
-    name: {
-      type: String,
-      required: true,
-    },
-
     codeforcesContestId: {
       type: Number,
       required: true,
     },
-
+    codeforcesContestName: {
+      type: String,
+      required: true,
+    },
     codeforcesUrl: {
       type: String,
       required: true,
     },
-
-    status: {
+    type: {
       type: String,
-      enum: [
-        "DRAFT",
-        "PUBLISHED",
-        "LIVE",
-        "FINISHED",
-      ],
-      default: "DRAFT",
+      required: true,
     },
-
+    phase: {
+      type: String,
+      required: true,
+    },
     startTime: {
       type: Date,
       required: true,
     },
-
-    durationMinutes: {
+    durationSeconds: {
       type: Number,
       required: true,
     },
-
-    finishedAt: {
-      type: Date,
-      default: null,
+    stage: {
+      type: String,
+      enum: ['GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'],
+      required: true,
     },
-
+    group: {
+      type: String,
+      enum: ['A', 'B', 'C', 'D'],
+    },
+    matchNumber: {
+      type: Number,
+    },
+    status: {
+      type: String,
+      enum: ['UPCOMING', 'LIVE', 'FINISHED', 'CANCELLED'],
+      default: 'UPCOMING',
+    },
+    published: {
+      type: Boolean,
+      default: false,
+    },
+    publishedAt: {
+      type: Date,
+    },
     lastSyncedAt: {
       type: Date,
-      default: null,
+    },
+    syncedCount: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -87,16 +72,8 @@ const contestSchema = new mongoose.Schema(
   }
 );
 
-contestSchema.index(
-  { tournament: 1, round: 1, group: 1 },
-  { unique: true, partialFilterExpression: { group: { $type: "string" } } }
-);
-contestSchema.index(
-  { tournament: 1, round: 1, matchNumber: 1 },
-  { unique: true, partialFilterExpression: { matchNumber: { $type: "number" } } }
-);
+ContestSchema.index({ tournamentId: 1, codeforcesContestId: 1 }, { unique: true });
+ContestSchema.index({ tournamentId: 1, stage: 1 });
+ContestSchema.index({ tournamentId: 1, published: 1 });
 
-module.exports = mongoose.model(
-  "Contest",
-  contestSchema
-);
+module.exports = mongoose.model('Contest', ContestSchema);

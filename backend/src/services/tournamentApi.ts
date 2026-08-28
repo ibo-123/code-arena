@@ -1,6 +1,5 @@
 import apiClient from './api';
-import type { Tournament, Participant, Bracket } from '../types/index';
-import type { CreateTournamentPayload } from '../types/tournament';
+import type { Tournament, Participant, Bracket } from '../types';
 
 export const tournamentApi = {
   async list(): Promise<{ tournaments: Tournament[] }> {
@@ -37,15 +36,4 @@ export const tournamentApi = {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance`, { stage });
     return response.data;
   },
-
-  // Add create tournament to the api object
-  async create(data: CreateTournamentPayload): Promise<Tournament> {
-    const response = await apiClient.post('/tournaments', data);
-    return response.data.tournament;
-  },
-};
-
-// Keep the standalone export for backward compatibility
-export const createTournament = async (data: CreateTournamentPayload): Promise<Tournament> => {
-  return tournamentApi.create(data);
 };

@@ -4,7 +4,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { Badge } from "../../components/ui/Badge";
-import { Trophy, Code2, RefreshCw, Calendar, Users, Clock } from "lucide-react";
+import { Trophy, RefreshCw, Calendar, Users, Clock } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import type { Tournament } from "../../types";
 

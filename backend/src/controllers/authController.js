@@ -1,112 +1,42 @@
-const bcrypt = require("bcryptjs");
-const User = require("../models/User");
-const jwt = require("jsonwebtoken");
-
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required",
-      });
-    }
-
-    // Find user
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // Compare password
-    const isPasswordCorrect = await bcrypt.compare(
-      password,
-      user.password
-    );
-
-    if (!isPasswordCorrect) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // Create JWT
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        codeforcesUsername: user.codeforcesUsername,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
+// const User = require('../models/User');
+// Helper function to generate JWT
+const generateToken = (userId) => {
+  return jwt.sign(
+    { userId },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '7d' }
+  );
 };
+
+// Register
 const register = async (req, res) => {
   try {
-    const {
-      name,
-      username,
-      email,
-      password,
-      codeforcesUsername,
-    } = req.body;
+    const { username, email, password, name, codeforcesUsername } = req.body;
 
-    // Check required fields
-    if (
-      !name ||
-      !username ||
-      !email ||
-      !password ||
-      !codeforcesUsername
-    ) {
+    // Validate required fields
+    if (!username || !email || !password || !name) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: 'Please provide all required fields: username, email, password, name'
       });
     }
 
-    // Check existing user
+    // Check if user already exists
     const existingUser = await User.findOne({
       $or: [
-        { email },
-        { username },
-        { codeforcesUsername },
-      ],
+        { username: username.toLowerCase() },
+        { email: email.toLowerCase() }
+      ]
     });
 
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: "User already exists",
+        message: 'User with this username or email already exists'
       });
     }
 
@@ -114,62 +44,191 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const user = await User.create({
-      name,
-      username,
-      email,
+    const user = new User({
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
       password: hashedPassword,
-      codeforcesUsername,
+      name,
+      codeforcesUsername: codeforcesUsername || '',
+      role: 'PARTICIPANT'
     });
 
-    res.status(201).json({
+    await user.save();
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Create audit log
+    const auditLog = new AuditLog({
+      action: 'USER_REGISTERED',
+      description: `User ${username} registered`,
+      admin: user._id,
+      details: { username, email }
+    });
+    await auditLog.save();
+
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    return res.status(201).json({
       success: true,
-      message: "Registration successful",
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        codeforcesUsername: user.codeforcesUsername,
-        role: user.role,
-      },
+      message: 'Registration successful',
+      token,
+      user: userResponse
     });
   } catch (error) {
-    console.error("Registration error:", error);
-
-    res.status(error.code === 11000 ? 409 : 500).json({
+    console.error('Registration error:', error);
+    return res.status(500).json({
       success: false,
-      message: error.code === 11000 ? "User already exists" : "Server error",
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
-const getMe = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-      .select("-password");
 
-    if (!user) {
-      return res.status(404).json({
+// Login
+const login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    console.log("Hello");
+    // Validate required fields
+    if (!username || !password) {
+      return res.status(400).json({
         success: false,
-        message: "User not found",
+        message: 'Please provide username and password'
       });
     }
 
-    res.status(200).json({
+    // ✅ IMPORTANT: Select the password field explicitly
+    // const user = await User.findOne({ username: username.toLowerCase() }).select('+password');
+const normalizedUsername = username.trim().toLowerCase();
+
+console.log('LOGIN USERNAME:', normalizedUsername);
+
+const user = await User.findOne({
+  username: normalizedUsername
+}).select('+password');
+
+console.log('USER FOUND:', !!user);
+if (!user) {
+  console.log('LOGIN FAILED: user not found');
+
+  return res.status(401).json({
+    success: false,
+    message: 'Invalid username or password'
+  });
+}
+
+console.log('PASSWORD FIELD EXISTS:', !!user.password);
+console.log(
+  'PASSWORD HASH PREFIX:',
+  user.password ? user.password.substring(0, 7) : 'NONE'
+);
+
+const isValidPassword = await user.comparePassword(password);
+console.log('PASSWORD MATCH:', isValidPassword);
+
+if (!isValidPassword) {
+  console.log('LOGIN FAILED: password mismatch');
+
+  return res.status(401).json({
+    success: false,
+    message: 'Invalid username or password'
+  });
+}
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Create audit log
+    const auditLog = new AuditLog({
+      action: 'USER_LOGIN',
+      description: `User ${username} logged in`,
+      admin: user._id,
+      details: { username, timestamp: new Date().toISOString() }
+    });
+    await auditLog.save();
+
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    return res.json({
       success: true,
-      user,
+      message: 'Login successful',
+      token,
+      user: userResponse
     });
   } catch (error) {
-    console.error("Get current user error:", error);
-
-    res.status(500).json({
+    console.error('Login error:', error);
+    return res.status(500).json({
       success: false,
-      message: "Server error",
+      message: 'Login failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
+
+// Get current user (me)
+const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    return res.json({
+      success: true,
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('Get me error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get user data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Logout
+const logout = async (req, res) => {
+  try {
+    // Create audit log if user is authenticated
+    if (req.user) {
+      const auditLog = new AuditLog({
+        action: 'USER_LOGOUT',
+        description: `User ${req.user.username} logged out`,
+        admin: req.user._id,
+        details: { username: req.user.username }
+      });
+      await auditLog.save();
+    }
+
+    return res.json({
+      success: true,
+      message: 'Logout successful'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Logout failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  logout
 };

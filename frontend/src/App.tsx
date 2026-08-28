@@ -13,23 +13,20 @@ import { AdminBracket } from "./pages/admin/AdminBracket";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { AdminParticipants } from "./pages/admin/AdminParticipants";
 import { AdminLogs } from "./pages/admin/AdminLogs";
+import CreateTournament from "./pages/admin/CreateTournament";
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-
-          {/* Protected routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/bracket" element={<Bracket />} />
           <Route path="/live" element={<Live />} />
 
-          {/* Admin routes */}
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="contests" element={<AdminContests />} />
@@ -37,6 +34,7 @@ function App() {
             <Route path="groups" element={<AdminGroups />} />
             <Route path="participants" element={<AdminParticipants />} />
             <Route path="logs" element={<AdminLogs />} />
+            <Route path="tournaments/create" element={<CreateTournament />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

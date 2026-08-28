@@ -8,34 +8,31 @@ import React, {
   useMemo,
 } from "react";
 import type { ReactNode } from "react";
-import type { User, LoginCredentials, RegisterData } from "../types/index";
-import { authApi } from "../services/api";
-
-// Token management constants
-const TOKEN_KEY = "code-arena-token";
-const USER_KEY = "code-arena-user";
+import type { User, LoginCredentials, RegisterData } from "../types";
+import { authApi } from "../services/authApi";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>; // FIXED
+  register: (data: RegisterData) => Promise<User>; // FIXED
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  isModerator: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const TOKEN_KEY = "code-arena-token";
+const USER_KEY = "code-arena-user";
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(() => {
-    // Initialize from localStorage for faster startup
     const storedUser = localStorage.getItem(USER_KEY);
     if (storedUser) {
       try {
@@ -49,30 +46,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize auth on mount
+  const clearAuthData = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const token = localStorage.getItem(TOKEN_KEY);
-
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        // Try to get user data
-        try {
-          const response = await authApi.me();
-          setUser(response.user);
-          localStorage.setItem(USER_KEY, JSON.stringify(response.user));
-          setError(null);
-        } catch {
-          // Token invalid, clear everything
-          clearAuthData();
-          setUser(null);
-        }
-      } catch (err) {
-        console.error("Auth initialization error:", err);
+        const response = await authApi.me();
+        setUser(response.user);
+        localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+        setError(null);
+      } catch {
         clearAuthData();
         setUser(null);
       } finally {
@@ -81,54 +73,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     };
 
     initAuth();
-  }, []);
+  }, [clearAuthData]);
 
-  // Clear all auth data
-  const clearAuthData = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  }, []);
+  const login = useCallback(
+    async (credentials: LoginCredentials): Promise<User> => {
+      // FIXED
+      try {
+        setError(null);
+        setLoading(true);
 
-  // Login
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    try {
-      setError(null);
-      setLoading(true);
+        const response = await authApi.login(credentials);
+        localStorage.setItem(TOKEN_KEY, response.token);
+        setUser(response.user);
+        localStorage.setItem(USER_KEY, JSON.stringify(response.user));
 
-      const response = await authApi.login(credentials);
+        return response.user; // FIXED
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Login failed. Please check your credentials.";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-      // Store token
-      localStorage.setItem(TOKEN_KEY, response.token);
-
-      // Store user data
-      setUser(response.user);
-      localStorage.setItem(USER_KEY, JSON.stringify(response.user));
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Login failed. Please check your credentials.";
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Register
-  const register = useCallback(async (data: RegisterData) => {
+  const register = useCallback(async (data: RegisterData): Promise<User> => {
+    // FIXED
     try {
       setError(null);
       setLoading(true);
 
       const response = await authApi.register(data);
-
-      // Store token
       localStorage.setItem(TOKEN_KEY, response.token);
-
-      // Store user data
       setUser(response.user);
       localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+
+      return response.user; // FIXED
     } catch (err) {
       const errorMessage =
         err instanceof Error
@@ -141,13 +126,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  // Logout
   const logout = useCallback(async () => {
     try {
       setLoading(true);
       await authApi.logout();
-    } catch (err) {
-      console.error("Logout error:", err);
+    } catch {
+      // Ignore logout request errors
     } finally {
       clearAuthData();
       setUser(null);
@@ -156,7 +140,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [clearAuthData]);
 
-  // Refresh user data
   const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
@@ -174,18 +157,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  // Clear error
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Memoized values - fixed to use correct role values
   const isAuthenticated = useMemo(() => !!user, [user]);
   const isAdmin = useMemo(() => user?.role === "ADMIN", [user]);
-  const isModerator = useMemo(
-    () => user?.role === "ADMIN",
-    [user],
-  );
 
   const contextValue = useMemo(
     () => ({
@@ -199,7 +176,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       clearError,
       isAuthenticated,
       isAdmin,
-      isModerator,
     }),
     [
       user,
@@ -212,7 +188,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       clearError,
       isAuthenticated,
       isAdmin,
-      isModerator,
     ],
   );
 
@@ -221,7 +196,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   );
 };
 
-// Custom hook with better error message
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {

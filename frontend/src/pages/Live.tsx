@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import {
   ExternalLink,
   Trophy,
-  Users,
+  // Users,
   Clock,
   Calendar,
-  ChevronDown,
-  ChevronUp,
-  Medal,
-  Star,
-  Award,
+  // ChevronDown,
+  // ChevronUp,
+  // Medal,
+  // Star,
+  // Award,
   TrendingUp,
   RefreshCw,
 } from "lucide-react";
@@ -89,7 +89,7 @@ export const Live = () => {
   const currentContest = contests.find((c) => c._id === selectedContestId);
   const isLive = currentContest?.status === "LIVE";
   const isFinished = currentContest?.status === "FINISHED";
-  const isUpcoming = currentContest?.status === "UPCOMING";
+  // const isUpcoming = currentContest?.status === "UPCOMING";
 
   const getStatusColor = () => {
     if (isLive) return "#FF6B6B";

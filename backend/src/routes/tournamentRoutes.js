@@ -1,48 +1,143 @@
-const express = require("express");
-
-const {
-  createTournament,
-  getTournaments,
-  getTournament,
-  startTournament,
-  getBracket,
-  getLeaderboard,
-  advanceGroupStage,
-  advanceQuarterFinal,
-  advanceSemiFinal,
-  completeTournament,
-} = require("../controllers/tournamentController");
-
-const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
+const express = require('express');
 
 const router = express.Router();
 
-router.post(
-  "/",
-  protect,
-  authorize("ADMIN"),
-  createTournament
+const tournamentController = require('../controllers/tournamentController');
+
+const {
+  authenticate,
+  authorize,
+} = require('../middleware/auth');
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC TOURNAMENT ROUTES
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /api/tournaments
+ * Get all tournaments
+ */
+router.get(
+  '/',
+  tournamentController.getTournaments
 );
 
-router.post(
-  "/:id/start",
-  protect,
-  authorize("ADMIN"),
-  startTournament
+/**
+ * GET /api/tournaments/:tournamentId/participants
+ * Get tournament participants
+ *
+ * IMPORTANT:
+ * This must come BEFORE /:id.
+ */
+router.get(
+  '/:tournamentId/participants',
+  tournamentController.getParticipants
 );
 
-router.post("/:id/advance/group-stage", protect, authorize("ADMIN"), advanceGroupStage);
-router.post("/:id/advance/quarter-final", protect, authorize("ADMIN"), advanceQuarterFinal);
-router.post("/:id/advance/semi-final", protect, authorize("ADMIN"), advanceSemiFinal);
-router.post("/:id/complete", protect, authorize("ADMIN"), completeTournament);
+/**
+ * GET /api/tournaments/:tournamentId/groups
+ * Get tournament groups
+ */
+router.get(
+  '/:tournamentId/groups',
+  tournamentController.getGroups
+);
 
-router.get("/", getTournaments);
+/**
+ * GET /api/tournaments/:tournamentId/bracket
+ * Get tournament bracket
+ */
+router.get(
+  '/:tournamentId/bracket',
+  tournamentController.getBracket
+);
 
-router.get("/:id", getTournament);
-router.get("/:id/bracket", getBracket);
-router.get("/:id/leaderboard", getLeaderboard);
+/**
+ * GET /api/tournaments/:tournamentId/leaderboard
+ * Get tournament leaderboard
+ */
+router.get(
+  '/:tournamentId/leaderboard',
+  tournamentController.getLeaderboard
+);
+
+/**
+ * GET /api/tournaments/:id
+ * Get single tournament
+ *
+ * Keep this AFTER the more specific routes above.
+ */
+router.get(
+  '/:id',
+  tournamentController.getTournament
+);
+
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATED PARTICIPANT ROUTES
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /api/tournaments/:tournamentId/join
+ * Join a tournament
+ */
+router.post(
+  '/:tournamentId/join',
+  authenticate,
+  tournamentController.joinTournament
+);
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN ROUTES
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /api/tournaments
+ * Create a new tournament (Admin only)
+ */
+router.post(
+  '/',
+  authenticate,
+  authorize('ADMIN'),
+  tournamentController.createTournament
+);
+
+/**
+ * POST /api/tournaments/:tournamentId/start
+ * Start tournament and generate Groups A-D
+ */
+router.post(
+  '/:tournamentId/start',
+  authenticate,
+  authorize('ADMIN'),
+  tournamentController.startTournament
+);
+
+/**
+ * POST /api/tournaments/:tournamentId/advance
+ * Advance tournament to the next stage.
+ *
+ * Body:
+ * {
+ *   "stage": "group-stage"
+ * }
+ *
+ * Supported:
+ * group-stage
+ * qf
+ * sf
+ * complete
+ */
+router.post(
+  '/:tournamentId/advance',
+  authenticate,
+  authorize('ADMIN'),
+  tournamentController.advanceTournament
+);
 
 module.exports = router;

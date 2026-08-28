@@ -7,7 +7,7 @@ import {
   LoadingState 
 } from '../../components/ui'
 import { 
-  Users, 
+  // Users, 
   RefreshCw,
   Star
 } from 'lucide-react'

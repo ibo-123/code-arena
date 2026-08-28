@@ -1,56 +1,63 @@
-const express = require("express");
-const cors = require("cors");
-const authRoutes = require("./routes/authRoutes");
+const express = require('express');
+const cors = require('cors');
+
+const authRoutes = require('./routes/authRoutes');
+const tournamentRoutes = require('./routes/tournamentRoutes');
+const contestRoutes = require('./routes/contestRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
+const adminRoutes = require('./routes/adminRoutes'); // Add this line
+
 const app = express();
-const participantRoutes = require("./routes/participantRoutes");
-// const { protect } = require("./middleware/authMiddleware");
-const tournamentRoutes = require("./routes/tournamentRoutes");
-const {
-  protect,
-  authorize,
-} = require("./middleware/authMiddleware");
-const contestRoutes = require("./routes/contestRoutes");
-const adminRoutes = require("./routes/adminRoutes");
+
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/tournaments/:tournamentId/contests", contestRoutes);
-app.use("/api/tournaments", participantRoutes);
-app.use("/api/tournaments", tournamentRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-// app.get(
-//   "/api/admin-test",
-//   protect,
-//   authorize("ADMIN"),
-//   (req, res) => {
-//     res.json({
-//       success: true,
-//       message: "Admin access granted",
-//       user: req.user,
-//     });
-//   }
-// );
-// app.get("/api/protected", protect, (req, res) => {
-//   res.json({
-//     success: true,
-//     message: "You can access this protected route",
-//     user: req.user,
-//   });
-// });
+/*
+|--------------------------------------------------------------------------
+| Health
+|--------------------------------------------------------------------------
+*/
 
-app.get("/", (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({
-    success: true,
-    message: "Code Arena API is running",
+    status: 'OK',
+    timestamp: new Date().toISOString(),
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "API is healthy",
-    database: "connected",
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
+app.use('/api/auth', authRoutes);
+
+app.use('/api/tournaments', tournamentRoutes);
+
+app.use('/api', contestRoutes);
+
+app.use('/api', auditLogRoutes);
+
+// Add admin routes - all admin endpoints are prefixed with /api/admin
+app.use('/api/admin', adminRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Error Handler
+|--------------------------------------------------------------------------
+*/
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+
+  res.status(500).json({
+    success: false,
+    message: 'Something went wrong',
+    error:
+      process.env.NODE_ENV === 'development'
+        ? err.message
+        : undefined,
   });
 });
 

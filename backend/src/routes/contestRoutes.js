@@ -1,21 +1,39 @@
-const express = require("express");
-const router = express.Router({ mergeParams: true });
-const { protect, authorize } = require("../middleware/authMiddleware");
-const {
-  getLeaderboard,
-  syncContestResults,
-  getContestResults,
-  createContest,
-  getContests,
-} = require("../controllers/contestController");
+const express = require('express');
+const router = express.Router();
+const contestController = require('../controllers/contestController');
+const { authenticate, authorize } = require('../middleware/auth');
 
 // Public routes
-router.get("/", getContests);
-router.get("/:contestId/leaderboard", getLeaderboard);
-router.get("/:contestId/results", getContestResults);
+router.get(
+  '/tournaments/:tournamentId/contests',
+  contestController.getContests
+);
+
+router.get(
+  '/tournaments/:tournamentId/contests/:contestId/leaderboard',
+  contestController.getLeaderboard
+);
 
 // Admin routes
-router.post("/", protect, authorize("ADMIN"), createContest);
-router.post("/:contestId/sync", protect, authorize("ADMIN"), syncContestResults);
+router.post(
+  '/admin/contests/validate/:contestId',
+  authenticate,
+  authorize('ADMIN'),
+  contestController.validateCodeforcesContest
+);
+
+router.post(
+  '/admin/tournaments/:tournamentId/contests',
+  authenticate,
+  authorize('ADMIN'),
+  contestController.publishContest
+);
+
+router.post(
+  '/admin/tournaments/:tournamentId/contests/:contestId/sync',
+  authenticate,
+  authorize('ADMIN'),
+  contestController.syncResults
+);
 
 module.exports = router;

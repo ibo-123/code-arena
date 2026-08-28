@@ -1,85 +1,303 @@
-const Contest = require("../models/Contest");
-const Tournament = require("../models/Tournament");
-const Match = require("../models/Match");
-const ContestResult = require("../models/ContestResult");
-const contestService = require("../services/contestService");
-const codeforcesService = require("../services/codeforcesService");
-const auditLogService = require("../services/auditLogService");
+const mongoose = require('mongoose');
+const Contest = require('../models/Contest');
+const Tournament = require('../models/Tournament');
+const Participant = require('../models/Participant');
+const Result = require('../models/Result');
+const AuditLog = require('../models/AuditLog');
+const codeforcesService = require('../services/codeforcesService');
 
-const belongsToTournament = async (tournamentId, contestId) => Contest.findOne({ _id: contestId, tournament: tournamentId });
-
-const createContest = async (req, res) => {
+exports.validateCodeforcesContest = async (req, res) => {
   try {
-    const { tournamentId } = req.params;
-    const { round, group, matchNumber, name, codeforcesContestId, codeforcesUrl, startTime, durationMinutes } = req.body;
-    const validRounds = ["GROUP_STAGE", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"];
-    if (!validRounds.includes(round) || !name || !codeforcesContestId || !codeforcesUrl || !startTime || !durationMinutes) {
-      return res.status(400).json({ success: false, message: "round, name, Codeforces details, startTime, and durationMinutes are required" });
+    const { contestId } = req.params;
+    if (!contestId) {
+      return res.status(400).json({ success: false, message: 'Contest ID is required' });
     }
-    if (Number(durationMinutes) <= 0 || Number.isNaN(new Date(startTime).getTime())) {
-      return res.status(400).json({ success: false, message: "Invalid startTime or durationMinutes" });
+
+    const id = parseInt(contestId, 10);
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid contest ID' });
     }
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
-    let match = null;
-    if (round === "GROUP_STAGE") {
-      if (!["A", "B", "C", "D"].includes(group)) return res.status(400).json({ success: false, message: "A valid group is required for group-stage contests" });
-    } else {
-      if (group) return res.status(400).json({ success: false, message: "Knockout contests cannot have a group" });
-      if (matchNumber === undefined || matchNumber === null || !Number.isInteger(Number(matchNumber)) || Number(matchNumber) < 1) return res.status(400).json({ success: false, message: "matchNumber is required for knockout contests" });
-      match = await Match.findOne({ tournament: tournamentId, round, matchNumber });
-      if (!match) return res.status(409).json({ success: false, message: "This matchup has not been created yet" });
-      if (match.contest) return res.status(409).json({ success: false, message: "A contest is already attached to this matchup" });
+
+    const result = await codeforcesService.validateContest(id);
+    if (!result.valid) {
+      return res.status(404).json({ success: false, message: result.error || 'Contest not found' });
     }
-    await codeforcesService.getContestStatus(Number(codeforcesContestId));
-    const contest = await Contest.create({ tournament: tournamentId, round, group: round === "GROUP_STAGE" ? group : null,
-      matchNumber: match ? Number(matchNumber) : null, match: match && match._id, name, codeforcesContestId: Number(codeforcesContestId), codeforcesUrl,
-      startTime: new Date(startTime), durationMinutes: Number(durationMinutes), status: "PUBLISHED" });
-    if (match) { match.contest = contest._id; await match.save(); }
-    await auditLogService.record({ action: "CONTEST_CREATED", description: `Attached Codeforces contest ${contest.codeforcesContestId}`, admin: req.user.userId, tournament: tournamentId, metadata: { contest: contest._id, round } });
-    return res.status(201).json({ success: true, contest });
+
+    return res.json({
+      success: true,
+      contest: {
+        id: result.contest.id,
+        name: result.contest.name,
+        type: result.contest.type,
+        phase: result.contest.phase,
+        startTime: new Date(result.contest.startTimeSeconds * 1000),
+        durationSeconds: result.contest.durationSeconds,
+        url: codeforcesService.formatContestUrl(result.contest.id),
+      },
+    });
   } catch (error) {
-    const status = error && error.code === 11000 ? 409 : error.message && error.message.includes("Codeforces") ? 400 : 500;
-    return res.status(status).json({ success: false, message: status === 500 ? "Server error" : error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to validate contest',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
   }
 };
 
-const getContests = async (req, res) => {
+exports.publishContest = async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.tournamentId);
-    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
-    const contests = await Contest.find({ tournament: tournament._id }).sort({ round: 1, group: 1, matchNumber: 1 });
-    await Promise.all(contests.map(contestService.updateContestStatus));
+    const { tournamentId } = req.params;
+    const { codeforcesContestId, stage, group, matchNumber } = req.body;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    if (!codeforcesContestId || !stage) {
+      return res.status(400).json({
+        success: false,
+        message: 'Codeforces contest ID and stage are required',
+      });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const validation = await codeforcesService.validateContest(codeforcesContestId);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.error || 'Invalid Codeforces contest',
+      });
+    }
+
+    const existing = await Contest.findOne({ tournamentId, codeforcesContestId });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'Contest already published to this tournament',
+      });
+    }
+
+    const contest = new Contest({
+      tournamentId,
+      codeforcesContestId: validation.contest.id,
+      codeforcesContestName: validation.contest.name,
+      codeforcesUrl: codeforcesService.formatContestUrl(validation.contest.id),
+      type: validation.contest.type,
+      phase: validation.contest.phase,
+      startTime: new Date(validation.contest.startTimeSeconds * 1000),
+      durationSeconds: validation.contest.durationSeconds,
+      stage,
+      group: stage === 'GROUP_STAGE' ? group : undefined,
+      matchNumber: stage !== 'GROUP_STAGE' ? matchNumber : undefined,
+      status: 'UPCOMING',
+      published: true,
+      publishedAt: new Date(),
+    });
+
+    await contest.save();
+
+    const auditLog = new AuditLog({
+      action: 'CONTEST_PUBLISHED',
+      description: `Published contest ${validation.contest.name} (${validation.contest.id})`,
+      admin: req.user?._id,
+      tournament: tournamentId,
+      details: { contestId: validation.contest.id, stage, group, matchNumber },
+    });
+    await auditLog.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Contest published successfully',
+      contest,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to publish contest',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+exports.getContests = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    const contests = await Contest.find({ tournamentId }).sort({ startTime: 1 }).lean();
     return res.json({ success: true, contests });
-  } catch (_) { return res.status(500).json({ success: false, message: "Server error" }); }
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get contests',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
 };
 
-const getLeaderboard = async (req, res) => {
+exports.syncResults = async (req, res) => {
   try {
-    const contest = await belongsToTournament(req.params.tournamentId, req.params.contestId);
-    if (!contest) return res.status(404).json({ success: false, message: "Contest not found" });
-    const leaderboard = await contestService.leaderboard(contest);
-    return res.json({ success: true, contest: { id: contest._id, name: contest.name, status: contest.status }, leaderboard, lastSyncedAt: new Date() });
-  } catch (error) { return res.status(502).json({ success: false, message: error.message || "Unable to load leaderboard" }); }
+    const { tournamentId, contestId } = req.params;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    if (!contestId || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid contest ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    const participants = await Participant.find({
+      tournamentId,
+      'user.codeforcesUsername': { $exists: true, $ne: '' },
+    }).populate('user');
+
+    if (participants.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No participants with Codeforces handles found',
+      });
+    }
+
+    const handles = participants
+      .map(p => p.user?.codeforcesUsername)
+      .filter(h => h && h.length > 0);
+
+    const standings = await codeforcesService.getContestStandings(
+      contest.codeforcesContestId,
+      handles
+    );
+
+    const handleMap = new Map();
+    participants.forEach(p => {
+      const handle = p.user?.codeforcesUsername;
+      if (handle) handleMap.set(handle.toUpperCase(), p);
+    });
+
+    let matched = 0;
+    let unmatched = 0;
+    let updated = 0;
+
+    for (const row of standings.rows) {
+      const member = row.party.members[0];
+      if (!member) continue;
+
+      const handle = member.handle.toUpperCase();
+      const participant = handleMap.get(handle);
+
+      if (!participant) {
+        unmatched++;
+        continue;
+      }
+
+      matched++;
+
+      const problemResults = row.problemResults.map((pr, index) => ({
+        problemIndex: standings.problems[index]?.index || String.fromCharCode(65 + index),
+        problemName: standings.problems[index]?.name || `Problem ${String.fromCharCode(65 + index)}`,
+        points: pr.points || 0,
+        solved: pr.points > 0,
+        wrongAttempts: pr.rejectedAttemptCount || 0,
+        bestSubmissionTime: pr.bestSubmissionTimeSeconds || undefined,
+      }));
+
+      const result = await Result.findOneAndUpdate(
+        { contestId, participantId: participant._id },
+        {
+          contestId,
+          tournamentId,
+          participantId: participant._id,
+          codeforcesHandle: handle,
+          rank: row.rank || 0,
+          points: row.points || 0,
+          penalty: row.penalty || 0,
+          solvedCount: row.problemResults.filter(pr => pr.points > 0).length,
+          problemResults,
+          syncedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+
+      if (result) updated++;
+    }
+
+    contest.lastSyncedAt = new Date();
+    contest.syncedCount += 1;
+    await contest.save();
+
+    const auditLog = new AuditLog({
+      action: 'RESULTS_SYNCED',
+      description: `Synced results for contest ${contest.codeforcesContestName}`,
+      admin: req.user?._id,
+      tournament: tournamentId,
+      details: { matched, unmatched, updated },
+    });
+    await auditLog.save();
+
+    return res.json({
+      success: true,
+      message: 'Results synchronized successfully',
+      stats: {
+        total: participants.length,
+        matched,
+        unmatched,
+        updated,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to sync results',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
 };
 
-const syncContestResults = async (req, res) => {
+exports.getLeaderboard = async (req, res) => {
   try {
-    const contest = await belongsToTournament(req.params.tournamentId, req.params.contestId);
-    if (!contest) return res.status(404).json({ success: false, message: "Contest not found" });
-    const { results, unmatchedHandles } = await contestService.syncResults(contest);
-    await auditLogService.record({ action: "CONTEST_SYNCED", description: `Synchronized ${results.length} contest results`, admin: req.user.userId, tournament: contest.tournament, metadata: { contest: contest._id, unmatchedHandles } });
-    return res.json({ success: true, message: "Contest results synchronized successfully", results, unmatchedHandles });
-  } catch (error) { return res.status(502).json({ success: false, message: error.message || "Unable to synchronize results" }); }
-};
+    const { tournamentId, contestId } = req.params;
 
-const getContestResults = async (req, res) => {
-  try {
-    const contest = await belongsToTournament(req.params.tournamentId, req.params.contestId);
-    if (!contest) return res.status(404).json({ success: false, message: "Contest not found" });
-    const results = await ContestResult.find({ contest: contest._id }).populate({ path: "participant", populate: { path: "user", select: "name username codeforcesUsername" } }).sort({ rank: 1 });
-    return res.json({ success: true, results });
-  } catch (_) { return res.status(500).json({ success: false, message: "Server error" }); }
-};
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
 
-module.exports = { createContest, getContests, getLeaderboard, syncContestResults, getContestResults };
+    if (!contestId || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid contest ID' });
+    }
+
+    const results = await Result.find({ contestId, tournamentId })
+      .populate('participantId', 'user group seed')
+      .sort({ rank: 1 })
+      .lean();
+
+    const leaderboard = results.map((r, index) => ({
+      rank: r.rank || index + 1,
+      participantId: r.participantId._id,
+      username: r.participantId?.user?.username || 'Unknown',
+      codeforcesUsername: r.codeforcesHandle,
+      group: r.participantId?.group,
+      solved: r.solvedCount,
+      score: r.points,
+      penalty: r.penalty,
+    }));
+
+    return res.json({ success: true, leaderboard });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get leaderboard',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
