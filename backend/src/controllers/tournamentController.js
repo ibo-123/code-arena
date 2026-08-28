@@ -704,8 +704,8 @@ const getLeaderboard = async (req, res) => {
         return penaltyA - penaltyB;
       }
 
-      return Number(a.latestResult?.participant?.seed || 9999) -
-        Number(b.latestResult?.participant?.seed || 9999);
+      return Number(a.seed || 9999) -
+        Number(b.seed || 9999);
     });
 
     leaderboard.forEach((entry, index) => {
