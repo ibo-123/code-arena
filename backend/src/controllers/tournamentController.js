@@ -1,6 +1,6 @@
 const Tournament = require("../models/Tournament");
 const Participant = require("../models/Participant");
-const ContestResult = require("../models/ContestResult");
+const Result = require("../models/Result");
 
 const advancementService = require("../services/advancementService");
 const tournamentService = require("../services/tournamentService");
