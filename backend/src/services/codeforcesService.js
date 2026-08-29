@@ -1,50 +1,68 @@
-const axios = require('axios');
-
 class CodeforcesService {
   constructor() {
     this.baseUrl = 'https://codeforces.com/api';
     this.timeout = 10000;
   }
 
+  buildQueryString(params) {
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null) continue;
+      searchParams.append(key, String(value));
+    }
+    const query = searchParams.toString();
+    return query ? `?${query}` : '';
+  }
+
   async request(endpoint, params = {}) {
     try {
-      const url = `${this.baseUrl}${endpoint}`;
-      const response = await axios.get(url, {
-        params,
-        timeout: this.timeout,
+      const url = `${this.baseUrl}${endpoint}${this.buildQueryString(params)}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        signal: controller.signal,
         headers: { 'Accept': 'application/json' },
       });
+      clearTimeout(timeoutId);
 
-      if (response.data.status === 'OK') {
-        return response.data.result;
+      const data = await response.json();
+
+      if (data.status === 'OK') {
+        return data.result;
       }
-      throw new Error(response.data.comment || 'Codeforces API error');
+      throw new Error(data.comment || 'Codeforces API error');
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNABORTED') {
-          throw new Error('Codeforces API request timed out');
-        }
-        if (error.response?.status === 404) {
-          throw new Error('Contest not found on Codeforces');
-        }
-        throw new Error(`Codeforces API error: ${error.message}`);
+      if (error.name === 'AbortError') {
+        throw new Error('Codeforces API request timed out');
       }
-      throw error;
+      if (error.message?.startsWith('Codeforces API error:')) {
+        throw error;
+      }
+      throw new Error(`Codeforces API error: ${error.message}`);
     }
   }
 
   async getContest(contestId) {
+    const id = Number(contestId);
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new Error('Invalid Codeforces contest ID');
+    }
     const contests = await this.request('/contest.list', { gym: false });
-    const contest = contests.find(c => c.id === contestId);
+    const contest = contests.find(c => c.id === id);
     if (!contest) {
-      throw new Error(`Contest ${contestId} not found on Codeforces`);
+      throw new Error(`Contest ${id} not found on Codeforces`);
     }
     return contest;
   }
 
   async getContestStandings(contestId, handles = null) {
+    const id = Number(contestId);
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new Error('Invalid Codeforces contest ID');
+    }
     const params = {
-      contestId,
+      contestId: id,
       asManager: false,
       showUnofficial: false,
     };
@@ -52,6 +70,11 @@ class CodeforcesService {
       params.handles = handles.join(';');
     }
     return this.request('/contest.standings', params);
+  }
+
+  async getContestStatus(contestId) {
+    const contest = await this.getContest(contestId);
+    return contest.phase;
   }
 
   async validateContest(contestId) {
