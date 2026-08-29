@@ -578,7 +578,7 @@ const getBracket = async (req, res) => {
  *
  * GET /api/tournaments/:id/leaderboard
  *
- * The leaderboard is based on the latest ContestResult
+ * The leaderboard is based on the latest Result
  * belonging to this tournament's participants.
  */
 const getLeaderboard = async (req, res) => {
