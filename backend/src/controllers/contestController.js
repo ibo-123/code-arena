@@ -192,7 +192,14 @@ exports.getResults = async (req, res) => {
       .sort({ rank: 1 })
       .lean();
 
-    return res.json({ success: true, count: results.length, results });
+    const normalized = results.map(r => ({
+      ...r,
+      participant: r.participantId,
+      score: r.points,
+      solved: r.solvedCount,
+    }));
+
+    return res.json({ success: true, count: normalized.length, results: normalized });
   } catch (error) {
     return res.status(500).json({
       success: false,
