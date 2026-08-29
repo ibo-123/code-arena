@@ -602,11 +602,11 @@ const getLeaderboard = async (req, res) => {
 
     const leaderboard = await Promise.all(
       participants.map(async (participant) => {
-        const latestResult = await ContestResult.findOne({
-          participant: participant._id,
+        const latestResult = await Result.findOne({
+          participantId: participant._id,
         })
           .sort({ syncedAt: -1 })
-          .populate("contest", "name round group tournament codeforcesContestId");
+          .populate("contestId", "name round group tournament codeforcesContestId");
 
         return {
           participantId: participant._id,
@@ -621,8 +621,8 @@ const getLeaderboard = async (req, res) => {
 
           rank: null,
           latestRank: latestResult?.rank ?? null,
-          solved: latestResult?.solved ?? 0,
-          score: latestResult?.score ?? 0,
+          solved: latestResult?.solvedCount ?? 0,
+          score: latestResult?.points ?? 0,
           penalty: latestResult?.penalty ?? 0,
 
           winRate:
