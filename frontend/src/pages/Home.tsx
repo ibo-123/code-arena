@@ -1,16 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  ArrowRight,
-  Trophy,
-  Users,
-  Calendar,
-  Clock,
-  Sparkles,
-  Crown,
-  Target,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, Trophy, Users, Calendar, Clock, Sparkles, Crown } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
@@ -87,7 +77,6 @@ export const Home = () => {
   const badgeTone = isCompleted ? "gold" : "blue";
   const statusLabel = tournament?.status || "REGISTRATION";
 
-  // Check if countdown is over (all zero)
   const isCountdownZero =
     timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0;
 
@@ -557,7 +546,7 @@ export const Home = () => {
             `}</style>
           </section>
 
-          {/* Reward Cards */}
+          {/* Reward Cards - FIXED: wrap content in div for hover events */}
           <section
             style={{
               display: "grid",
@@ -566,6 +555,7 @@ export const Home = () => {
               padding: "0 20px",
             }}
           >
+            {/* Card 1 - Trophy */}
             <Card
               style={{
                 padding: "32px",
@@ -577,62 +567,74 @@ export const Home = () => {
                 gap: "20px",
                 transition: "all 0.3s ease",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,215,0,0.08)";
-                e.currentTarget.style.transform = "translateY(-4px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,215,0,0.04)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
             >
+              {/* Hover wrapper div */}
               <div
-                style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "16px",
-                  background: "rgba(255,215,0,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                style={{ display: "contents", width: "100%" }}
+                onMouseEnter={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(255,215,0,0.08)";
+                    card.style.transform = "translateY(-4px)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(255,215,0,0.04)";
+                    card.style.transform = "translateY(0)";
+                  }
                 }}
               >
-                <Trophy size={32} color="#FFD700" />
-              </div>
-              <div>
-                <small
+                <div
                   style={{
-                    display: "block",
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.35)",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    marginBottom: "4px",
+                    width: "60px",
+                    height: "60px",
+                    borderRadius: "16px",
+                    background: "rgba(255,215,0,0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  Grand Prize
-                </small>
-                <strong
-                  style={{
-                    fontSize: "18px",
-                    color: "white",
-                    display: "block",
-                  }}
-                >
-                  Champion Crown
-                </strong>
-                <span
-                  style={{
-                    fontSize: "14px",
-                    color: "rgba(255,255,255,0.5)",
-                  }}
-                >
-                  One competitor earns the glory
-                </span>
+                  <Trophy size={32} color="#FFD700" />
+                </div>
+                <div>
+                  <small
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.35)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Grand Prize
+                  </small>
+                  <strong
+                    style={{
+                      fontSize: "18px",
+                      color: "white",
+                      display: "block",
+                    }}
+                  >
+                    Champion Crown
+                  </strong>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    One competitor earns the glory
+                  </span>
+                </div>
               </div>
             </Card>
 
+            {/* Card 2 - Users */}
             <Card
               style={{
                 padding: "32px",
@@ -644,62 +646,73 @@ export const Home = () => {
                 gap: "20px",
                 transition: "all 0.3s ease",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(41,121,255,0.08)";
-                e.currentTarget.style.transform = "translateY(-4px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(41,121,255,0.04)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
             >
               <div
-                style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "16px",
-                  background: "rgba(41,121,255,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                style={{ display: "contents", width: "100%" }}
+                onMouseEnter={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(41,121,255,0.08)";
+                    card.style.transform = "translateY(-4px)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(41,121,255,0.04)";
+                    card.style.transform = "translateY(0)";
+                  }
                 }}
               >
-                <Users size={32} color="#2979FF" />
-              </div>
-              <div>
-                <small
+                <div
                   style={{
-                    display: "block",
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.35)",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    marginBottom: "4px",
+                    width: "60px",
+                    height: "60px",
+                    borderRadius: "16px",
+                    background: "rgba(41,121,255,0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  Competitors
-                </small>
-                <strong
-                  style={{
-                    fontSize: "18px",
-                    color: "white",
-                    display: "block",
-                  }}
-                >
-                  20 Elite Coders
-                </strong>
-                <span
-                  style={{
-                    fontSize: "14px",
-                    color: "rgba(255,255,255,0.5)",
-                  }}
-                >
-                  One ultimate arena
-                </span>
+                  <Users size={32} color="#2979FF" />
+                </div>
+                <div>
+                  <small
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.35)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Competitors
+                  </small>
+                  <strong
+                    style={{
+                      fontSize: "18px",
+                      color: "white",
+                      display: "block",
+                    }}
+                  >
+                    20 Elite Coders
+                  </strong>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    One ultimate arena
+                  </span>
+                </div>
               </div>
             </Card>
 
+            {/* Card 3 - Crown */}
             <Card
               style={{
                 padding: "32px",
@@ -711,59 +724,69 @@ export const Home = () => {
                 gap: "20px",
                 transition: "all 0.3s ease",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(156,39,176,0.08)";
-                e.currentTarget.style.transform = "translateY(-4px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(156,39,176,0.04)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
             >
               <div
-                style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "16px",
-                  background: "rgba(156,39,176,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                style={{ display: "contents", width: "100%" }}
+                onMouseEnter={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(156,39,176,0.08)";
+                    card.style.transform = "translateY(-4px)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const card = e.currentTarget.closest("[data-card]") as HTMLElement;
+                  if (card) {
+                    card.style.background = "rgba(156,39,176,0.04)";
+                    card.style.transform = "translateY(0)";
+                  }
                 }}
               >
-                <Crown size={32} color="#9C27B0" />
-              </div>
-              <div>
-                <small
+                <div
                   style={{
-                    display: "block",
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.35)",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    marginBottom: "4px",
+                    width: "60px",
+                    height: "60px",
+                    borderRadius: "16px",
+                    background: "rgba(156,39,176,0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  Prize Pool
-                </small>
-                <strong
-                  style={{
-                    fontSize: "18px",
-                    color: "white",
-                    display: "block",
-                  }}
-                >
-                  $10,000 USD
-                </strong>
-                <span
-                  style={{
-                    fontSize: "14px",
-                    color: "rgba(255,255,255,0.5)",
-                  }}
-                >
-                  + Exclusive NFT Trophy
-                </span>
+                  <Crown size={32} color="#9C27B0" />
+                </div>
+                <div>
+                  <small
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.35)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Prize Pool
+                  </small>
+                  <strong
+                    style={{
+                      fontSize: "18px",
+                      color: "white",
+                      display: "block",
+                    }}
+                  >
+                    $10,000 USD
+                  </strong>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    + Exclusive NFT Trophy
+                  </span>
+                </div>
               </div>
             </Card>
           </section>
