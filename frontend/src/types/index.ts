@@ -1,4 +1,6 @@
+// ============================================================
 // User Types
+// ============================================================
 export interface User {
   _id: string;
   id?: string; // For backward compatibility
@@ -24,7 +26,9 @@ export interface RegisterData {
   codeforcesUsername?: string;
 }
 
-// Tournament Types
+// ============================================================
+// Tournament Types – FULLY UPDATED
+// ============================================================
 export type TournamentStatus = 'REGISTRATION' | 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL' | 'COMPLETED';
 export type TournamentStage = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL';
 
@@ -34,16 +38,29 @@ export interface Tournament {
   description: string;
   status: TournamentStatus;
   currentStage: TournamentStage;
-  currentRound?: string; // Alias for currentStage
+  currentRound?: string;          // alias for currentStage
   maxParticipants: number;
   participantCount?: number;
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: Date;               // ISO 8601 UTC
+  endDate?: Date;                 // ISO 8601 UTC
+
+  // ---------- Registration time fields ----------
+  registrationStart?: string;     // ISO 8601 UTC string
+  registrationEnd?: string;       // ISO 8601 UTC string
+
+  // ---------- Format & structure fields ----------
+  numberOfGroups?: number;        // e.g., 4
+  participantsPerGroup?: number;  // e.g., 5
+  qualifiersPerGroup?: number;    // e.g., 2
+  playoffFormat?: string;         // e.g., "SINGLE_ELIMINATION"
+
   createdAt: Date;
   updatedAt: Date;
 }
 
+// ============================================================
 // Participant Types
+// ============================================================
 export type ParticipantStatus = 'ACTIVE' | 'ELIMINATED' | 'ADVANCED' | 'CHAMPION';
 
 export interface Participant {
@@ -63,7 +80,9 @@ export interface Participant {
   updatedAt: Date;
 }
 
+// ============================================================
 // Contest Types
+// ============================================================
 export type ContestStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'CANCELLED';
 
 export interface Contest {
@@ -71,15 +90,15 @@ export interface Contest {
   tournamentId: string;
   codeforcesContestId: number;
   codeforcesContestName: string;
-  name?: string; // Alias for codeforcesContestName
+  name?: string;                  // alias for codeforcesContestName
   codeforcesUrl: string;
   type: string;
   phase: string;
   startTime: Date;
   durationSeconds: number;
-  durationMinutes?: number; // Computed from durationSeconds
+  durationMinutes?: number;       // computed from durationSeconds
   stage: TournamentStage;
-  round?: string; // Alias for stage
+  round?: string;                 // alias for stage
   group?: string;
   matchNumber?: number;
   status: ContestStatus;
@@ -91,7 +110,9 @@ export interface Contest {
   updatedAt: Date;
 }
 
+// ============================================================
 // Result Types
+// ============================================================
 export interface ProblemResult {
   problemIndex: string;
   problemName: string;
@@ -109,18 +130,31 @@ export interface Result {
   codeforcesHandle: string;
   rank: number;
   points: number;
+  score: number;                  // alias for points
   penalty: number;
   solvedCount: number;
+  solved: number;                 // alias for solvedCount
   problemResults: ProblemResult[];
   syncedAt: Date;
+  participant?: {
+    _id: string;
+    user?: {
+      username?: string;
+      name?: string;
+      codeforcesUsername?: string;
+    };
+    group?: string;
+  };
 }
 
+// ============================================================
 // Leaderboard Types
+// ============================================================
 export interface LeaderboardEntry {
   rank: number;
   participantId: string;
   username: string;
-  name?: string; // Alias for username
+  name?: string;                  // alias for username
   codeforcesUsername: string;
   group?: string;
   solved: number;
@@ -128,15 +162,18 @@ export interface LeaderboardEntry {
   penalty: number;
 }
 
+// ============================================================
 // Bracket Types
+// ============================================================
 export interface Match {
   matchNumber: number;
   participants: Participant[];
   winner?: Participant;
+  contest?: Contest;
   status: 'PENDING' | 'LIVE' | 'COMPLETED';
 }
 
-export interface BracketMatch extends Match {}
+export type BracketMatch = Match;
 
 export interface Bracket {
   tournamentId: string;
@@ -147,19 +184,23 @@ export interface Bracket {
   champion?: Participant;
 }
 
+// ============================================================
 // Audit Log Types
+// ============================================================
 export interface AuditLog {
   _id: string;
   action: string;
   description: string;
   admin: User;
   tournament?: string;
-  details: any;
+  details: unknown;
   createdAt: Date;
 }
 
+// ============================================================
 // API Response Types
-export interface ApiResponse<T = any> {
+// ============================================================
+export interface ApiResponse<T = unknown> {
   success: boolean;
   message?: string;
   data?: T;

@@ -1,6 +1,6 @@
 const Tournament = require("../models/Tournament");
 const Participant = require("../models/Participant");
-const ContestResult = require("../models/ContestResult");
+const Result = require("../models/Result");
 
 const advancementService = require("../services/advancementService");
 const tournamentService = require("../services/tournamentService");
@@ -20,6 +20,7 @@ const getAuthenticatedUserId = (req) => {
  *
  * POST /api/tournaments
  */
+
 const createTournament = async (req, res) => {
   try {
     const {
@@ -46,7 +47,6 @@ const createTournament = async (req, res) => {
       'tournamentEnd',
       'maxParticipants',
       'numberOfGroups',
-      'participantsPerGroup',
       'qualifiersPerGroup',
       'groupContests',
       'playoffFormat'
@@ -138,7 +138,6 @@ const createTournament = async (req, res) => {
     // Numeric validations
     const maxParticipantsNum = Number(maxParticipants);
     const numberOfGroupsNum = Number(numberOfGroups);
-    const participantsPerGroupNum = Number(participantsPerGroup);
     const qualifiersPerGroupNum = Number(qualifiersPerGroup);
     const groupContestsNum = Number(groupContests);
 
@@ -163,7 +162,11 @@ const createTournament = async (req, res) => {
       });
     }
 
-    const calculatedParticipantsPerGroup = maxParticipantsNum / numberOfGroupsNum;
+    const calculatedParticipantsPerGroup = numberOfGroupsNum > 0 ? maxParticipantsNum / numberOfGroupsNum : 0;
+    const participantsPerGroupNum = participantsPerGroup !== undefined && participantsPerGroup !== null && participantsPerGroup !== '' 
+      ? Number(participantsPerGroup) 
+      : calculatedParticipantsPerGroup;
+
     if (participantsPerGroupNum !== calculatedParticipantsPerGroup) {
       errors.push({
         field: 'participantsPerGroup',
@@ -296,10 +299,19 @@ const getTournaments = async (req, res) => {
       .populate("createdBy", "name username")
       .sort({ createdAt: -1 });
 
+    const tournamentsWithCount = await Promise.all(
+      tournaments.map(async (t) => {
+        const count = await Participant.countDocuments({ tournamentId: t._id });
+        const obj = t.toObject();
+        obj.participantCount = count;
+        return obj;
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      count: tournaments.length,
-      tournaments,
+      count: tournamentsWithCount.length,
+      tournaments: tournamentsWithCount,
     });
   } catch (error) {
     console.error("Get tournaments error:", error);
@@ -328,9 +340,16 @@ const getTournament = async (req, res) => {
       });
     }
 
+    const participantCount = await Participant.countDocuments({
+      tournamentId: tournament._id,
+    });
+
+    const tournamentObj = tournament.toObject();
+    tournamentObj.participantCount = participantCount;
+
     return res.status(200).json({
       success: true,
-      tournament,
+      tournament: tournamentObj,
     });
   } catch (error) {
     console.error("Get tournament error:", error);
@@ -358,13 +377,20 @@ const getTournament = async (req, res) => {
  */
 const joinTournament = async (req, res) => {
   try {
-    const tournamentId = req.params.id;
+    const tournamentId = req.params.tournamentId || req.params.id;
     const userId = getAuthenticatedUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
         message: "Authentication required",
+      });
+    }
+
+    if (req.user && req.user.role !== "PARTICIPANT") {
+      return res.status(403).json({
+        success: false,
+        message: "Only participants can join a tournament",
       });
     }
 
@@ -377,28 +403,65 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    if (tournament.status !== "REGISTRATION") {
+    const now = new Date();
+
+    const registrationStart = tournament.registrationStart
+      ? new Date(tournament.registrationStart)
+      : null;
+
+    const registrationEnd = tournament.registrationEnd
+      ? new Date(tournament.registrationEnd)
+      : null;
+
+    const tournamentStart = tournament.startDate
+      ? new Date(tournament.startDate)
+      : null;
+
+    console.log("JOIN TOURNAMENT DEBUG:", {
+      tournamentId,
+      now: now.toISOString(),
+      registrationStart: registrationStart?.toISOString(),
+      registrationEnd: registrationEnd?.toISOString(),
+      tournamentStart: tournamentStart?.toISOString(),
+      status: tournament.status,
+    });
+
+    if (registrationStart && now < registrationStart) {
       return res.status(400).json({
         success: false,
-        message: "Tournament is not accepting participants",
+        message: "Tournament registration has not started yet",
+      });
+    }
+
+    if (registrationEnd && now >= registrationEnd) {
+      return res.status(400).json({
+        success: false,
+        message: "Tournament registration has ended",
+      });
+    }
+
+    if (tournamentStart && now >= tournamentStart) {
+      return res.status(400).json({
+        success: false,
+        message: "Tournament has already started",
       });
     }
 
     const existingParticipant = await Participant.findOne({
-      tournament: tournamentId,
+      tournamentId,
       user: userId,
     });
 
     if (existingParticipant) {
       return res.status(409).json({
         success: false,
-        message: "You have already joined this tournament",
+        message: "Already registered",
         participant: existingParticipant,
       });
     }
 
     const participantCount = await Participant.countDocuments({
-      tournament: tournamentId,
+      tournamentId,
     });
 
     const maxParticipants = tournament.maxParticipants || 20;
@@ -406,14 +469,14 @@ const joinTournament = async (req, res) => {
     if (participantCount >= maxParticipants) {
       return res.status(400).json({
         success: false,
-        message: "Tournament is full",
+        message: "Tournament full",
       });
     }
 
     const participant = await Participant.create({
-      tournament: tournamentId,
+      tournamentId,
       user: userId,
-      status: "REGISTERED",
+      status: "ACTIVE",
       currentRound: "REGISTRATION",
     });
 
@@ -423,12 +486,19 @@ const joinTournament = async (req, res) => {
       participant,
     });
   } catch (error) {
-    console.error("Join tournament error:", error);
+    console.error("joinTournament error:", error);
 
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "You have already joined this tournament",
+        message: "Already registered",
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid tournament ID",
       });
     }
 
@@ -471,7 +541,7 @@ const startTournament = async (req, res) => {
     }
 
     const participants = await Participant.find({
-      tournament: tournamentId,
+      tournamentId: tournamentId,
     });
 
     const requiredParticipants = tournament.maxParticipants || 20;
@@ -550,7 +620,12 @@ const startTournament = async (req, res) => {
  */
 const getBracket = async (req, res) => {
   try {
-    const bracket = await tournamentService.getBracket(req.params.id);
+    const { tournamentId } = req.params;
+
+    console.log("========== GET BRACKET ==========");
+    console.log("tournamentId:", tournamentId);
+
+    const bracket = await tournamentService.getBracket(tournamentId);
 
     return res.status(200).json({
       success: true,
@@ -566,6 +641,13 @@ const getBracket = async (req, res) => {
       });
     }
 
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid tournament ID",
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -578,7 +660,7 @@ const getBracket = async (req, res) => {
  *
  * GET /api/tournaments/:id/leaderboard
  *
- * The leaderboard is based on the latest ContestResult
+ * The leaderboard is based on the latest Result
  * belonging to this tournament's participants.
  */
 const getLeaderboard = async (req, res) => {
@@ -595,29 +677,34 @@ const getLeaderboard = async (req, res) => {
     }
 
     const participants = await Participant.find({
-      tournament: tournamentId,
+      tournamentId: tournamentId,
     })
       .populate("user", "name username codeforcesUsername")
       .sort({ seed: 1 });
 
     const leaderboard = await Promise.all(
       participants.map(async (participant) => {
-        const latestResult = await ContestResult.findOne({
-          participant: participant._id,
+        const latestResult = await Result.findOne({
+          participantId: participant._id,
         })
           .sort({ syncedAt: -1 })
-          .populate("contest", "name round group tournament codeforcesContestId");
+          .populate("contestId", "name round group tournament codeforcesContestId");
 
         return {
-          participant,
+          participantId: participant._id,
+          username: participant.user?.username || participant.user?.name || 'Unknown',
+          name: participant.user?.name,
+          codeforcesUsername: participant.user?.codeforcesUsername || '',
           group: participant.group || null,
+          seed: participant.seed || 9999,
           groupRank: null,
           currentRound: participant.currentRound || null,
           status: participant.status || null,
 
+          rank: null,
           latestRank: latestResult?.rank ?? null,
-          solved: latestResult?.solved ?? 0,
-          score: latestResult?.score ?? 0,
+          solved: latestResult?.solvedCount ?? 0,
+          score: latestResult?.points ?? 0,
           penalty: latestResult?.penalty ?? 0,
 
           winRate:
@@ -699,12 +786,12 @@ const getLeaderboard = async (req, res) => {
         return penaltyA - penaltyB;
       }
 
-      return Number(a.participant?.seed || 9999) -
-        Number(b.participant?.seed || 9999);
+      return Number(a.seed || 9999) -
+        Number(b.seed || 9999);
     });
 
     leaderboard.forEach((entry, index) => {
-      entry.overallRank = index + 1;
+      entry.rank = index + 1;
     });
 
     return res.status(200).json({
@@ -973,7 +1060,7 @@ const getParticipants = async (req, res) => {
     }
 
     const participants = await Participant.find({
-      tournament: tournamentId,
+      tournamentId: tournamentId,
     })
       .populate(
         'user',
@@ -1018,7 +1105,7 @@ const getGroups = async (req, res) => {
     }
 
     const participants = await Participant.find({
-      tournament: tournamentId,
+      tournamentId: tournamentId,
     })
       .populate(
         'user',

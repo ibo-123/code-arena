@@ -1,5 +1,5 @@
 import apiClient from './api';
-import type { Tournament, Participant, Bracket } from '../types/index';
+import type { Tournament, Participant, Bracket, LeaderboardEntry } from '../types/index';
 import type { CreateTournamentPayload } from '../types/tournament';
 
 export const tournamentApi = {
@@ -28,13 +28,23 @@ export const tournamentApi = {
     return response.data;
   },
 
-  async start(tournamentId: string): Promise<any> {
+  async leaderboard(tournamentId: string): Promise<{ leaderboard: LeaderboardEntry[] }> {
+    const response = await apiClient.get(`/tournaments/${tournamentId}/leaderboard`);
+    return response.data;
+  },
+
+  async start(tournamentId: string): Promise<{ success: boolean; message: string }> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/start`);
     return response.data;
   },
 
-  async advance(tournamentId: string, stage: string): Promise<any> {
+  async advance(tournamentId: string, stage: string): Promise<{ success: boolean; message: string }> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance`, { stage });
+    return response.data;
+  },
+
+  async join(tournamentId: string): Promise<{ success: boolean; message: string; participant: Participant }> {
+    const response = await apiClient.post(`/tournaments/${tournamentId}/join`);
     return response.data;
   },
 

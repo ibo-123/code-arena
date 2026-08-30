@@ -33,7 +33,8 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    setIsMobileMenuOpen(false);
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    closeMobileMenu();
   }, [location.pathname]);
 
   const handleLogout = async () => {

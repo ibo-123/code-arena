@@ -5,6 +5,39 @@ import type { AuditLog, Tournament, Participant } from '../types';
 // ADMIN API TYPES
 // ============================================
 
+export interface AdminActionResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ValidateContestResponse {
+  success: boolean;
+  contest?: {
+    id: number;
+    name: string;
+    phase: string;
+    startTimeSeconds?: number;
+    durationSeconds?: number;
+  };
+  message?: string;
+}
+
+export interface ContestListResponse {
+  success: boolean;
+  count: number;
+  contests: import('../types').Contest[];
+}
+
+export interface LeaderboardResponse {
+  success: boolean;
+  leaderboard: import('../types').LeaderboardEntry[];
+}
+
+export interface GroupsResponse {
+  success: boolean;
+  groups: Record<string, import('../types').Participant[]>;
+}
+
 export interface AdminStats {
   totalTournaments: number;
   totalParticipants: number;
@@ -78,7 +111,7 @@ export const adminApi = {
    * POST /api/admin/tournaments
    * Create a new tournament
    */
-  async createTournament(data: any): Promise<TournamentCreateResponse> {
+  async createTournament(data: Record<string, unknown>): Promise<TournamentCreateResponse> {
     const response = await apiClient.post('/admin/tournaments', data);
     return response.data;
   },
@@ -87,7 +120,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/start
    * Start tournament and generate groups
    */
-  async startTournament(tournamentId: string): Promise<any> {
+  async startTournament(tournamentId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/start`);
     return response.data;
   },
@@ -97,7 +130,7 @@ export const adminApi = {
    * Advance tournament to the next stage
    * @param stage - 'group-stage' | 'qf' | 'sf' | 'complete'
    */
-  async advanceTournament(tournamentId: string, stage: string): Promise<any> {
+  async advanceTournament(tournamentId: string, stage: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance`, { stage });
     return response.data;
   },
@@ -106,7 +139,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/advance/group-stage
    * Advance group stage to quarter finals
    */
-  async advanceGroupStage(tournamentId: string): Promise<any> {
+  async advanceGroupStage(tournamentId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance/group-stage`);
     return response.data;
   },
@@ -115,7 +148,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/advance/qf
    * Advance quarter finals to semi finals
    */
-  async advanceQuarterFinal(tournamentId: string): Promise<any> {
+  async advanceQuarterFinal(tournamentId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance/qf`);
     return response.data;
   },
@@ -124,7 +157,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/advance/sf
    * Advance semi finals to final
    */
-  async advanceSemiFinal(tournamentId: string): Promise<any> {
+  async advanceSemiFinal(tournamentId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance/sf`);
     return response.data;
   },
@@ -133,7 +166,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/advance/complete
    * Complete tournament and crown champion
    */
-  async completeTournament(tournamentId: string): Promise<any> {
+  async completeTournament(tournamentId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/advance/complete`);
     return response.data;
   },
@@ -146,7 +179,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/contests/validate/:contestId
    * Validate a Codeforces contest
    */
-  async validateContest(tournamentId: string, contestId: string | number): Promise<any> {
+  async validateContest(tournamentId: string, contestId: string | number): Promise<ValidateContestResponse> {
     const response = await apiClient.post(
       `/admin/tournaments/${tournamentId}/contests/validate/${contestId}`
     );
@@ -165,7 +198,7 @@ export const adminApi = {
       group?: string;
       matchNumber?: number;
     }
-  ): Promise<any> {
+  ): Promise<AdminActionResponse> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/contests`, data);
     return response.data;
   },
@@ -174,7 +207,7 @@ export const adminApi = {
    * GET /api/admin/tournaments/:tournamentId/contests
    * Get all contests for a tournament
    */
-  async getContests(tournamentId: string): Promise<any> {
+  async getContests(tournamentId: string): Promise<ContestListResponse> {
     const response = await apiClient.get(`/admin/tournaments/${tournamentId}/contests`);
     return response.data;
   },
@@ -183,7 +216,7 @@ export const adminApi = {
    * POST /api/admin/tournaments/:tournamentId/contests/:contestId/sync
    * Sync results for a contest
    */
-  async syncContestResults(tournamentId: string, contestId: string): Promise<any> {
+  async syncContestResults(tournamentId: string, contestId: string): Promise<AdminActionResponse> {
     const response = await apiClient.post(
       `/admin/tournaments/${tournamentId}/contests/${contestId}/sync`
     );
@@ -194,7 +227,7 @@ export const adminApi = {
    * GET /api/admin/tournaments/:tournamentId/contests/:contestId/leaderboard
    * Get leaderboard for a specific contest
    */
-  async getContestLeaderboard(tournamentId: string, contestId: string): Promise<any> {
+  async getContestLeaderboard(tournamentId: string, contestId: string): Promise<LeaderboardResponse> {
     const response = await apiClient.get(
       `/admin/tournaments/${tournamentId}/contests/${contestId}/leaderboard`
     );
@@ -218,7 +251,7 @@ export const adminApi = {
    * GET /api/admin/tournaments/:tournamentId/groups
    * Get groups for a tournament
    */
-  async getGroups(tournamentId: string): Promise<any> {
+  async getGroups(tournamentId: string): Promise<GroupsResponse> {
     const response = await apiClient.get(`/admin/tournaments/${tournamentId}/groups`);
     return response.data;
   },
@@ -233,9 +266,9 @@ export const adminApi = {
    */
   async dashboardStats(): Promise<AdminStats> {
     try {
-      const response = await apiClient.get('/admin/dashboard/stats');
+      const response = await apiClient.get('/admin/stats');
       return response.data;
-    } catch (error) {
+    } catch {
       // Fallback: return default stats if endpoint doesn't exist yet
       console.warn('Dashboard stats endpoint not available, using fallback');
       return {

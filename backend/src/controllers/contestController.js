@@ -141,6 +141,74 @@ exports.getContests = async (req, res) => {
   }
 };
 
+exports.getContest = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    if (!contestId || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid contest ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId }).lean();
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    return res.json({ success: true, contest });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get contest',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+exports.getResults = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    if (!contestId || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid contest ID' });
+    }
+
+    const results = await Result.find({ contestId, tournamentId })
+      .populate({
+        path: 'participantId',
+        select: 'group seed user',
+        populate: {
+          path: 'user',
+          select: 'name username codeforcesUsername',
+        },
+      })
+      .sort({ rank: 1 })
+      .lean();
+
+    const normalized = results.map(r => ({
+      ...r,
+      participant: r.participantId,
+      score: r.points,
+      solved: r.solvedCount,
+    }));
+
+    return res.json({ success: true, count: normalized.length, results: normalized });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get results',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 exports.syncResults = async (req, res) => {
   try {
     const { tournamentId, contestId } = req.params;
@@ -158,10 +226,10 @@ exports.syncResults = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Contest not found' });
     }
 
-    const participants = await Participant.find({
-      tournamentId,
-      'user.codeforcesUsername': { $exists: true, $ne: '' },
-    }).populate('user');
+    const allParticipants = await Participant.find({ tournamentId }).populate('user');
+    const participants = allParticipants.filter(
+      (p) => p.user && p.user.codeforcesUsername && p.user.codeforcesUsername.trim() !== ''
+    );
 
     if (participants.length === 0) {
       return res.status(400).json({
@@ -188,9 +256,12 @@ exports.syncResults = async (req, res) => {
     let matched = 0;
     let unmatched = 0;
     let updated = 0;
+    const syncedResultsList = [];
+    const unmatchedHandlesList = [];
 
-    for (const row of standings.rows) {
-      const member = row.party.members[0];
+    const standingsRows = standings?.rows || [];
+    for (const row of standingsRows) {
+      const member = row.party?.members?.[0];
       if (!member) continue;
 
       const handle = member.handle.toUpperCase();
@@ -198,14 +269,15 @@ exports.syncResults = async (req, res) => {
 
       if (!participant) {
         unmatched++;
+        unmatchedHandlesList.push(member.handle);
         continue;
       }
 
       matched++;
 
-      const problemResults = row.problemResults.map((pr, index) => ({
-        problemIndex: standings.problems[index]?.index || String.fromCharCode(65 + index),
-        problemName: standings.problems[index]?.name || `Problem ${String.fromCharCode(65 + index)}`,
+      const problemResults = (row.problemResults || []).map((pr, index) => ({
+        problemIndex: standings.problems?.[index]?.index || String.fromCharCode(65 + index),
+        problemName: standings.problems?.[index]?.name || `Problem ${String.fromCharCode(65 + index)}`,
         points: pr.points || 0,
         solved: pr.points > 0,
         wrongAttempts: pr.rejectedAttemptCount || 0,
@@ -222,14 +294,17 @@ exports.syncResults = async (req, res) => {
           rank: row.rank || 0,
           points: row.points || 0,
           penalty: row.penalty || 0,
-          solvedCount: row.problemResults.filter(pr => pr.points > 0).length,
+          solvedCount: (row.problemResults || []).filter(pr => pr.points > 0).length,
           problemResults,
           syncedAt: new Date(),
         },
         { upsert: true, new: true }
       );
 
-      if (result) updated++;
+      if (result) {
+        updated++;
+        syncedResultsList.push(result);
+      }
     }
 
     contest.lastSyncedAt = new Date();
@@ -254,6 +329,8 @@ exports.syncResults = async (req, res) => {
         unmatched,
         updated,
       },
+      results: syncedResultsList,
+      unmatchedHandles: unmatchedHandlesList,
     });
   } catch (error) {
     return res.status(500).json({

@@ -29,7 +29,11 @@ export const AdminContests = () => {
   };
 
   useEffect(() => {
-    fetchTournament();
+    let isMounted = true;
+    (async () => {
+      if (isMounted) await fetchTournament();
+    })();
+    return () => { isMounted = false; };
   }, []);
 
   const handleRefresh = async () => {

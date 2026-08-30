@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   User,
   Lock,
@@ -23,6 +23,9 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const redirectUrl = location.state?.from?.pathname || searchParams.get("redirect") || "/dashboard";
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -38,7 +41,7 @@ export const Login = () => {
       if (user.role === "ADMIN") {
         navigate("/admin");
       } else {
-        navigate("/dashboard");
+        navigate(redirectUrl);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

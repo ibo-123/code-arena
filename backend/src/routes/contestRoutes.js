@@ -10,8 +10,18 @@ router.get(
 );
 
 router.get(
+  '/tournaments/:tournamentId/contests/:contestId',
+  contestController.getContest
+);
+
+router.get(
   '/tournaments/:tournamentId/contests/:contestId/leaderboard',
   contestController.getLeaderboard
+);
+
+router.get(
+  '/tournaments/:tournamentId/contests/:contestId/results',
+  contestController.getResults
 );
 
 // Admin routes

@@ -66,7 +66,8 @@ export const Live = () => {
   useEffect(() => {
     if (!tournament || !selectedContestId) return;
     let isMounted = true;
-    setLeaderboardLoading(true);
+    const startLoading = () => setLeaderboardLoading(true);
+    startLoading();
     contestApi
       .leaderboard(tournament._id, selectedContestId)
       .then(({ leaderboard: rows }) => {

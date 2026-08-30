@@ -15,10 +15,16 @@ const protect = (req, res, next) => {
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET || 'your-secret-key'
     );
 
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      _id: decoded.userId || decoded._id || decoded.id,
+      id: decoded.userId || decoded._id || decoded.id,
+      userId: decoded.userId || decoded._id || decoded.id,
+      role: decoded.role || 'PARTICIPANT',
+    };
 
     next();
   } catch (error) {

@@ -3,10 +3,18 @@ const Match = require("../models/Match");
 const Tournament = require("../models/Tournament");
 
 const getBracket = async (tournamentId) => {
-  const tournament = await Tournament.findById(tournamentId);
+   console.log("========== GET BRACKET ==========");
+   console.log("tournamentId:", tournamentId);
+   console.log("type:", typeof tournamentId);
+   const tournament = await Tournament.findById(tournamentId);
+
+  // const tournament = await Tournament.findById(tournamentId);
+
+  console.log("tournament found:", !!tournament);
+  
   if (!tournament) throw new Error("Tournament not found");
   const [participants, matches] = await Promise.all([
-    Participant.find({ tournament: tournamentId }).populate("user", "name username codeforcesUsername").sort({ seed: 1 }),
+    Participant.find({ tournamentId: tournamentId }).populate("user", "name username codeforcesUsername").sort({ seed: 1 }),
     Match.find({ tournament: tournamentId }).populate({ path: "participants", populate: { path: "user", select: "name username codeforcesUsername" } }).populate("contest", "name status codeforcesUrl").populate({ path: "winner", populate: { path: "user", select: "name username" } }).sort({ round: 1, matchNumber: 1 }),
   ]);
   const bracket = { groupStage: { A: [], B: [], C: [], D: [] }, quarterFinal: [], semiFinal: [], final: null, champion: participants.find((participant) => participant.status === "CHAMPION") || null };

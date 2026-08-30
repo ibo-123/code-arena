@@ -49,7 +49,8 @@ export const AdminParticipants = () => {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
+    const startLoading = () => setLoading(true);
+    startLoading();
     fetchParticipants()
       .catch((err) => {
         if (isMounted) setError(err.message);
@@ -99,8 +100,8 @@ export const AdminParticipants = () => {
       return matchesSearch && matchesStatus && matchesGroup;
     })
     .sort((a, b) => {
-      let aVal: any = a[sortField as keyof Participant];
-      let bVal: any = b[sortField as keyof Participant];
+      let aVal: unknown = a[sortField as keyof Participant];
+      let bVal: unknown = b[sortField as keyof Participant];
 
       if (sortField === "user.name") {
         aVal = a.user?.name || "";
@@ -108,19 +109,25 @@ export const AdminParticipants = () => {
       } else if (sortField === "user.username") {
         aVal = a.user?.username || "";
         bVal = b.user?.username || "";
+      } else if (sortField === "user.codeforcesUsername") {
+        aVal = a.user?.codeforcesUsername || "";
+        bVal = b.user?.codeforcesUsername || "";
       }
 
       if (aVal === undefined || aVal === null) aVal = "";
       if (bVal === undefined || bVal === null) bVal = "";
 
-      if (typeof aVal === "string") {
+      if (typeof aVal === "string" || typeof bVal === "string") {
+        const strA = String(aVal);
+        const strB = String(bVal);
         return sortDirection === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+          ? strA.localeCompare(strB)
+          : strB.localeCompare(strA);
       }
-      return sortDirection === "asc"
-        ? (aVal as number) - (bVal as number)
-        : (bVal as number) - (aVal as number);
+
+      const numA = Number(aVal) || 0;
+      const numB = Number(bVal) || 0;
+      return sortDirection === "asc" ? numA - numB : numB - numA;
     });
 
   const totalParticipants = participants.length;
@@ -522,9 +529,9 @@ export const AdminParticipants = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredParticipants.length ? (
-                filteredParticipants.map((p, index) => {
-                  const isChampion = p.status === "CHAMPION";
+                {filteredParticipants.length ? (
+                  filteredParticipants.map((p) => {
+                    const isChampion = p.status === "CHAMPION";
                   const isEliminated = p.status === "ELIMINATED";
                   const isTopSeed = p.seed && p.seed <= 3;
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "success";
@@ -12,56 +12,100 @@ export const Button: React.FC<ButtonProps> = ({
   size = "md",
   loading = false,
   children,
-  className = "",
   disabled,
+  style,
   ...props
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+
+  // ---- Variant style maps ----
   const variantStyles = {
-    primary: "bg-blue-600 hover:bg-blue-700 text-white",
-    secondary: "bg-gray-600 hover:bg-gray-700 text-white",
-    danger: "bg-red-600 hover:bg-red-700 text-white",
-    success: "bg-green-600 hover:bg-green-700 text-white",
+    primary: {
+      background: isHovered
+        ? "linear-gradient(135deg, #1565C0, #0D47A1)"
+        : "linear-gradient(135deg, #2979FF, #1565C0)",
+      color: "#FFFFFF",
+      border: "none",
+    },
+    secondary: {
+      background: isHovered ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)",
+      color: "#FFFFFF",
+      border: "1px solid rgba(255,255,255,0.15)",
+    },
+    danger: {
+      background: isHovered
+        ? "linear-gradient(135deg, #C62828, #B71C1C)"
+        : "linear-gradient(135deg, #F44336, #D32F2F)",
+      color: "#FFFFFF",
+      border: "none",
+    },
+    success: {
+      background: isHovered
+        ? "linear-gradient(135deg, #2E7D32, #1B5E20)"
+        : "linear-gradient(135deg, #4CAF50, #388E3C)",
+      color: "#FFFFFF",
+      border: "none",
+    },
   };
 
+  // ---- Size style maps ----
   const sizeStyles = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2 text-base",
-    lg: "px-6 py-3 text-lg",
+    sm: { padding: "6px 12px", fontSize: "13px" },
+    md: { padding: "10px 20px", fontSize: "15px" },
+    lg: { padding: "14px 28px", fontSize: "17px" },
   };
 
+  // ---- Common button styles ----
+  const baseStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    borderRadius: "10px",
+    fontWeight: "600",
+    cursor: disabled || loading ? "not-allowed" : "pointer",
+    opacity: disabled || loading ? 0.5 : 1,
+    transition: "all 0.2s ease",
+    outline: "none",
+    ...(isActive && { transform: "scale(0.97)" }),
+    ...sizeStyles[size],
+    ...variantStyles[variant],
+    ...style, // allow custom overrides
+  };
+
+  // ---- Render ----
   return (
     <button
-      className={`rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      style={baseStyles}
       disabled={disabled || loading}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsActive(false);
+      }}
+      onMouseDown={() => setIsActive(true)}
+      onMouseUp={() => setIsActive(false)}
       {...props}
     >
       {loading ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-          }}
-        >
+        <>
           <span
-            className="spinner"
             style={{
               display: "inline-block",
               width: "16px",
               height: "16px",
               border: "2px solid rgba(255,255,255,0.3)",
-              borderTop: "2px solid white",
+              borderTop: `2px solid ${variant === "secondary" ? "#64B5F6" : "#FFFFFF"}`,
               borderRadius: "50%",
               animation: "spin 0.8s linear infinite",
             }}
           />
           {typeof children === "string" ? children : "Loading..."}
-        </div>
+        </>
       ) : (
         children
       )}
-
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -72,5 +116,4 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-// ✅ Add default export
 export default Button;

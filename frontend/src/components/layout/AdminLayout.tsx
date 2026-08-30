@@ -42,7 +42,8 @@ export const AdminLayout: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    setIsMobileSidebarOpen(false);
+    const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
+    closeMobileSidebar();
   }, [location.pathname]);
 
   const handleLogout = async () => {

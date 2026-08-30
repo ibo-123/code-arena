@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { adminApi, contestApi } from '../services/api';
 import type { AuditLog } from '../services/adminApi';
 import type { Contest, Tournament } from '../types';
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState } from './ui';
+import { Badge, Card, EmptyState, ErrorState, LoadingState } from './ui';
 import { 
   Plus, 
   RefreshCw, 
@@ -81,14 +81,10 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
     
     try {
       await contestApi.create(tournament._id, {
-        name: String(form.get('name')),
-        round,
+        codeforcesContestId: Number(form.get('codeforcesContestId')),
+        stage: round,
         group: round === 'GROUP_STAGE' ? String(form.get('group')) : undefined,
         matchNumber: round === 'GROUP_STAGE' ? undefined : Number(matchNumber),
-        codeforcesContestId: Number(form.get('codeforcesContestId')),
-        codeforcesUrl: String(form.get('codeforcesUrl')),
-        startTime: String(form.get('startTime')),
-        durationMinutes: Number(form.get('durationMinutes')),
       });
       event.currentTarget.reset();
       setNotice('Contest attached successfully.');
@@ -106,7 +102,9 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
     setError('');
     try {
       const result = await contestApi.sync(tournament._id, contest._id);
-      setNotice(`Synchronized ${result.results?.length || 0} results; ${result.unmatchedHandles?.length || 0} unmatched handles.`);
+      const syncedCount = result.results?.length ?? result.stats?.matched ?? 0;
+      const unmatchedCount = result.unmatchedHandles?.length ?? result.stats?.unmatched ?? 0;
+      setNotice(`Synchronized ${syncedCount} results; ${unmatchedCount} unmatched handles.`);
       refreshContests();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to synchronize results');
@@ -557,8 +555,8 @@ export const AdminLogs = ({ tournamentId }: { tournamentId: string }) => {
 
   useEffect(() => {
     let isMounted = true;
-    adminApi.logs(tournamentId)
-      .then(({ logs: rows }) => { if (isMounted) setLogs(rows); })
+    adminApi.logs({ tournamentId })
+      .then(({ logs: rows }) => { if (isMounted) setLogs(rows || []); })
       .catch((err: Error) => { if (isMounted) setError(err.message); })
       .finally(() => { if (isMounted) setLoading(false); });
     return () => { isMounted = false; };

@@ -55,7 +55,8 @@ export const AdminResults = () => {
     setNotice('')
     try {
       const res = await contestApi.sync(tournament._id, selectedContestId)
-      setNotice(`Synchronized ${res.results.length} results. Unmatched handles: ${res.unmatchedHandles?.length || 0}.`)
+      const stats = res.stats || { matched: 0, unmatched: 0 }
+      setNotice(`Synchronized ${stats.matched || 0} results. Unmatched handles: ${stats.unmatched || 0}.`)
       loadResults()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed')

@@ -19,7 +19,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
-import type { Bracket, Tournament } from "../../types";
+import type { Bracket, BracketMatch, Participant, Tournament } from "../../types";
 
 export const AdminBracket = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -306,7 +306,7 @@ export const AdminBracket = () => {
             </div>
             <button
               disabled={busy}
-              onClick={() => advanceStage(currentAdvanceOption.action as any)}
+              onClick={() => advanceStage(currentAdvanceOption.action as "group-stage" | "quarter-final" | "semi-final" | "complete")}
               style={{
                 padding: "12px 24px",
                 borderRadius: "12px",
@@ -348,8 +348,7 @@ export const AdminBracket = () => {
           onToggle={() => toggleStage("GROUP_STAGE")}
         >
           {bracket?.groupStage &&
-          Array.isArray(bracket.groupStage) &&
-          bracket.groupStage.length > 0 ? (
+          Object.keys(bracket.groupStage).length > 0 ? (
             <div
               style={{
                 display: "flex",
@@ -357,8 +356,8 @@ export const AdminBracket = () => {
                 gap: "12px",
               }}
             >
-              {(bracket.groupStage as any[][]).map(
-                (group: any[], idx: number) => (
+              {(Object.entries(bracket.groupStage) as [string, Participant[]][]).map(
+                ([groupKey, group]: [string, Participant[]], idx: number) => (
                   <div
                     key={idx}
                     style={{
@@ -376,9 +375,9 @@ export const AdminBracket = () => {
                         marginBottom: "8px",
                       }}
                     >
-                      Group {String.fromCharCode(65 + idx)}
+                      Group {groupKey}
                     </div>
-                    {group.map((participant: any) => (
+                    {group.map((participant: Participant) => (
                       <div
                         key={participant._id}
                         style={{
@@ -577,7 +576,7 @@ const StageSection: React.FC<StageSectionProps> = ({
 };
 
 interface MatchCardProps {
-  match: any;
+  match: BracketMatch;
   isFinal?: boolean;
 }
 
@@ -643,7 +642,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, isFinal }) => {
         )}
       </div>
       {match.participants &&
-        match.participants.map((p: any) => {
+        match.participants.map((p: Participant) => {
           const isWinner = match.winner?._id === p._id;
           return (
             <div

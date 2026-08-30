@@ -41,16 +41,19 @@ const CreateTournament: React.FC = () => {
     const max = Number(formData.maxParticipants);
     const groups = Number(formData.numberOfGroups);
 
-    if (max > 0 && groups > 0 && max % groups === 0) {
-      const calculated = max / groups;
-      setCalculatedParticipantsPerGroup(calculated);
-      setFormData((prev) => ({
-        ...prev,
-        participantsPerGroup: calculated,
-      }));
-    } else {
-      setCalculatedParticipantsPerGroup(null);
-    }
+    const updateCalculation = () => {
+      if (max > 0 && groups > 0 && max % groups === 0) {
+        const calculated = max / groups;
+        setCalculatedParticipantsPerGroup(calculated);
+        setFormData((prev) => ({
+          ...prev,
+          participantsPerGroup: calculated,
+        }));
+      } else {
+        setCalculatedParticipantsPerGroup(null);
+      }
+    };
+    updateCalculation();
   }, [formData.maxParticipants, formData.numberOfGroups]);
 
   const handleChange = (
@@ -125,14 +128,15 @@ const CreateTournament: React.FC = () => {
       setTimeout(() => {
         navigate("/admin/tournaments");
       }, 1500);
-    } catch (err: any) {
-      if (err.response?.data?.errors) {
-        const errorMessages = err.response.data.errors
-          .map((e: any) => `${e.field}: ${e.message}`)
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { errors?: { field: string; message: string }[]; message?: string } } };
+      if (axiosErr.response?.data?.errors) {
+        const errorMessages = axiosErr.response.data.errors
+          .map((e) => `${e.field}: ${e.message}`)
           .join(", ");
         setError(errorMessages);
-      } else if (err.response?.data?.message) {
-        setError(err.response.data.message);
+      } else if (axiosErr.response?.data?.message) {
+        setError(axiosErr.response.data.message);
       } else {
         setError("Failed to create tournament. Please try again.");
       }

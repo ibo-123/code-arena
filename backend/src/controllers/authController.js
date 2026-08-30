@@ -4,9 +4,9 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 // const User = require('../models/User');
 // Helper function to generate JWT
-const generateToken = (userId) => {
+const generateToken = (userId, role = 'PARTICIPANT') => {
   return jwt.sign(
-    { userId },
+    { userId, role, id: userId },
     process.env.JWT_SECRET || 'your-secret-key',
     { expiresIn: '7d' }
   );
@@ -41,13 +41,13 @@ const register = async (req, res) => {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
     const user = new User({
       username: username.toLowerCase(),
       email: email.toLowerCase(),
-      password: hashedPassword,
+      password: password,
       name,
       codeforcesUsername: codeforcesUsername || '',
       role: 'PARTICIPANT'
@@ -56,7 +56,7 @@ const register = async (req, res) => {
     await user.save();
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     // Create audit log
     const auditLog = new AuditLog({
@@ -138,7 +138,7 @@ if (!isValidPassword) {
   });
 }
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     // Create audit log
     const auditLog = new AuditLog({

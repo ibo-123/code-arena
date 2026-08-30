@@ -27,7 +27,8 @@ export const AdminLogs = () => {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
+    const startLoading = () => setLoading(true);
+    startLoading();
     fetchTournament()
       .catch((err) => {
         if (isMounted) setError(err.message);

@@ -24,9 +24,12 @@ export const ContestDetails = () => {
       .then(({ tournaments }) => {
         const t = tournaments[0]
         if (!t) throw new Error('No tournament found')
-        return contestApi.leaderboard(t._id, contestId)
+        return Promise.all([
+          contestApi.get(t._id, contestId),
+          contestApi.leaderboard(t._id, contestId),
+        ])
       })
-      .then(({ contest: detail, leaderboard: rows }) => {
+      .then(([{ contest: detail }, { leaderboard: rows }]) => {
         setContest(detail)
         setLeaderboard(rows)
       })

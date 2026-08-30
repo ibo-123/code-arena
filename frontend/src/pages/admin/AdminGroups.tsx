@@ -35,7 +35,8 @@ export const AdminGroups = () => {
 
   useEffect(() => {
     let isMounted = true
-    setLoading(true)
+    const startLoading = () => setLoading(true)
+    startLoading()
     fetchGroups()
       .catch((err) => { if (isMounted) setError(err.message) })
       .finally(() => { if (isMounted) setLoading(false) })

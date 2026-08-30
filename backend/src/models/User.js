@@ -38,6 +38,7 @@
         trim: true,
         index: true,
         sparse: true,
+        unique : false,
       },
     },
     {

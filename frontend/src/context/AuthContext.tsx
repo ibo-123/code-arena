@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             ? err.message
             : "Login failed. Please check your credentials.";
         setError(errorMessage);
-        throw new Error(errorMessage);
+        throw new Error(errorMessage, { cause: err });
       } finally {
         setLoading(false);
       }
@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           ? err.message
           : "Registration failed. Please try again.";
       setError(errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       const errorMessage =
         err instanceof Error ? err.message : "Failed to refresh user data";
       setError(errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     } finally {
       setLoading(false);
     }
