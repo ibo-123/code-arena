@@ -20,6 +20,7 @@ router.use(authorize('ADMIN'));
 // TOURNAMENT MANAGEMENT
 // ============================================
 router.post('/tournaments', tournamentController.createTournament);
+router.patch('/tournaments/:tournamentId', tournamentController.updateTournament);
 router.post('/tournaments/:tournamentId/start', tournamentController.startTournament);
 router.post('/tournaments/:tournamentId/advance', tournamentController.advanceTournament);
 
@@ -50,5 +51,11 @@ router.patch('/matches/:matchId', matchController.updateMatchResult);
 router.get('/stats', adminController.getAdminStats);
 router.get('/audit-logs', auditLogController.getAuditLogs);
 router.get('/health', (req, res) => res.json({ success: true, message: 'Admin API is healthy' }));
+
+// ============================================
+// ADMIN SETTINGS
+// ============================================
+router.get('/settings', adminController.getAdminSettings);
+router.patch('/settings', adminController.updateAdminSettings);
 
 module.exports = router;

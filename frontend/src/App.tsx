@@ -23,6 +23,7 @@ import { AdminParticipants } from "./pages/admin/AdminParticipants";
 import { AdminLogs } from "./pages/admin/AdminLogs";
 import { AdminResults } from "./pages/admin/AdminResults";
 import CreateTournament from "./pages/admin/CreateTournament";
+import EditTournament from "./pages/admin/EditTournament";
 
 function App() {
   return (
@@ -58,6 +59,7 @@ function App() {
               <Route path="logs" element={<AdminLogs />} />
               <Route path="results" element={<AdminResults />} />
               <Route path="tournaments/create" element={<CreateTournament />} />
+              <Route path="tournaments/:id/edit" element={<EditTournament />} />
             </Route>
           </Route>
 

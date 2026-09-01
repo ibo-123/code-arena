@@ -22,6 +22,7 @@ import type { Tournament, Participant } from "../../types";
 export const AdminDashboard = () => {
   const navigate = useNavigate();
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -32,14 +33,10 @@ export const AdminDashboard = () => {
   const loadMetrics = async () => {
     if (!tournament) return;
     try {
-      const { participants: data } = await tournamentApi.participants(
-        tournament._id,
-      );
+      const { participants: data } = await tournamentApi.participants(tournament._id);
       setParticipants(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load participants",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load participants");
     }
   };
 
@@ -47,16 +44,20 @@ export const AdminDashboard = () => {
     let isMounted = true;
     tournamentApi
       .list()
-      .then(({ tournaments }) => {
-        const t = tournaments[0] || null;
-        if (isMounted) setTournament(t);
-        if (t) {
-          return tournamentApi.participants(t._id);
+      .then(({ tournaments: allTournaments }) => {
+        if (!isMounted) return;
+        setTournaments(allTournaments);
+        const selected = allTournaments[0] || null;
+        setTournament(selected);
+        if (selected) {
+          return tournamentApi.participants(selected._id);
         }
-        return { participants: [] };
+        return Promise.resolve({ participants: [] });
       })
-      .then(({ participants }) => {
-        if (isMounted) setParticipants(participants);
+      .then((result: any) => {
+        if (isMounted && result?.participants) {
+          setParticipants(result.participants);
+        }
       })
       .catch((err: Error) => {
         if (isMounted) setError(err.message);
@@ -69,10 +70,7 @@ export const AdminDashboard = () => {
     };
   }, []);
 
-  const handleAction = async (
-    action: () => Promise<unknown>,
-    successMsg: string,
-  ) => {
+  const handleAction = async (action: () => Promise<unknown>, successMsg: string) => {
     setBusy(true);
     setError("");
     setNotice("");
@@ -95,9 +93,7 @@ export const AdminDashboard = () => {
       const { tournaments } = await tournamentApi.list();
       setTournament(tournaments[0] || null);
       if (tournaments[0]) {
-        const { participants: data } = await tournamentApi.participants(
-          tournaments[0]._id,
-        );
+        const { participants: data } = await tournamentApi.participants(tournaments[0]._id);
         setParticipants(data);
       }
     } catch (err) {
@@ -121,8 +117,7 @@ export const AdminDashboard = () => {
     .sort((a, b) => (a.rank || 999) - (b.rank || 999));
 
   const totalScore = participants.reduce((sum, p) => sum + (p.score || 0), 0);
-  const avgScore =
-    participantCount > 0 ? Math.round(totalScore / participantCount) : 0;
+  const avgScore = participantCount > 0 ? Math.round(totalScore / participantCount) : 0;
 
   return (
     <div style={{ padding: "24px 0" }}>
@@ -404,9 +399,7 @@ export const AdminDashboard = () => {
               {participantCount} of {maxParticipants} spots filled
             </div>
           </div>
-          <Badge
-            tone={progress >= 100 ? "gold" : progress >= 75 ? "green" : "blue"}
-          >
+          <Badge tone={progress >= 100 ? "gold" : progress >= 75 ? "green" : "blue"}>
             {progress}%
           </Badge>
         </div>
@@ -577,8 +570,8 @@ export const AdminDashboard = () => {
             marginBottom: "20px",
           }}
         >
-          Manage tournament progression through group stage draw, knockout
-          quarter-finals, semi-finals, and grand final completion.
+          Manage tournament progression through group stage draw, knockout quarter-finals,
+          semi-finals, and grand final completion.
         </p>
 
         {tournament ? (
@@ -626,8 +619,7 @@ export const AdminDashboard = () => {
                 disabled={busy}
                 onClick={() =>
                   handleAction(
-                    () =>
-                      tournamentApi.advance(tournament._id, "quarter-final"),
+                    () => tournamentApi.advance(tournament._id, "quarter-final"),
                     "Advanced QF winners to Semi-Finals!",
                   )
                 }
@@ -729,6 +721,64 @@ export const AdminDashboard = () => {
         )}
       </Card>
 
+      {tournaments.length > 0 && (
+        <div
+          style={{
+            marginBottom: "24px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <label
+            style={{
+              color: "rgba(255,255,255,0.7)",
+              fontSize: "14px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Switch Tournament:
+          </label>
+          <select
+            value={tournament?._id || ""}
+            onChange={async (event) => {
+              const selectedId = event.target.value;
+              const selectedTournament =
+                tournaments.find((item) => item._id === selectedId) || null;
+              setTournament(selectedTournament);
+
+              if (!selectedTournament) {
+                setParticipants([]);
+                return;
+              }
+
+              try {
+                const { participants: data } = await tournamentApi.participants(
+                  selectedTournament._id,
+                );
+                setParticipants(data);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Failed to load participants");
+              }
+            }}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "white",
+              minWidth: "220px",
+            }}
+          >
+            {tournaments.map((item) => (
+              <option key={item._id} value={item._id} style={{ color: "#0a0e1a" }}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -739,11 +789,7 @@ export const AdminDashboard = () => {
   );
 };
 
-const actionButtonStyle = (
-  busy: boolean,
-  color: string,
-  isFinal: boolean = false,
-) => ({
+const actionButtonStyle = (busy: boolean, color: string, isFinal: boolean = false) => ({
   padding: "12px 24px",
   borderRadius: "12px",
   background: busy

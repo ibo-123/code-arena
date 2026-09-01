@@ -9,9 +9,6 @@ import {
   ArrowRight,
   ShieldAlert,
   PlayCircle,
-  MapPin,
-  Target,
-  Zap,
 } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
@@ -23,6 +20,22 @@ import { useAuth } from "../context/AuthContext";
 import { tournamentApi } from "../services/tournamentApi";
 import type { Tournament, Participant } from "../types";
 import { AxiosError } from "axios";
+
+// ----- Helper to display dates in Ethiopia time (EAT, UTC+3) -----
+const formatEAT = (date: string | Date | undefined, fallback: string = "TBD") => {
+  if (!date) return fallback;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return fallback;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Africa/Addis_Ababa",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+};
 
 export const TournamentDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,14 +56,15 @@ export const TournamentDetails = () => {
 
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
+  // --- Real‑time clock (updates every second) ---
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(interval);
   }, []);
 
+  // --- Fetch tournament details ---
   useEffect(() => {
     const fetchDetails = async () => {
       if (!id) return;
@@ -83,6 +97,7 @@ export const TournamentDetails = () => {
     fetchDetails();
   }, [id, isAuthenticated, user]);
 
+  // --- Join tournament ---
   const handleRegister = async () => {
     if (!isAuthenticated) {
       navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`);
@@ -116,14 +131,15 @@ export const TournamentDetails = () => {
   if (error) return <ErrorState error={error} />;
   if (!tournament) return <ErrorState error="Tournament not found" />;
 
-  // ---------- Time‑based state computation ----------
+  // ---------- Time‑based logic using canonical fields ----------
   const now = currentTime;
 
+  // Use canonical fields (registrationStart/End, tournamentStart/End)
   const registrationStart = tournament.registrationStart
     ? new Date(tournament.registrationStart)
     : null;
   const registrationEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null;
-  const tournamentStart = tournament.startDate ? new Date(tournament.startDate) : null;
+  const tournamentStart = tournament.tournamentStart ? new Date(tournament.tournamentStart) : null;
 
   const hasTournamentStarted = tournamentStart !== null && now >= tournamentStart;
 
@@ -145,12 +161,7 @@ export const TournamentDetails = () => {
   const isFull = participantCount >= maxParticipants;
   const isRegistered = !!participant;
 
-  const getDate = (date: string | Date | undefined, fallback: string = "TBD") => {
-    if (!date) return fallback;
-    return new Date(date).toLocaleString();
-  };
-
-  // Countdown until registration opens (if not started)
+  // Countdown helper (uses tournamentStart)
   const getCountdown = (target: Date | null) => {
     if (!target) return null;
     const diff = target.getTime() - now.getTime();
@@ -164,7 +175,7 @@ export const TournamentDetails = () => {
   const registrationCountdown = isRegistrationNotStarted ? getCountdown(registrationStart) : null;
   const tournamentCountdown = hasTournamentStarted ? null : getCountdown(tournamentStart);
 
-  // Determine status display
+  // Status badge
   const getStatusBadge = () => {
     if (hasTournamentStarted) return { tone: "gold", label: "LIVE" };
     if (isRegistrationOpen) return { tone: "blue", label: "REGISTRATION OPEN" };
@@ -348,11 +359,21 @@ export const TournamentDetails = () => {
                     <p
                       style={{
                         color: "rgba(255,255,255,0.5)",
+                        margin: "0 0 12px 0",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Group:{" "}
+                      <strong>{participant?.group ? `Group ${participant.group}` : "—"}</strong>
+                    </p>
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
                         margin: "0 0 28px 0",
                         fontSize: "14px",
                       }}
                     >
-                      Your group and seed will be assigned when the tournament starts.
+                      Seed: <strong>#{participant?.seed || "—"}</strong>
                     </p>
                     <Button
                       onClick={() => setRegisterSuccess(false)}
@@ -496,7 +517,7 @@ export const TournamentDetails = () => {
                           </span>
                         )}
                         <span style={{ color: "rgba(255,255,255,0.5)" }}>
-                          Opens: {getDate(tournament.registrationStart)}
+                          Opens: {formatEAT(tournament.registrationStart)}
                         </span>
                         <Button disabled variant="secondary" size="lg">
                           Registration Closed
@@ -641,7 +662,7 @@ export const TournamentDetails = () => {
               </div>
             </Card>
 
-            {/* Schedule Card */}
+            {/* Schedule Card – using canonical fields and EAT formatting */}
             <Card
               style={{
                 padding: "24px",
@@ -662,7 +683,9 @@ export const TournamentDetails = () => {
                 <Calendar size={22} color="#64B5F6" />
                 <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Schedule</h3>
               </div>
+
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {/* Registration Opens */}
                 <div
                   style={{
                     display: "flex",
@@ -676,9 +699,11 @@ export const TournamentDetails = () => {
                     Registration Opens
                   </span>
                   <span style={{ fontWeight: "500", textAlign: "right", fontSize: "14px" }}>
-                    {getDate(tournament.registrationStart)}
+                    {formatEAT(tournament.registrationStart)}
                   </span>
                 </div>
+
+                {/* Registration Closes */}
                 <div
                   style={{
                     display: "flex",
@@ -692,9 +717,11 @@ export const TournamentDetails = () => {
                     Registration Closes
                   </span>
                   <span style={{ fontWeight: "500", textAlign: "right", fontSize: "14px" }}>
-                    {getDate(tournament.registrationEnd)}
+                    {formatEAT(tournament.registrationEnd)}
                   </span>
                 </div>
+
+                {/* ✅ Tournament Starts – canonical `tournamentStart` */}
                 <div
                   style={{
                     display: "flex",
@@ -709,25 +736,39 @@ export const TournamentDetails = () => {
                   </span>
                   <span
                     style={{
-                      fontWeight: "500",
+                      fontWeight: "600",
                       textAlign: "right",
                       fontSize: "14px",
                       color: "#FFD700",
                     }}
                   >
-                    {getDate(tournament.startDate)}
+                    {formatEAT(tournament.tournamentStart)}
                   </span>
                 </div>
+
+                {/* ✅ Tournament Ends – canonical `tournamentEnd` */}
                 <div
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
                 >
                   <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
                     Tournament Ends
                   </span>
-                  <span style={{ fontWeight: "500", textAlign: "right", fontSize: "14px" }}>
-                    {getDate(tournament.endDate)}
+                  <span
+                    style={{
+                      fontWeight: "500",
+                      textAlign: "right",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {formatEAT(tournament.tournamentEnd)}
                   </span>
                 </div>
+
+                {/* Countdown to tournament start */}
                 {tournamentCountdown && !hasTournamentStarted && (
                   <div
                     style={{
@@ -758,7 +799,7 @@ export const TournamentDetails = () => {
               </div>
             </Card>
 
-            {/* Format Card */}
+            {/* Format Card (unchanged) */}
             <Card
               style={{
                 padding: "24px",

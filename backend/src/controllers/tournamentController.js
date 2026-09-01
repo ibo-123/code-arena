@@ -1,7 +1,7 @@
 const Tournament = require("../models/Tournament");
 const Participant = require("../models/Participant");
 const Result = require("../models/Result");
-
+const mongoose = require('mongoose');
 const advancementService = require("../services/advancementService");
 const tournamentService = require("../services/tournamentService");
 const auditLogService = require("../services/auditLogService");
@@ -289,6 +289,177 @@ const createTournament = async (req, res) => {
 };
 
 /**
+ * VALIDATE TOURNAMENT PAYLOAD
+ * Helper function to validate tournament update data
+ */
+const validateTournamentPayload = (payload, existingTournament = null) => {
+  const errors = [];
+
+  // Name validation
+  if (payload.name !== undefined) {
+    if (!payload.name || !String(payload.name).trim()) {
+      errors.push({ field: 'name', message: 'Tournament name is required' });
+    }
+  }
+
+  // Date validations
+  if (payload.registrationStart || payload.registrationEnd || payload.tournamentStart || payload.tournamentEnd) {
+    const regStart = payload.registrationStart ? new Date(payload.registrationStart) : (existingTournament ? new Date(existingTournament.registrationStart) : null);
+    const regEnd = payload.registrationEnd ? new Date(payload.registrationEnd) : (existingTournament ? new Date(existingTournament.registrationEnd) : null);
+    const tournStart = payload.tournamentStart ? new Date(payload.tournamentStart) : (existingTournament ? new Date(existingTournament.tournamentStart) : null);
+    const tournEnd = payload.tournamentEnd ? new Date(payload.tournamentEnd) : (existingTournament ? new Date(existingTournament.tournamentEnd) : null);
+
+    if (regStart && regEnd && regStart >= regEnd) {
+      errors.push({ field: 'registrationEnd', message: 'Registration end must be after registration start' });
+    }
+
+    if (regEnd && tournStart && regEnd > tournStart) {
+      errors.push({ field: 'tournamentStart', message: 'Tournament start must be after registration end' });
+    }
+
+    if (tournStart && tournEnd && tournStart >= tournEnd) {
+      errors.push({ field: 'tournamentEnd', message: 'Tournament end must be after tournament start' });
+    }
+  }
+
+  // Divisibility check
+  if (payload.maxParticipants !== undefined || payload.numberOfGroups !== undefined) {
+    const maxPart = payload.maxParticipants !== undefined ? payload.maxParticipants : (existingTournament?.maxParticipants || 20);
+    const numGroups = payload.numberOfGroups !== undefined ? payload.numberOfGroups : (existingTournament?.numberOfGroups || 4);
+
+    if (maxPart > 0 && numGroups > 0 && maxPart % numGroups !== 0) {
+      errors.push({ field: 'maxParticipants', message: 'Maximum participants must be divisible by number of groups' });
+    }
+  }
+
+  // Qualifiers validation
+  if (payload.qualifiersPerGroup !== undefined || payload.maxParticipants !== undefined || payload.numberOfGroups !== undefined) {
+    const qualif = payload.qualifiersPerGroup !== undefined ? payload.qualifiersPerGroup : (existingTournament?.qualifiersPerGroup || 2);
+    const maxPart = payload.maxParticipants !== undefined ? payload.maxParticipants : (existingTournament?.maxParticipants || 20);
+    const numGroups = payload.numberOfGroups !== undefined ? payload.numberOfGroups : (existingTournament?.numberOfGroups || 4);
+    const partPerGroup = maxPart / numGroups;
+
+    if (qualif >= partPerGroup) {
+      errors.push({ field: 'qualifiersPerGroup', message: 'Qualifiers per group must be less than participants per group' });
+    }
+  }
+
+  return errors;
+};
+
+/**
+ * UPDATE TOURNAMENT
+ * PATCH /api/tournaments/:tournamentId
+ * PATCH /api/admin/tournaments/:tournamentId
+ */
+const updateTournament = async (req, res) => {
+  try {
+    const { tournamentId: id } = req.params;
+    const { id: paramId } = req.params;
+    const tournamentId = id || paramId;
+
+    if (!tournamentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tournament ID is required'
+      });
+    }
+
+    // Verify tournament exists
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    // Blocked: Cannot edit tournament after GROUP_STAGE has started
+    const blockedStatuses = ['GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL', 'COMPLETED'];
+    if (blockedStatuses.includes(tournament.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot edit tournament after ${tournament.status} has started`
+      });
+    }
+
+    // Validate payload
+    const errors = validateTournamentPayload(req.body, tournament);
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+
+    // Check participant count constraints
+    if (req.body.maxParticipants !== undefined) {
+      const participantCount = await Participant.countDocuments({
+        tournament: tournamentId
+      });
+
+      if (req.body.maxParticipants < participantCount) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot reduce maximum participants below current count (${participantCount})`
+        });
+      }
+    }
+
+    // Update fields
+    const updateFields = {};
+    const allowedFields = [
+      'name', 'description', 'registrationStart', 'registrationEnd',
+      'tournamentStart', 'tournamentEnd', 'maxParticipants', 'numberOfGroups',
+      'qualifiersPerGroup', 'playoffFormat'
+    ];
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateFields[field] = req.body[field];
+      }
+    });
+
+    // Recalculate participantsPerGroup if needed
+    if (updateFields.maxParticipants || updateFields.numberOfGroups) {
+      const maxPart = updateFields.maxParticipants || tournament.maxParticipants;
+      const numGroups = updateFields.numberOfGroups || tournament.numberOfGroups;
+      updateFields.participantsPerGroup = maxPart / numGroups;
+    }
+
+    const updated = await Tournament.findByIdAndUpdate(
+      tournamentId,
+      { $set: updateFields },
+      { new: true }
+    ).populate('createdBy', 'name username');
+
+    // Log audit
+    if (req.user) {
+      await AuditLog.create({
+        admin: req.user._id,
+        action: 'UPDATE_TOURNAMENT',
+        tournament: tournamentId,
+        details: `Updated tournament: ${Object.keys(updateFields).join(', ')}`
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Tournament updated successfully',
+      tournament: updated
+    });
+
+  } catch (error) {
+    console.error('Update tournament error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+/**
  * GET ALL TOURNAMENTS
  *
  * GET /api/tournaments
@@ -405,16 +576,15 @@ const joinTournament = async (req, res) => {
 
     const now = new Date();
 
+    // Use canonical fields
     const registrationStart = tournament.registrationStart
       ? new Date(tournament.registrationStart)
       : null;
-
     const registrationEnd = tournament.registrationEnd
       ? new Date(tournament.registrationEnd)
       : null;
-
-    const tournamentStart = tournament.startDate
-      ? new Date(tournament.startDate)
+    const tournamentStart = tournament.tournamentStart
+      ? new Date(tournament.tournamentStart)
       : null;
 
     console.log("JOIN TOURNAMENT DEBUG:", {
@@ -426,6 +596,7 @@ const joinTournament = async (req, res) => {
       status: tournament.status,
     });
 
+    // ✅ Registration window check
     if (registrationStart && now < registrationStart) {
       return res.status(400).json({
         success: false,
@@ -440,6 +611,7 @@ const joinTournament = async (req, res) => {
       });
     }
 
+    // ✅ Tournament start check
     if (tournamentStart && now >= tournamentStart) {
       return res.status(400).json({
         success: false,
@@ -473,17 +645,93 @@ const joinTournament = async (req, res) => {
       });
     }
 
+    const totalGroups = Math.max(1, Number(tournament.numberOfGroups || 4));
+    const groupNames = Array.from({ length: totalGroups }, (_, index) =>
+      String.fromCharCode(65 + index)
+    );
+
+    const groupCounts = await Participant.aggregate([
+      {
+        $match: {
+          tournamentId: new mongoose.Types.ObjectId(tournamentId),
+          group: { $exists: true, $ne: null, $ne: '' },
+        },
+      },
+      {
+        $group: {
+          _id: '$group',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countsByGroup = Object.fromEntries(
+      groupNames.map((groupName) => [groupName, 0])
+    );
+
+    for (const entry of groupCounts) {
+      countsByGroup[entry._id] = entry.count;
+    }
+
+    const targetCapacity = Math.max(
+      1,
+      Number(
+        tournament.participantsPerGroup ||
+          Math.ceil((tournament.maxParticipants || totalGroups) / totalGroups)
+      )
+    );
+
+    let assignedGroup = groupNames.find(
+      (groupName) => (countsByGroup[groupName] || 0) < targetCapacity
+    );
+
+    if (!assignedGroup) {
+      assignedGroup = groupNames
+        .slice()
+        .sort((left, right) => {
+          const leftCount = countsByGroup[left] || 0;
+          const rightCount = countsByGroup[right] || 0;
+          if (leftCount === rightCount) {
+            return left.localeCompare(right);
+          }
+          return leftCount - rightCount;
+        })[0];
+    }
+
+    const assignedSeed = (countsByGroup[assignedGroup] || 0) + 1;
+
     const participant = await Participant.create({
       tournamentId,
       user: userId,
-      status: "ACTIVE",
-      currentRound: "REGISTRATION",
+      group: assignedGroup,
+      seed: assignedSeed,
+      status: 'ACTIVE',
+      currentRound: 'REGISTRATION',
     });
+
+    const currentGroupCount = await Participant.distinct('group', {
+      tournamentId,
+      group: { $ne: null, $ne: '' },
+    });
+
+    const adjustedGroupCount = currentGroupCount.length;
+
+    if (tournament.numberOfGroups !== adjustedGroupCount) {
+      tournament.numberOfGroups = Math.max(
+        Number(tournament.numberOfGroups || 1),
+        adjustedGroupCount
+      );
+      await tournament.save();
+    }
 
     return res.status(201).json({
       success: true,
       message: "Successfully joined tournament",
       participant,
+      group: {
+        number: assignedGroup,
+        name: `Group ${assignedGroup}`,
+      },
     });
   } catch (error) {
     console.error("joinTournament error:", error);
@@ -542,7 +790,7 @@ const startTournament = async (req, res) => {
 
     const participants = await Participant.find({
       tournamentId: tournamentId,
-    });
+    }).sort({ seed: 1, createdAt: 1 });
 
     const requiredParticipants = tournament.maxParticipants || 20;
 
@@ -553,32 +801,28 @@ const startTournament = async (req, res) => {
       });
     }
 
-    const groups = ["A", "B", "C", "D"];
+    const groupSequence = Array.from({ length: Math.max(1, Number(tournament.numberOfGroups || 4)) }, (_, index) =>
+      String.fromCharCode(65 + index)
+    );
 
-    const shuffled = [...participants];
+    const sortedParticipants = participants.map((participant, index) => {
+      if (!participant.group) {
+        participant.group = groupSequence[index % groupSequence.length];
+      }
+      if (!participant.seed || participant.seed < 1) {
+        participant.seed = index + 1;
+      }
+      participant.status = 'ACTIVE';
+      participant.currentRound = 'GROUP_STAGE';
+      return participant;
+    });
 
-    for (let i = shuffled.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    for (let i = 0; i < shuffled.length; i += 1) {
-      const participant = shuffled[i];
-
-      const groupIndex = Math.floor(i / 5);
-      const seed = i + 1;
-
-      participant.group = groups[groupIndex];
-      participant.seed = seed;
-      participant.status = "ACTIVE";
-      participant.currentRound = "GROUP_STAGE";
-
+    for (const participant of sortedParticipants) {
       await participant.save();
     }
 
-    tournament.status = "GROUP_STAGE";
-    tournament.currentRound = "GROUP_STAGE";
+    tournament.status = 'GROUP_STAGE';
+    tournament.currentStage = 'GROUP_STAGE';
 
     await tournament.save();
 
@@ -590,7 +834,7 @@ const startTournament = async (req, res) => {
         tournament: tournament._id,
         metadata: {
           participantCount: participants.length,
-          groups,
+          groups: groupSequence,
         },
       });
     } catch (auditError) {
@@ -601,7 +845,7 @@ const startTournament = async (req, res) => {
       success: true,
       message: "Tournament started successfully",
       tournament,
-      groups,
+      groups: groupSequence,
     });
   } catch (error) {
     console.error("Start tournament error:", error);
@@ -1077,210 +1321,29 @@ const getParticipants = async (req, res) => {
       participants,
     });
   } catch (error) {
-    console.error('Get participants error:', error);
+    console.error("Get participants error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
     });
   }
 };
 
-/**
- * GET GROUPS
- *
- * GET /api/tournaments/:tournamentId/groups
- */
-const getGroups = async (req, res) => {
-  try {
-    const { tournamentId } = req.params;
-
-    const tournament = await Tournament.findById(tournamentId);
-
-    if (!tournament) {
-      return res.status(404).json({
-        success: false,
-        message: 'Tournament not found',
-      });
-    }
-
-    const participants = await Participant.find({
-      tournamentId: tournamentId,
-    })
-      .populate(
-        'user',
-        'name username codeforcesUsername'
-      )
-      .sort({
-        group: 1,
-        seed: 1,
-      });
-
-    const groups = {
-      A: [],
-      B: [],
-      C: [],
-      D: [],
-    };
-
-    for (const participant of participants) {
-      if (participant.group && groups[participant.group]) {
-        groups[participant.group].push(participant);
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      tournament: {
-        id: tournament._id,
-        name: tournament.name,
-        status: tournament.status,
-        currentRound: tournament.currentRound,
-      },
-      groups,
-    });
-  } catch (error) {
-    console.error('Get groups error:', error);
-
-    return res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
-};
-
-/**
- * ADVANCE TOURNAMENT
- *
- * POST /api/tournaments/:tournamentId/advance
- */
-const advanceTournament = async (req, res) => {
-  try {
-    const { tournamentId } = req.params;
-
-    const stage =
-      req.body?.stage ||
-      req.query?.stage;
-
-    if (!stage) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Stage is required. Use group-stage, qf, sf, or complete.',
-      });
-    }
-
-    const normalizedStage = String(stage)
-      .trim()
-      .toLowerCase();
-
-    let result;
-
-    switch (normalizedStage) {
-      case 'group-stage':
-      case 'group_stage':
-      case 'groups':
-      case 'group':
-        result =
-          await advancementService.advanceGroupStage(
-            tournamentId
-          );
-        break;
-
-      case 'qf':
-      case 'quarter-final':
-      case 'quarter_final':
-      case 'quarterfinal':
-        result =
-          await advancementService.advanceQuarterFinal(
-            tournamentId
-          );
-        break;
-
-      case 'sf':
-      case 'semi-final':
-      case 'semi_final':
-      case 'semifinal':
-        result =
-          await advancementService.advanceSemiFinal(
-            tournamentId
-          );
-        break;
-
-      case 'complete':
-      case 'final':
-        result =
-          await advancementService.completeTournament(
-            tournamentId
-          );
-        break;
-
-      default:
-        return res.status(400).json({
-          success: false,
-          message:
-            'Invalid stage. Supported stages: group-stage, qf, sf, complete.',
-        });
-    }
-
-    try {
-      await auditLogService.record({
-        action: 'TOURNAMENT_STAGE_ADVANCED',
-        description: `Advanced tournament to ${normalizedStage}`,
-        admin: getAuthenticatedUserId(req),
-        tournament: tournamentId,
-        metadata: {
-          stage: normalizedStage,
-        },
-      });
-    } catch (auditError) {
-      console.error(
-        'Advance audit log error:',
-        auditError
-      );
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Tournament advanced successfully to ${normalizedStage}`,
-      stage: normalizedStage,
-      result,
-    });
-  } catch (error) {
-    console.error(
-      'Advance tournament error:',
-      error
-    );
-
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * EXPORT CONTROLLERS
- */
 module.exports = {
   createTournament,
+  updateTournament,
   getTournaments,
   getTournament,
-
   joinTournament,
-
-  getParticipants,
-  getGroups,
-
   startTournament,
-
   getBracket,
   getLeaderboard,
-
-  advanceTournament,
-
   advanceGroupStage,
   advanceQuarterFinal,
   advanceSemiFinal,
   completeTournament,
+  advanceStage,
+  advanceTournament: advanceStage,  // Alias
+  getParticipants,
 };

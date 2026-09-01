@@ -87,13 +87,6 @@ export const Dashboard = () => {
       ? Math.round(((totalParticipants - rank) / totalParticipants) * 100)
       : 0;
 
-  // ---- UI helpers ----
-  const getStatusColor = () => {
-    if (isCompleted) return "#FFD700";
-    if (isRegistration) return "#4CAF50";
-    return "#64B5F6";
-  };
-
   const statItems = [
     {
       label: "Current Stage",

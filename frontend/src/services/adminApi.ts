@@ -117,6 +117,15 @@ export const adminApi = {
   },
 
   /**
+   * PATCH /api/admin/tournaments/:tournamentId
+   * Update existing tournament data
+   */
+  async updateTournament(tournamentId: string, data: Record<string, unknown>): Promise<{ success: boolean; message: string; tournament: Tournament }> {
+    const response = await apiClient.patch(`/admin/tournaments/${tournamentId}`, data);
+    return response.data;
+  },
+
+  /**
    * POST /api/admin/tournaments/:tournamentId/start
    * Start tournament and generate groups
    */
@@ -279,6 +288,28 @@ export const adminApi = {
         recentActivity: [],
       };
     }
+  },
+
+  // ============================================
+  // ADMIN ACCOUNT SETTINGS
+  // ============================================
+
+  /**
+   * GET /api/admin/settings
+   * Get admin account settings and tournament defaults
+   */
+  async getSettings(): Promise<{ success: boolean; settings: { name: string; email: string; username: string; role: string; tournamentDefaults: Record<string, unknown> } }> {
+    const response = await apiClient.get('/admin/settings');
+    return response.data;
+  },
+
+  /**
+   * PATCH /api/admin/settings
+   * Update admin account settings (name, email, password)
+   */
+  async updateSettings(data: { name?: string; email?: string; password?: string }): Promise<{ success: boolean; message: string; settings: { name: string; email: string; username: string; role: string } }> {
+    const response = await apiClient.patch('/admin/settings', data);
+    return response.data;
   },
 };
 

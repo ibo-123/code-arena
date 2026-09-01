@@ -20,26 +20,66 @@ export const ContestDetails = () => {
 
   useEffect(() => {
     if (!contestId) return
-    tournamentApi.list()
-      .then(({ tournaments }) => {
-        const t = tournaments[0]
-        if (!t) throw new Error('No tournament found')
-        return Promise.all([
-          contestApi.get(t._id, contestId),
-          contestApi.leaderboard(t._id, contestId),
-        ])
-      })
-      .then(([{ contest: detail }, { leaderboard: rows }]) => {
-        setContest(detail)
-        setLeaderboard(rows)
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false))
+
+    const fetchContest = async () => {
+      try {
+        setLoading(true)
+        setError('')
+
+        // 1. Fetch all tournaments
+        const { tournaments } = await tournamentApi.list()
+        if (!tournaments || tournaments.length === 0) {
+          throw new Error('No tournaments found')
+        }
+
+        let foundTournamentId: string | null = null
+        let contestDetail: Contest | null = null
+
+        // 2. Find the tournament that contains this contest
+        for (const tournament of tournaments) {
+          try {
+            // Try to fetch the contest for this tournament
+            const contestResponse = await contestApi.get(tournament._id, contestId)
+            // If it succeeds, we have the correct tournament
+            foundTournamentId = tournament._id
+            contestDetail = contestResponse.contest
+            break
+          } catch (_) {
+            // Contest not found for this tournament – continue searching
+            continue
+          }
+        }
+
+        if (!foundTournamentId || !contestDetail) {
+          throw new Error('Contest not found in any tournament')
+        }
+
+        // 3. Fetch leaderboard using the correct tournament + contest
+        const leaderboardResponse = await contestApi.leaderboard(foundTournamentId, contestId)
+        const leaderboardData = leaderboardResponse.leaderboard || []
+
+        setContest(contestDetail)
+        setLeaderboard(leaderboardData)
+      } catch (err: any) {
+        setError(err.message || 'Failed to load contest details')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchContest()
   }, [contestId])
 
   if (loading) return <LoadingState label="Loading contest details..." />
   if (error) return <ErrorState error={error} />
   if (!contest) return <EmptyState label="Contest not found." />
+
+  // ---- Field mapping ----
+  const contestName = contest.name || contest.codeforcesContestName || 'Unnamed Contest'
+  const contestStage = contest.round || contest.stage || '—'
+  const contestGroup = contest.group || ''
+  const durationMinutes = contest.durationMinutes ?? Math.floor((contest.durationSeconds || 0) / 60)
+  const startTime = contest.startTime ? new Date(contest.startTime) : null
 
   return (
     <>
@@ -53,10 +93,22 @@ export const ContestDetails = () => {
 
         <header className="page-heading">
           <div>
-            <small>{contest.round} {contest.group ? `· GROUP ${contest.group}` : ''}</small>
-            <h1>{contest.name}</h1>
+            <small>
+              {contestStage}
+              {contestGroup && ` · GROUP ${contestGroup}`}
+            </small>
+            <h1>{contestName}</h1>
           </div>
-          <Badge tone={contest.status === 'LIVE' ? 'red' : contest.status === 'FINISHED' ? 'green' : 'blue'}>
+          {/* ✅ Fixed: removed invalid 'COMPLETED' check */}
+          <Badge
+            tone={
+              contest.status === 'LIVE'
+                ? 'red'
+                : contest.status === 'FINISHED'
+                ? 'green'
+                : 'blue'
+            }
+          >
             {contest.status}
           </Badge>
         </header>
@@ -66,11 +118,17 @@ export const ContestDetails = () => {
             <div>
               <small>CODEFORCES CONTEST ID: {contest.codeforcesContestId}</small>
               <p style={{ margin: '8px 0 0', color: 'var(--sub)' }}>
-                Start Time: {new Date(contest.startTime).toLocaleString()} | Duration: {contest.durationMinutes} minutes
+                Start Time: {startTime ? startTime.toLocaleString() : 'TBD'} | Duration: {durationMinutes} minutes
               </p>
             </div>
             {contest.codeforcesUrl && (
-              <a href={contest.codeforcesUrl} target="_blank" rel="noopener noreferrer" className="button">
+              <a
+                href={contest.codeforcesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
                 View on Codeforces <ExternalLink size={14} />
               </a>
             )}
@@ -95,7 +153,7 @@ export const ContestDetails = () => {
                   leaderboard.map((entry) => (
                     <tr key={entry.participantId}>
                       <td>#{entry.rank}</td>
-                      <td><strong>{entry.username || entry.name}</strong></td>
+                      <td><strong>{entry.username}</strong></td>
                       <td><small>{entry.codeforcesUsername}</small></td>
                       <td>{entry.solved}</td>
                       <td className="purple">{entry.score}</td>

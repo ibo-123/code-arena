@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const tournamentController = require('../controllers/tournamentController');
+const participantController = require('../controllers/participantController');
 
 const {
   authenticate,
@@ -42,7 +43,7 @@ router.get(
  */
 router.get(
   '/:tournamentId/groups',
-  tournamentController.getGroups
+  participantController.getGroups
 );
 
 /**
@@ -88,6 +89,17 @@ router.post(
   '/:tournamentId/join',
   authenticate,
   tournamentController.joinTournament
+);
+
+/**
+ * PATCH /api/tournaments/:tournamentId
+ * Update a tournament (Admin only)
+ */
+router.patch(
+  '/:tournamentId',
+  authenticate,
+  authorize('ADMIN'),
+  tournamentController.updateTournament
 );
 
 /*

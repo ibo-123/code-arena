@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Crown, ChevronRight, Trophy, Users, Calendar, Clock } from "lucide-react";
+import { Crown, ChevronRight, Trophy } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
-import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { LoadingState } from "../components/ui/LoadingState";
 import { ErrorState } from "../components/ui/ErrorState";
@@ -45,18 +44,6 @@ export const Bracket = () => {
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
-
-  // ---- UI helpers ----
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "#4CAF50";
-      case "LIVE":
-        return "#FF5722";
-      default:
-        return "rgba(255,255,255,0.4)";
-    }
-  };
 
   // ---- Match Card ----
   const MatchCard = ({ match }: { match: Match }) => (

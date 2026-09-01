@@ -3,6 +3,7 @@ const Tournament = require("../models/Tournament");
 const Participant = require("../models/Participant");
 const Contest = require("../models/Contest");
 const Match = require("../models/Match");
+const User = require("../models/User");
 
 // ✅ GET /api/admin/audit-logs?tournamentId=...
 const getAuditLogs = async (req, res) => {
@@ -50,4 +51,72 @@ const getAdminStats = async (req, res) => {
   }
 };
 
-module.exports = { getAuditLogs, getAdminStats };
+// ✅ GET /api/admin/settings
+const getAdminSettings = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Admin account not found' });
+    }
+
+    return res.json({
+      success: true,
+      settings: {
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        tournamentDefaults: {
+          maxParticipants: 20,
+          numberOfGroups: 4,
+          participantsPerGroup: 5,
+          qualifiersPerGroup: 2,
+          playoffFormat: 'SINGLE_ELIMINATION',
+        },
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ✅ PUT /api/admin/settings
+const updateAdminSettings = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Admin account not found' });
+    }
+
+    if (name !== undefined && name !== null && String(name).trim()) {
+      user.name = String(name).trim();
+    }
+
+    if (email !== undefined && email !== null && String(email).trim()) {
+      user.email = String(email).trim().toLowerCase();
+    }
+
+    if (password !== undefined && password !== null && String(password).trim()) {
+      user.password = String(password).trim();
+    }
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: 'Settings updated successfully',
+      settings: {
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getAuditLogs, getAdminStats, getAdminSettings, updateAdminSettings };

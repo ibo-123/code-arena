@@ -27,7 +27,7 @@ export interface RegisterData {
 }
 
 // ============================================================
-// Tournament Types – FULLY UPDATED
+// Tournament Types – CANONICAL DATE FIELDS
 // ============================================================
 export type TournamentStatus = 'REGISTRATION' | 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL' | 'COMPLETED';
 export type TournamentStage = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL';
@@ -41,18 +41,24 @@ export interface Tournament {
   currentRound?: string;          // alias for currentStage
   maxParticipants: number;
   participantCount?: number;
-  startDate?: Date;               // ISO 8601 UTC
-  endDate?: Date;                 // ISO 8601 UTC
 
-  // ---------- Registration time fields ----------
-  registrationStart?: string;     // ISO 8601 UTC string
-  registrationEnd?: string;       // ISO 8601 UTC string
+  // ---- CANONICAL DATE FIELDS (use these) ----
+  registrationStart?: string;     // ISO 8601 UTC
+  registrationEnd?: string;       // ISO 8601 UTC
+  tournamentStart?: string;       // ISO 8601 UTC
+  tournamentEnd?: string;         // ISO 8601 UTC
 
-  // ---------- Format & structure fields ----------
-  numberOfGroups?: number;        // e.g., 4
-  participantsPerGroup?: number;  // e.g., 5
-  qualifiersPerGroup?: number;    // e.g., 2
-  playoffFormat?: string;         // e.g., "SINGLE_ELIMINATION"
+  // ---- LEGACY (avoid using) ----
+  /** @deprecated Use `tournamentStart` instead */
+  startDate?: Date;
+  /** @deprecated Use `tournamentEnd` instead */
+  endDate?: Date;
+
+  // Format & structure
+  numberOfGroups?: number;
+  participantsPerGroup?: number;
+  qualifiersPerGroup?: number;
+  playoffFormat?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -90,15 +96,15 @@ export interface Contest {
   tournamentId: string;
   codeforcesContestId: number;
   codeforcesContestName: string;
-  name?: string;                  // alias for codeforcesContestName
+  name?: string;
   codeforcesUrl: string;
   type: string;
   phase: string;
   startTime: Date;
   durationSeconds: number;
-  durationMinutes?: number;       // computed from durationSeconds
+  durationMinutes?: number;
   stage: TournamentStage;
-  round?: string;                 // alias for stage
+  round?: string;
   group?: string;
   matchNumber?: number;
   status: ContestStatus;
@@ -130,10 +136,10 @@ export interface Result {
   codeforcesHandle: string;
   rank: number;
   points: number;
-  score: number;                  // alias for points
+  score: number;
   penalty: number;
   solvedCount: number;
-  solved: number;                 // alias for solvedCount
+  solved: number;
   problemResults: ProblemResult[];
   syncedAt: Date;
   participant?: {
@@ -154,7 +160,7 @@ export interface LeaderboardEntry {
   rank: number;
   participantId: string;
   username: string;
-  name?: string;                  // alias for username
+  name?: string;
   codeforcesUsername: string;
   group?: string;
   solved: number;
