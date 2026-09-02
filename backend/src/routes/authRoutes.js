@@ -99,4 +99,10 @@ router.post('/rest-password', async (req, res) => {
 
 router.get("/me", protect, getMe);
 
+// Logout (client-side token removal); provide a harmless endpoint to avoid 404s
+router.post('/logout', (req, res) => {
+  // Nothing to do server-side for JWT stateless logout; respond OK for client convenience
+  res.json({ success: true, message: 'Logged out' });
+});
+
 module.exports = router;

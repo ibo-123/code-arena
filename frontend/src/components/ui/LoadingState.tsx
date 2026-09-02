@@ -3,38 +3,65 @@ import React from "react";
 interface LoadingStateProps {
   label?: string;
   size?: "sm" | "md" | "lg";
-  variant?: "skeleton" | "spinner"; // default: 'skeleton'
+  variant?: "skeleton" | "spinner" | "dots";
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
   label = "Loading...",
   size = "md",
-  variant = "skeleton", // ✅ changed to skeleton by default
+  variant = "skeleton",
 }) => {
-  // ---- Size maps ----
-  const avatarSizes = {
-    sm: 32,
-    md: 48,
-    lg: 64,
-  };
+  // ---- Dots variant ----
+  if (variant === "dots") {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 20px",
+          gap: "16px",
+        }}
+      >
+        <div style={{ display: "flex", gap: "8px" }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: "12px",
+                height: "12px",
+                borderRadius: "50%",
+                background: "#2979FF",
+                animation: `bounce 1.4s ease-in-out ${i * 0.16}s infinite`,
+              }}
+            />
+          ))}
+        </div>
+        {label && (
+          <div
+            style={{
+              fontSize: "14px",
+              color: "rgba(255,255,255,0.5)",
+              fontWeight: "500",
+            }}
+          >
+            {label}
+          </div>
+        )}
+        <style>{`
+          @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+            40% { transform: scale(1); opacity: 1; }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
-  const gapSizes = {
-    sm: 12,
-    md: 16,
-    lg: 20,
-  };
-
-  const avatarSize = avatarSizes[size] || 48;
-  const gap = gapSizes[size] || 16;
-
-  // ---- Spinner variant (legacy) ----
+  // ---- Spinner variant ----
   if (variant === "spinner") {
-    const containerSize =
-      {
-        sm: "40px",
-        md: "60px",
-        lg: "80px",
-      }[size] || "60px";
+    const containerSize = { sm: "40px", md: "60px", lg: "80px" }[size] || "60px";
 
     return (
       <div
@@ -59,8 +86,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: 0,
               borderRadius: "50%",
-              border: `2px solid rgba(41,121,255,0.1)`,
-              borderTop: `2px solid #2979FF`,
+              border: `3px solid rgba(41,121,255,0.1)`,
+              borderTop: `3px solid #2979FF`,
               animation: "spin 0.8s linear infinite",
             }}
           />
@@ -69,8 +96,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: "12px",
               borderRadius: "50%",
-              border: `2px solid rgba(156,39,176,0.1)`,
-              borderBottom: `2px solid #9C27B0`,
+              border: `3px solid rgba(156,39,176,0.1)`,
+              borderBottom: `3px solid #9C27B0`,
               animation: "spin 1.2s linear infinite reverse",
             }}
           />
@@ -79,7 +106,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
           <div
             style={{
               fontSize: "14px",
-              color: "rgba(255,255,255,0.6)",
+              color: "rgba(255,255,255,0.5)",
               fontWeight: "500",
             }}
           >
@@ -97,6 +124,11 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   }
 
   // ---- Skeleton variant (default) ----
+  const avatarSizes = { sm: 32, md: 48, lg: 64 };
+  const gapSizes = { sm: 12, md: 16, lg: 20 };
+  const avatarSize = avatarSizes[size] || 48;
+  const gap = gapSizes[size] || 16;
+
   return (
     <div
       style={{
@@ -132,7 +164,6 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
           animation: "shimmer 1.5s infinite",
         }}
       >
-        {/* Avatar placeholder */}
         <div
           style={{
             width: `${avatarSize}px`,
@@ -142,7 +173,6 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
             flexShrink: 0,
           }}
         />
-        {/* Text lines */}
         <div
           style={{
             display: "flex",
@@ -176,8 +206,6 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
             }}
           />
         </div>
-
-        {/* Shimmer keyframes */}
         <style>{`
           @keyframes shimmer {
             0% { background-position: -200% 0; }

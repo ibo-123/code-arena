@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createTournament } from "../../services/tournamentApi";
+import { adminApi } from "../../services/adminApi";
 import type { PlayoffFormat } from "../../types/tournament";
 import {
   ArrowLeft,
@@ -11,6 +11,11 @@ import {
   AlertCircle,
   Sparkles,
   Loader2,
+  Clock,
+  Settings,
+  Shield,
+  Zap,
+  Target,
 } from "lucide-react";
 
 const CreateTournament: React.FC = () => {
@@ -34,8 +39,9 @@ const CreateTournament: React.FC = () => {
     participantsPerGroup: 5,
   });
 
-  const [calculatedParticipantsPerGroup, setCalculatedParticipantsPerGroup] =
-    useState<number | null>(5);
+  const [calculatedParticipantsPerGroup, setCalculatedParticipantsPerGroup] = useState<
+    number | null
+  >(5);
 
   useEffect(() => {
     const max = Number(formData.maxParticipants);
@@ -57,9 +63,7 @@ const CreateTournament: React.FC = () => {
   }, [formData.maxParticipants, formData.numberOfGroups]);
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target;
     setFormData((prev) => ({
@@ -76,7 +80,6 @@ const CreateTournament: React.FC = () => {
     setSuccess(false);
 
     try {
-      // Validate dates
       const regStart = new Date(formData.registrationStart);
       const regEnd = new Date(formData.registrationEnd);
       const tournStart = new Date(formData.tournamentStart);
@@ -100,19 +103,15 @@ const CreateTournament: React.FC = () => {
         return;
       }
 
-      // Validate participants per group
       if (formData.maxParticipants % formData.numberOfGroups !== 0) {
         setError("Maximum participants must be divisible by number of groups");
         setIsLoading(false);
         return;
       }
 
-      const participantsPerGroup =
-        formData.maxParticipants / formData.numberOfGroups;
+      const participantsPerGroup = formData.maxParticipants / formData.numberOfGroups;
       if (formData.qualifiersPerGroup >= participantsPerGroup) {
-        setError(
-          "Qualifiers per group must be less than participants per group",
-        );
+        setError("Qualifiers per group must be less than participants per group");
         setIsLoading(false);
         return;
       }
@@ -122,14 +121,21 @@ const CreateTournament: React.FC = () => {
         participantsPerGroup: participantsPerGroup,
       };
 
-      await createTournament(payload);
+      await adminApi.createTournament(payload);
       setSuccess(true);
 
       setTimeout(() => {
-        navigate("/admin/tournaments");
+        navigate("/admin");
       }, 1500);
     } catch (err) {
-      const axiosErr = err as { response?: { data?: { errors?: { field: string; message: string }[]; message?: string } } };
+      const axiosErr = err as {
+        response?: {
+          data?: {
+            errors?: { field: string; message: string }[];
+            message?: string;
+          };
+        };
+      };
       if (axiosErr.response?.data?.errors) {
         const errorMessages = axiosErr.response.data.errors
           .map((e) => `${e.field}: ${e.message}`)
@@ -145,48 +151,6 @@ const CreateTournament: React.FC = () => {
     }
   };
 
-  // Reusable input styles
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 16px",
-    borderRadius: "10px",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    color: "white",
-    fontSize: "14px",
-    outline: "none",
-    transition: "all 0.3s ease",
-    boxSizing: "border-box",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: "8px",
-  };
-
-  const sectionStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.06)",
-    borderRadius: "16px",
-    padding: "24px",
-    marginBottom: "24px",
-  };
-
-  const sectionTitleStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    fontSize: "16px",
-    fontWeight: "600",
-    color: "white",
-    marginBottom: "20px",
-    paddingBottom: "12px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  };
-
   return (
     <div style={{ padding: "24px 0", maxWidth: "1000px", margin: "0 auto" }}>
       {/* Header */}
@@ -195,336 +159,909 @@ const CreateTournament: React.FC = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "32px",
+          marginBottom: "36px",
           flexWrap: "wrap",
           gap: "16px",
         }}
       >
         <div>
-          <small
+          <div
             style={{
-              fontSize: "11px",
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "2px",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "8px",
+              marginBottom: "6px",
             }}
           >
-            <Sparkles size={14} color="#FFD700" />
-            New Tournament
-          </small>
+            <span
+              style={{
+                fontSize: "11px",
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "2px",
+                fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <Sparkles size={14} color="var(--gold)" />
+              New Tournament
+            </span>
+            <span
+              style={{
+                padding: "2px 10px",
+                borderRadius: "20px",
+                background: "var(--gradient-brand)",
+                fontSize: "9px",
+                fontWeight: "700",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                color: "white",
+              }}
+            >
+              Beta
+            </span>
+          </div>
           <h1
+            className="gradient-text"
             style={{
-              fontSize: "clamp(24px, 2.5vw, 36px)",
-              fontWeight: "700",
-              margin: "4px 0 0 0",
-              background: "linear-gradient(135deg, #FFFFFF, #64B5F6)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              fontSize: "clamp(28px, 3vw, 40px)",
+              fontWeight: "800",
+              margin: "0",
+              letterSpacing: "-0.5px",
             }}
           >
             Create Tournament
           </h1>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "var(--text-muted)",
+              margin: "4px 0 0 0",
+            }}
+          >
+            Set up a new competition and configure its structure
+          </p>
         </div>
 
         <button
           onClick={() => navigate("/admin/tournaments")}
           style={{
-            padding: "10px 20px",
-            borderRadius: "10px",
+            padding: "12px 24px",
+            borderRadius: "14px",
             background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.08)",
-            color: "rgba(255,255,255,0.6)",
+            color: "var(--text-secondary)",
             fontSize: "14px",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "8px",
             transition: "all 0.3s ease",
+            fontWeight: "500",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            e.currentTarget.style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+            e.currentTarget.style.color = "var(--text-secondary)";
           }}
         >
           <ArrowLeft size={16} />
-          Back to Tournaments
+          Back
         </button>
       </div>
 
       {/* Alerts */}
       {error && (
         <div
+          className="glass-card"
           style={{
-            padding: "16px 20px",
-            borderRadius: "12px",
-            background: "rgba(244, 67, 54, 0.1)",
-            border: "1px solid rgba(244, 67, 54, 0.2)",
-            color: "#FF6B6B",
+            padding: "18px 24px",
+            color: "var(--red)",
             marginBottom: "24px",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "12px",
             fontSize: "14px",
+            borderColor: "rgba(255,23,68,0.2)",
           }}
         >
-          <AlertCircle size={20} />
-          {error}
+          <AlertCircle size={22} />
+          <span>{error}</span>
         </div>
       )}
 
       {success && (
         <div
+          className="glass-card"
           style={{
-            padding: "16px 20px",
-            borderRadius: "12px",
-            background: "rgba(76, 175, 80, 0.1)",
-            border: "1px solid rgba(76, 175, 80, 0.2)",
-            color: "#4CAF50",
+            padding: "18px 24px",
+            color: "var(--green)",
             marginBottom: "24px",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "12px",
             fontSize: "14px",
+            borderColor: "rgba(0,230,118,0.2)",
           }}
         >
-          <CheckCircle size={20} />
-          Tournament created successfully! Redirecting...
+          <CheckCircle size={22} />
+          <span>
+            Tournament created successfully! <span style={{ opacity: 0.7 }}>Redirecting...</span>
+          </span>
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
         {/* Section 1: Basic Information */}
-        <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>
-            <Trophy size={18} color="#FFD700" />
+        <div className="glass-card" style={{ padding: "28px 30px", marginBottom: "24px" }}>
+          <h2
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "16px",
+              fontWeight: "700",
+              color: "var(--text-primary)",
+              marginBottom: "22px",
+              paddingBottom: "14px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                padding: "6px",
+                borderRadius: "10px",
+                background: "rgba(255,215,0,0.1)",
+              }}
+            >
+              <Trophy size={18} color="var(--gold)" />
+            </div>
             Basic Information
           </h2>
 
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr", gap: "20px" }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "22px" }}>
             <div>
-              <label style={labelStyle}>Tournament Name *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Tournament Name <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 required
-                style={inputStyle}
-                placeholder="e.g., Code Arena 2026"
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+                placeholder="e.g., Code Arena 2026 Championship"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Description</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Description
+              </label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 rows={4}
-                style={{ ...inputStyle, resize: "vertical" }}
-                placeholder="Enter tournament description..."
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+                placeholder="Describe your tournament, rules, and other important details..."
               />
             </div>
           </div>
         </div>
 
         {/* Section 2: Registration Schedule */}
-        <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>
-            <Calendar size={18} color="#2979FF" />
+        <div className="glass-card" style={{ padding: "28px 30px", marginBottom: "24px" }}>
+          <h2
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "16px",
+              fontWeight: "700",
+              color: "var(--text-primary)",
+              marginBottom: "22px",
+              paddingBottom: "14px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                padding: "6px",
+                borderRadius: "10px",
+                background: "rgba(41,121,255,0.1)",
+              }}
+            >
+              <Calendar size={18} color="var(--blue)" />
+            </div>
             Registration Schedule
           </h2>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "20px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "22px",
             }}
           >
             <div>
-              <label style={labelStyle}>Registration Start *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Registration Start <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 name="registrationStart"
                 value={formData.registrationStart}
                 onChange={handleChange}
                 required
-                style={{ ...inputStyle, colorScheme: "dark" }}
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  colorScheme: "dark",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Registration End *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Registration End <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 name="registrationEnd"
                 value={formData.registrationEnd}
                 onChange={handleChange}
                 required
-                style={{ ...inputStyle, colorScheme: "dark" }}
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  colorScheme: "dark",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
             </div>
           </div>
         </div>
 
         {/* Section 3: Tournament Schedule */}
-        <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>
-            <Calendar size={18} color="#9C27B0" />
+        <div className="glass-card" style={{ padding: "28px 30px", marginBottom: "24px" }}>
+          <h2
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "16px",
+              fontWeight: "700",
+              color: "var(--text-primary)",
+              marginBottom: "22px",
+              paddingBottom: "14px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                padding: "6px",
+                borderRadius: "10px",
+                background: "rgba(156,39,176,0.1)",
+              }}
+            >
+              <Clock size={18} color="var(--purple)" />
+            </div>
             Tournament Schedule
           </h2>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "20px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "22px",
             }}
           >
             <div>
-              <label style={labelStyle}>Tournament Start *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Tournament Start <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 name="tournamentStart"
                 value={formData.tournamentStart}
                 onChange={handleChange}
                 required
-                style={{ ...inputStyle, colorScheme: "dark" }}
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  colorScheme: "dark",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Tournament End *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Tournament End <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 name="tournamentEnd"
                 value={formData.tournamentEnd}
                 onChange={handleChange}
                 required
-                style={{ ...inputStyle, colorScheme: "dark" }}
+                style={{
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  colorScheme: "dark",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
             </div>
           </div>
         </div>
 
         {/* Section 4: Tournament Structure */}
-        <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>
-            <Users size={18} color="#4CAF50" />
+        <div className="glass-card" style={{ padding: "28px 30px", marginBottom: "24px" }}>
+          <h2
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "16px",
+              fontWeight: "700",
+              color: "var(--text-primary)",
+              marginBottom: "22px",
+              paddingBottom: "14px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                padding: "6px",
+                borderRadius: "10px",
+                background: "rgba(76,175,80,0.1)",
+              }}
+            >
+              <Settings size={18} color="var(--green)" />
+            </div>
             Tournament Structure
           </h2>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "20px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+              gap: "22px",
             }}
           >
             <div>
-              <label style={labelStyle}>Maximum Participants *</label>
-              <input
-                type="number"
-                name="maxParticipants"
-                value={formData.maxParticipants}
-                onChange={handleChange}
-                required
-                min="1"
-                style={inputStyle}
-              />
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Max Participants <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="number"
+                  name="maxParticipants"
+                  value={formData.maxParticipants}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  style={{
+                    width: "100%",
+                    padding: "14px 18px 14px 42px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-primary)",
+                    fontSize: "14px",
+                    outline: "none",
+                    transition: "all 0.3s ease",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--blue)";
+                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <Users
+                  size={18}
+                  style={{
+                    position: "absolute",
+                    left: "14px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-muted)",
+                  }}
+                />
+              </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Number of Groups *</label>
-              <input
-                type="number"
-                name="numberOfGroups"
-                value={formData.numberOfGroups}
-                onChange={handleChange}
-                required
-                min="1"
-                style={inputStyle}
-              />
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Number of Groups <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="number"
+                  name="numberOfGroups"
+                  value={formData.numberOfGroups}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  style={{
+                    width: "100%",
+                    padding: "14px 18px 14px 42px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-primary)",
+                    fontSize: "14px",
+                    outline: "none",
+                    transition: "all 0.3s ease",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--blue)";
+                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <Target
+                  size={18}
+                  style={{
+                    position: "absolute",
+                    left: "14px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-muted)",
+                  }}
+                />
+              </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Participants Per Group</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Participants Per Group
+              </label>
               <div
                 style={{
-                  ...inputStyle,
+                  width: "100%",
+                  padding: "14px 18px",
+                  borderRadius: "14px",
                   background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color:
+                    calculatedParticipantsPerGroup !== null
+                      ? "var(--green)"
+                      : "rgba(255,255,255,0.2)",
+                  fontSize: "20px",
+                  fontWeight: "800",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontWeight: "700",
-                  fontSize: "18px",
-                  color:
-                    calculatedParticipantsPerGroup !== null
-                      ? "#4CAF50"
-                      : "rgba(255,255,255,0.3)",
+                  minHeight: "50px",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxSizing: "border-box",
                 }}
               >
                 {calculatedParticipantsPerGroup !== null
                   ? calculatedParticipantsPerGroup
                   : "Invalid"}
+                {calculatedParticipantsPerGroup !== null && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      fontWeight: "400",
+                    }}
+                  >
+                    auto
+                  </span>
+                )}
               </div>
-              <p
+            </div>
+
+            <div>
+              <label
                 style={{
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.3)",
-                  marginTop: "6px",
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
                 }}
               >
-                Automatically calculated
-              </p>
+                Qualifiers Per Group <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="number"
+                  name="qualifiersPerGroup"
+                  value={formData.qualifiersPerGroup}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  style={{
+                    width: "100%",
+                    padding: "14px 18px 14px 42px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-primary)",
+                    fontSize: "14px",
+                    outline: "none",
+                    transition: "all 0.3s ease",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--blue)";
+                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <Shield
+                  size={18}
+                  style={{
+                    position: "absolute",
+                    left: "14px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-muted)",
+                  }}
+                />
+              </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Qualifiers Per Group *</label>
-              <input
-                type="number"
-                name="qualifiersPerGroup"
-                value={formData.qualifiersPerGroup}
-                onChange={handleChange}
-                required
-                min="1"
-                style={inputStyle}
-              />
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Group Contests <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="number"
+                  name="groupContests"
+                  value={formData.groupContests}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  style={{
+                    width: "100%",
+                    padding: "14px 18px 14px 42px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-primary)",
+                    fontSize: "14px",
+                    outline: "none",
+                    transition: "all 0.3s ease",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--blue)";
+                    e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <Zap
+                  size={18}
+                  style={{
+                    position: "absolute",
+                    left: "14px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-muted)",
+                  }}
+                />
+              </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Number of Group Contests *</label>
-              <input
-                type="number"
-                name="groupContests"
-                value={formData.groupContests}
-                onChange={handleChange}
-                required
-                min="1"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Playoff Format *</label>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Playoff Format <span style={{ color: "var(--blue)" }}>*</span>
+              </label>
               <select
                 name="playoffFormat"
                 value={formData.playoffFormat}
                 onChange={handleChange}
                 required
-                style={{ ...inputStyle, cursor: "pointer" }}
+                style={{
+                  width: "100%",
+                  padding: "14px 40px 14px 18px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "var(--text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  appearance: "none",
+                  backgroundImage:
+                    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.3)' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 14px center",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--blue)";
+                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               >
-                <option
-                  value="SINGLE_ELIMINATION"
-                  style={{ background: "#1a1f35" }}
-                >
+                <option value="SINGLE_ELIMINATION" style={{ background: "var(--bg-secondary)" }}>
                   Single Elimination
                 </option>
               </select>
             </div>
+          </div>
+
+          {/* Summary Card */}
+          <div
+            style={{
+              marginTop: "24px",
+              padding: "16px 20px",
+              borderRadius: "14px",
+              background: "rgba(41,121,255,0.06)",
+              border: "1px solid rgba(41,121,255,0.1)",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <Sparkles size={16} color="var(--gold)" style={{ opacity: 0.6 }} />
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: "500",
+              }}
+            >
+              Tournament will host{" "}
+              <strong style={{ color: "var(--text-primary)" }}>{formData.maxParticipants}</strong>{" "}
+              participants across{" "}
+              <strong style={{ color: "var(--text-primary)" }}>{formData.numberOfGroups}</strong>{" "}
+              groups with{" "}
+              <strong style={{ color: "var(--text-primary)" }}>
+                {formData.qualifiersPerGroup}
+              </strong>{" "}
+              qualifiers each
+            </span>
           </div>
         </div>
 
@@ -534,7 +1071,9 @@ const CreateTournament: React.FC = () => {
             display: "flex",
             justifyContent: "flex-end",
             gap: "12px",
-            marginTop: "32px",
+            marginTop: "36px",
+            paddingTop: "20px",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           <button
@@ -542,15 +1081,27 @@ const CreateTournament: React.FC = () => {
             onClick={() => navigate("/admin/tournaments")}
             disabled={isLoading}
             style={{
-              padding: "12px 24px",
-              borderRadius: "10px",
+              padding: "14px 28px",
+              borderRadius: "14px",
               background: "transparent",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.6)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "var(--text-muted)",
               fontSize: "14px",
-              fontWeight: "500",
+              fontWeight: "600",
               cursor: isLoading ? "not-allowed" : "pointer",
               transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }
             }}
           >
             Cancel
@@ -559,36 +1110,49 @@ const CreateTournament: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading || success}
+            className="glow-blue"
             style={{
-              padding: "12px 32px",
-              borderRadius: "10px",
-              background:
-                isLoading || success
-                  ? "rgba(255,255,255,0.05)"
-                  : "linear-gradient(135deg, #2979FF, #1565C0)",
+              padding: "14px 36px",
+              borderRadius: "14px",
+              background: isLoading || success ? "rgba(255,255,255,0.05)" : "var(--gradient-brand)",
               border: "none",
               color: "white",
-              fontWeight: "600",
+              fontWeight: "700",
               fontSize: "14px",
               cursor: isLoading || success ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "8px",
+              gap: "10px",
               transition: "all 0.3s ease",
               opacity: isLoading || success ? 0.5 : 1,
+              boxShadow: !isLoading && !success ? "var(--shadow-glow)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading && !success) {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 6px 28px rgba(41,121,255,0.4)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading && !success) {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "var(--shadow-glow)";
+              }
             }}
           >
             {isLoading ? (
               <>
-                <Loader2
-                  size={18}
-                  style={{ animation: "spin 1s linear infinite" }}
-                />
+                <Loader2 size={18} className="animate-spin" />
                 Creating...
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle size={18} />
+                Created!
               </>
             ) : (
               <>
-                <CheckCircle size={18} />
+                <Sparkles size={18} />
                 Create Tournament
               </>
             )}
@@ -597,16 +1161,21 @@ const CreateTournament: React.FC = () => {
       </form>
 
       <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
         input:focus, textarea:focus, select:focus {
-          border-color: #2979FF !important;
-          box-shadow: 0 0 0 3px rgba(41,121,255,0.15) !important;
+          border-color: var(--blue) !important;
+          box-shadow: 0 0 0 4px rgba(41,121,255,0.12) !important;
         }
         input:hover, textarea:hover, select:hover {
-          border-color: rgba(255,255,255,0.2);
+          border-color: rgba(255,255,255,0.15);
+        }
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          opacity: 0.5;
+          cursor: pointer;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          opacity: 0.5;
         }
       `}</style>
     </div>

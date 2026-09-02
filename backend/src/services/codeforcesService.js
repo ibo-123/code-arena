@@ -14,34 +14,74 @@ class CodeforcesService {
     return query ? `?${query}` : '';
   }
 
-  async request(endpoint, params = {}) {
+async request(endpoint, params = {}) {
+  let url = '';
+
+  try {
+    url = `${this.baseUrl}${endpoint}${this.buildQueryString(params)}`;
+
+    console.log(`[Codeforces] GET ${url}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    let response;
+
     try {
-      const url = `${this.baseUrl}${endpoint}${this.buildQueryString(params)}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
+      response = await fetch(url, {
         signal: controller.signal,
-        headers: { 'Accept': 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'CodeArena2026/1.0',
+        },
       });
+    } finally {
       clearTimeout(timeoutId);
-
-      const data = await response.json();
-
-      if (data.status === 'OK') {
-        return data.result;
-      }
-      throw new Error(data.comment || 'Codeforces API error');
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('Codeforces API request timed out');
-      }
-      if (error.message?.startsWith('Codeforces API error:')) {
-        throw error;
-      }
-      throw new Error(`Codeforces API error: ${error.message}`);
     }
+
+    const rawText = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(
+        `Codeforces returned non-JSON response (HTTP ${response.status})`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Codeforces HTTP ${response.status}: ${
+          data.comment || 'Unknown error'
+        }`
+      );
+    }
+
+    if (data.status === 'OK') {
+      return data.result;
+    }
+
+    throw new Error(
+      `Codeforces API error: ${data.comment || 'Unknown Codeforces error'}`
+    );
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Codeforces API request timed out');
+    }
+
+    if (error.message?.startsWith('Codeforces API error:')) {
+      throw error;
+    }
+
+    if (error.message?.startsWith('Codeforces HTTP')) {
+      throw error;
+    }
+
+    throw new Error(`Codeforces API error: ${error.message}`);
   }
+}
 
   async getContest(contestId) {
     const id = Number(contestId);
@@ -56,21 +96,50 @@ class CodeforcesService {
     return contest;
   }
 
-  async getContestStandings(contestId, handles = null) {
-    const id = Number(contestId);
-    if (!Number.isFinite(id) || id <= 0) {
-      throw new Error('Invalid Codeforces contest ID');
-    }
-    const params = {
-      contestId: id,
-      asManager: false,
-      showUnofficial: false,
-    };
-    if (handles && handles.length > 0) {
-      params.handles = handles.join(';');
-    }
-    return this.request('/contest.standings', params);
+
+async getContestStandings(contestId, handles = null) {
+  const id = Number(contestId);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error('Invalid Codeforces contest ID');
   }
+
+  // IMPORTANT:
+  // Codeforces currently restricts regular public contests to:
+  //   /api/contest.standings?contestId=<id>
+  //
+  // Do NOT send:
+  //   handles
+  //   showUnofficial
+  //   asManager
+  // for regular public contests.
+
+  console.log(`[Codeforces] Fetching standings for contest ${id}`);
+
+  try {
+    const result = await this.request('/contest.standings', {
+      contestId: id,
+    });
+
+    if (!result || typeof result !== 'object') {
+      throw new Error('Codeforces returned an invalid standings response');
+    }
+
+    console.log(
+      `[Codeforces] Standings fetched: ${result.rows?.length || 0} rows`
+    );
+
+    return result;
+  } catch (error) {
+    console.error(
+      `[Codeforces] Failed to fetch standings for contest ${id}:`,
+      error.message
+    );
+
+    throw error;
+  }
+}
+
 
   async getContestStatus(contestId) {
     const contest = await this.getContest(contestId);

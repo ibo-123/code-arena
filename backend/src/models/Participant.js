@@ -50,7 +50,7 @@ const ParticipantSchema = new mongoose.Schema(
       default: 'ACTIVE',
     },
 
-    currentRound: {
+    currentStage: {
       type: String,
     },
   },

@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Badge,
-  Card,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-} from "../../components/ui";
+import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
 import {
   Users,
   Code2,
@@ -41,9 +35,7 @@ export const AdminParticipants = () => {
       const { participants: items } = await tournamentApi.participants(t._id);
       setParticipants(items);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load participants",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load participants");
     }
   };
 
@@ -78,23 +70,15 @@ export const AdminParticipants = () => {
     }
   };
 
-  const groups = [
-    "all",
-    ...new Set(participants.map((p) => p.group).filter(Boolean)),
-  ];
-  const statuses = [
-    "all",
-    ...new Set(participants.map((p) => p.status).filter(Boolean)),
-  ];
+  const groups = ["all", ...new Set(participants.map((p) => p.group).filter(Boolean))];
+  const statuses = ["all", ...new Set(participants.map((p) => p.status).filter(Boolean))];
 
   const filteredParticipants = participants
     .filter((p) => {
       const matchesSearch =
         p.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.user?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.user?.codeforcesUsername
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
+        p.user?.codeforcesUsername?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === "all" || p.status === filterStatus;
       const matchesGroup = filterGroup === "all" || p.group === filterGroup;
       return matchesSearch && matchesStatus && matchesGroup;
@@ -120,9 +104,7 @@ export const AdminParticipants = () => {
       if (typeof aVal === "string" || typeof bVal === "string") {
         const strA = String(aVal);
         const strB = String(bVal);
-        return sortDirection === "asc"
-          ? strA.localeCompare(strB)
-          : strB.localeCompare(strA);
+        return sortDirection === "asc" ? strA.localeCompare(strB) : strB.localeCompare(strA);
       }
 
       const numA = Number(aVal) || 0;
@@ -131,18 +113,11 @@ export const AdminParticipants = () => {
     });
 
   const totalParticipants = participants.length;
-  const activeCount = participants.filter(
-    (p) => p.status !== "ELIMINATED",
-  ).length;
-  const championCount = participants.filter(
-    (p) => p.status === "CHAMPION",
-  ).length;
-  const groupCount = new Set(participants.map((p) => p.group).filter(Boolean))
-    .size;
+  const activeCount = participants.filter((p) => p.status !== "ELIMINATED").length;
+  const championCount = participants.filter((p) => p.status === "CHAMPION").length;
+  const groupCount = new Set(participants.map((p) => p.group).filter(Boolean)).size;
 
-  const getStatusTone = (
-    status?: string,
-  ): "blue" | "gold" | "green" | "red" | "muted" => {
+  const getStatusTone = (status?: string): "blue" | "gold" | "green" | "red" | "muted" => {
     if (status === "ELIMINATED") return "muted";
     if (status === "CHAMPION") return "gold";
     if (status === "ADVANCED") return "blue";
@@ -157,8 +132,7 @@ export const AdminParticipants = () => {
     return <CheckCircle size={14} />;
   };
 
-  if (loading)
-    return <LoadingState label="Loading participants directory..." />;
+  if (loading) return <LoadingState label="Loading participants directory..." />;
   if (error) return <ErrorState error={error} />;
 
   return (
@@ -212,9 +186,7 @@ export const AdminParticipants = () => {
           }}
         >
           <Badge tone={championCount > 0 ? "gold" : "blue"}>
-            {championCount > 0
-              ? `🏆 ${championCount} Champion`
-              : `${groupCount} Groups`}
+            {championCount > 0 ? `🏆 ${championCount} Champion` : `${groupCount} Groups`}
           </Badge>
 
           <button
@@ -405,11 +377,7 @@ export const AdminParticipants = () => {
               {statuses
                 .filter((s) => s !== "all")
                 .map((status) => (
-                  <option
-                    key={status}
-                    value={status}
-                    style={{ background: "#1a1f35" }}
-                  >
+                  <option key={status} value={status} style={{ background: "#1a1f35" }}>
                     {status}
                   </option>
                 ))}
@@ -445,11 +413,7 @@ export const AdminParticipants = () => {
               {groups
                 .filter((g) => g !== "all")
                 .map((group) => (
-                  <option
-                    key={group}
-                    value={group}
-                    style={{ background: "#1a1f35" }}
-                  >
+                  <option key={group} value={group} style={{ background: "#1a1f35" }}>
                     Group {group}
                   </option>
                 ))}
@@ -497,7 +461,7 @@ export const AdminParticipants = () => {
                   { key: "user.codeforcesUsername", label: "Codeforces" },
                   { key: "group", label: "Group" },
                   { key: "seed", label: "Seed" },
-                  { key: "currentRound", label: "Round" },
+                  { key: "currentStage", label: "Round" },
                   { key: "status", label: "Status" },
                 ].map((col) => (
                   <th
@@ -518,20 +482,16 @@ export const AdminParticipants = () => {
                     >
                       {col.label}
                       {sortField === col.key &&
-                        (sortDirection === "asc" ? (
-                          <ArrowUp size={14} />
-                        ) : (
-                          <ArrowDown size={14} />
-                        ))}
+                        (sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
                     </div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-                {filteredParticipants.length ? (
-                  filteredParticipants.map((p) => {
-                    const isChampion = p.status === "CHAMPION";
+              {filteredParticipants.length ? (
+                filteredParticipants.map((p) => {
+                  const isChampion = p.status === "CHAMPION";
                   const isEliminated = p.status === "ELIMINATED";
                   const isTopSeed = p.seed && p.seed <= 3;
 
@@ -622,9 +582,7 @@ export const AdminParticipants = () => {
                       <td
                         style={{
                           ...tdStyle,
-                          color: isEliminated
-                            ? "rgba(255,255,255,0.3)"
-                            : "rgba(255,255,255,0.7)",
+                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                         }}
                       >
                         <div
@@ -641,9 +599,7 @@ export const AdminParticipants = () => {
                       <td
                         style={{
                           ...tdStyle,
-                          color: isEliminated
-                            ? "rgba(255,255,255,0.3)"
-                            : "rgba(255,255,255,0.7)",
+                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                         }}
                       >
                         {p.group ? `Group ${p.group}` : "—"}
@@ -651,8 +607,7 @@ export const AdminParticipants = () => {
                       <td
                         style={{
                           ...tdStyle,
-                          fontWeight:
-                            isTopSeed && !isEliminated ? "700" : "400",
+                          fontWeight: isTopSeed && !isEliminated ? "700" : "400",
                           color: isEliminated
                             ? "rgba(255,255,255,0.3)"
                             : isTopSeed
@@ -672,12 +627,10 @@ export const AdminParticipants = () => {
                       <td
                         style={{
                           ...tdStyle,
-                          color: isEliminated
-                            ? "rgba(255,255,255,0.3)"
-                            : "rgba(255,255,255,0.7)",
+                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                         }}
                       >
-                        {p.currentRound || "Group Stage"}
+                        {p.currentStage || "Group Stage"}
                       </td>
                       <td style={tdStyle}>
                         <Badge tone={getStatusTone(p.status)}>
@@ -694,9 +647,7 @@ export const AdminParticipants = () => {
                     <div style={{ padding: "40px" }}>
                       <EmptyState
                         label={
-                          searchTerm ||
-                          filterStatus !== "all" ||
-                          filterGroup !== "all"
+                          searchTerm || filterStatus !== "all" || filterGroup !== "all"
                             ? "No participants match your filters"
                             : "No registered participants yet."
                         }

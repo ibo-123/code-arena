@@ -178,7 +178,7 @@ const joinTournament = async (req, res) => {
       group: assignedGroup,
       seed: assignedSeed,
       status: 'ACTIVE',
-      currentRound: 'REGISTRATION',
+      currentStage: 'REGISTRATION',
     });
 
     /*

@@ -42,14 +42,14 @@ const ContestSchema = new mongoose.Schema(
     },
     group: {
       type: String,
-      enum: ['A', 'B', 'C', 'D'],
+      trim: true,
     },
     matchNumber: {
       type: Number,
     },
     status: {
       type: String,
-      enum: ['UPCOMING', 'LIVE', 'FINISHED', 'CANCELLED'],
+      enum: ['UPCOMING', 'PUBLISHED', 'LIVE', 'FINISHED', 'CANCELLED'],
       default: 'UPCOMING',
     },
     published: {

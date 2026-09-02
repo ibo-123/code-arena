@@ -16,7 +16,7 @@ exports.getAuditLogs = async (req, res) => {
     const [logs, totalCount] = await Promise.all([
       AuditLog.find(filter)
         .populate('admin', 'name username email')
-        .populate('tournament', 'name status currentRound')
+        .populate('tournament', 'name status currentStage')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)

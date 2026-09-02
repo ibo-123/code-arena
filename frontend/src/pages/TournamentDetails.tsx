@@ -9,6 +9,9 @@ import {
   ArrowRight,
   ShieldAlert,
   PlayCircle,
+  ChevronDown,
+  Sparkles,
+  ListChecks,
 } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
@@ -46,8 +49,11 @@ export const TournamentDetails = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [participantCount, setParticipantCount] = useState<number>(0);
+  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
+  const [showTournamentDropdown, setShowTournamentDropdown] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [error, setError] = useState("");
 
   const [registering, setRegistering] = useState(false);
@@ -64,10 +70,35 @@ export const TournamentDetails = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // --- Load all tournaments for dropdown ---
+  useEffect(() => {
+    const loadTournaments = async () => {
+      try {
+        setLoadingTournaments(true);
+        const response = await tournamentApi.list();
+        const tournaments = response?.tournaments || [];
+        setAllTournaments(tournaments);
+
+        // If no tournament ID in URL, select the first one
+        if (!id && tournaments.length > 0) {
+          navigate(`/tournaments/${tournaments[0]._id}`, { replace: true });
+        }
+      } catch (err) {
+        console.error("Failed to load tournaments:", err);
+      } finally {
+        setLoadingTournaments(false);
+      }
+    };
+    loadTournaments();
+  }, []);
+
   // --- Fetch tournament details ---
   useEffect(() => {
     const fetchDetails = async () => {
-      if (!id) return;
+      if (!id) {
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const [tournamentRes, participantsRes] = await Promise.all([
@@ -127,14 +158,189 @@ export const TournamentDetails = () => {
     }
   };
 
+  // --- Handle tournament selection ---
+  const handleTournamentSelect = (tournamentId: string) => {
+    setShowTournamentDropdown(false);
+    navigate(`/tournaments/${tournamentId}`);
+  };
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
-  if (!tournament) return <ErrorState error="Tournament not found" />;
+
+  // Show tournament selector if no tournament is selected or no ID in URL
+  if (!id || !tournament) {
+    return (
+      <>
+        <Navbar />
+        <main
+          style={{
+            background: "linear-gradient(145deg, #0a0e1a 0%, #12172f 50%, #0a0e1a 100%)",
+            minHeight: "100vh",
+            color: "white",
+            padding: "60px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ maxWidth: "600px", width: "100%" }}>
+            <Card
+              style={{
+                padding: "48px",
+                background: "rgba(20, 25, 45, 0.85)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(8px)",
+                borderRadius: "24px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "rgba(41,121,255,0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 24px",
+                }}
+              >
+                <ListChecks size={40} color="#64B5F6" />
+              </div>
+              <h2 style={{ margin: "0 0 8px 0", fontSize: "28px", fontWeight: "700" }}>
+                Select a Tournament
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "32px" }}>
+                Choose a tournament to view details and register
+              </p>
+
+              {allTournaments.length > 0 ? (
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowTournamentDropdown(!showTournamentDropdown)}
+                    style={{
+                      width: "100%",
+                      padding: "16px 20px",
+                      borderRadius: "14px",
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "white",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      fontSize: "16px",
+                      fontWeight: "500",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                  >
+                    <span>Select Tournament</span>
+                    <ChevronDown
+                      size={20}
+                      style={{
+                        transition: "transform 0.2s ease",
+                        transform: showTournamentDropdown ? "rotate(180deg)" : "none",
+                      }}
+                    />
+                  </button>
+
+                  {showTournamentDropdown && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        left: 0,
+                        right: 0,
+                        background: "#1a1f35",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "14px",
+                        overflow: "hidden",
+                        zIndex: 100,
+                        maxHeight: "300px",
+                        overflowY: "auto",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      {allTournaments.map((t) => (
+                        <button
+                          key={t._id}
+                          onClick={() => handleTournamentSelect(t._id)}
+                          style={{
+                            width: "100%",
+                            padding: "14px 20px",
+                            border: "none",
+                            background: "transparent",
+                            color: "white",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "background 0.15s ease",
+                            borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "15px",
+                              fontWeight: "600",
+                              color: "#f1f5f9",
+                            }}
+                          >
+                            {t.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "rgba(255,255,255,0.4)",
+                              marginTop: "2px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                            }}
+                          >
+                            <span>{t.status || "Upcoming"}</span>
+                            <span>•</span>
+                            <span>{t.maxParticipants || 0} participants</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: "24px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px dashed rgba(255,255,255,0.1)",
+                    color: "rgba(255,255,255,0.4)",
+                  }}
+                >
+                  <p style={{ margin: 0 }}>No tournaments available</p>
+                </div>
+              )}
+            </Card>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   // ---------- Time‑based logic using canonical fields ----------
   const now = currentTime;
 
-  // Use canonical fields (registrationStart/End, tournamentStart/End)
   const registrationStart = tournament.registrationStart
     ? new Date(tournament.registrationStart)
     : null;
@@ -161,7 +367,6 @@ export const TournamentDetails = () => {
   const isFull = participantCount >= maxParticipants;
   const isRegistered = !!participant;
 
-  // Countdown helper (uses tournamentStart)
   const getCountdown = (target: Date | null) => {
     if (!target) return null;
     const diff = target.getTime() - now.getTime();
@@ -175,7 +380,6 @@ export const TournamentDetails = () => {
   const registrationCountdown = isRegistrationNotStarted ? getCountdown(registrationStart) : null;
   const tournamentCountdown = hasTournamentStarted ? null : getCountdown(tournamentStart);
 
-  // Status badge
   const getStatusBadge = () => {
     if (hasTournamentStarted) return { tone: "gold", label: "LIVE" };
     if (isRegistrationOpen) return { tone: "blue", label: "REGISTRATION OPEN" };
@@ -199,6 +403,56 @@ export const TournamentDetails = () => {
         }}
       >
         <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+          {/* Tournament Selector Bar */}
+          <div
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              alignItems: "center",
+              gap: "16px",
+              flexWrap: "wrap",
+              padding: "12px 20px",
+              background: "rgba(255,255,255,0.03)",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", fontWeight: "500" }}>
+              <Sparkles size={14} style={{ marginRight: "6px", display: "inline" }} />
+              Switch Tournament:
+            </span>
+            <select
+              value={tournament._id}
+              onChange={(e) => handleTournamentSelect(e.target.value)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "white",
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: "pointer",
+                outline: "none",
+                minWidth: "200px",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "rgba(41,121,255,0.3)";
+                e.currentTarget.style.boxShadow = "0 0 0 4px rgba(41,121,255,0.05)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              {allTournaments.map((t) => (
+                <option key={t._id} value={t._id} style={{ background: "#1a1f35", color: "white" }}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Header */}
           <div
             style={{
@@ -662,7 +916,7 @@ export const TournamentDetails = () => {
               </div>
             </Card>
 
-            {/* Schedule Card – using canonical fields and EAT formatting */}
+            {/* Schedule Card */}
             <Card
               style={{
                 padding: "24px",
@@ -685,7 +939,6 @@ export const TournamentDetails = () => {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                {/* Registration Opens */}
                 <div
                   style={{
                     display: "flex",
@@ -703,7 +956,6 @@ export const TournamentDetails = () => {
                   </span>
                 </div>
 
-                {/* Registration Closes */}
                 <div
                   style={{
                     display: "flex",
@@ -721,7 +973,6 @@ export const TournamentDetails = () => {
                   </span>
                 </div>
 
-                {/* ✅ Tournament Starts – canonical `tournamentStart` */}
                 <div
                   style={{
                     display: "flex",
@@ -746,7 +997,6 @@ export const TournamentDetails = () => {
                   </span>
                 </div>
 
-                {/* ✅ Tournament Ends – canonical `tournamentEnd` */}
                 <div
                   style={{
                     display: "flex",
@@ -768,7 +1018,6 @@ export const TournamentDetails = () => {
                   </span>
                 </div>
 
-                {/* Countdown to tournament start */}
                 {tournamentCountdown && !hasTournamentStarted && (
                   <div
                     style={{
@@ -799,7 +1048,7 @@ export const TournamentDetails = () => {
               </div>
             </Card>
 
-            {/* Format Card (unchanged) */}
+            {/* Format Card */}
             <Card
               style={{
                 padding: "24px",
@@ -901,7 +1150,6 @@ export const TournamentDetails = () => {
         </div>
       </main>
 
-      {/* Animation keyframes for the pulse */}
       <style>{`
         @keyframes pulse {
           0% { opacity: 1; transform: scale(1); }

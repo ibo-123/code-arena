@@ -12,12 +12,27 @@ const updateContestStatus = async (contest) => {
   return contest;
 };
 
-const getParticipants = (contest) => {
-  if (contest.match) {
-    const Match = require("../models/Match");
-    return Match.findById(contest.match).populate({ path: "participants", populate: { path: "user", select: "name username codeforcesUsername" } })
-      .then((match) => match ? match.participants : []);
+const getParticipants = async (contest) => {
+  const Match = require("../models/Match");
+
+  // Prefer finding a Match that references this contest (Match.contest -> Contest._id)
+  if (contest && contest._id) {
+    const match = await Match.findOne({ contest: contest._id }).populate({ path: "participants", populate: { path: "user", select: "name username codeforcesUsername" } });
+    if (match) return match.participants;
   }
+
+  // Legacy / alternative: if contest.match contains a match id
+  if (contest && contest.match) {
+    const match = await Match.findById(contest.match).populate({ path: "participants", populate: { path: "user", select: "name username codeforcesUsername" } });
+    if (match) return match.participants;
+  }
+
+  // Fallback: find by tournament and optional group or matchNumber
+  if (contest && contest.matchNumber !== undefined && contest.matchNumber !== null) {
+    const match = await Match.findOne({ tournament: contest.tournamentId, matchNumber: contest.matchNumber }).populate({ path: "participants", populate: { path: "user", select: "name username codeforcesUsername" } });
+    if (match) return match.participants;
+  }
+
   const query = { tournamentId: contest.tournamentId };
   if (contest.group) query.group = contest.group;
   return Participant.find(query).populate("user", "name username codeforcesUsername");

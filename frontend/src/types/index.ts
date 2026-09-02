@@ -37,8 +37,7 @@ export interface Tournament {
   name: string;
   description: string;
   status: TournamentStatus;
-  currentStage: TournamentStage;
-  currentRound?: string;          // alias for currentStage
+  currentStage?: TournamentStage | string;          // current stage (optional)
   maxParticipants: number;
   participantCount?: number;
 
@@ -81,7 +80,7 @@ export interface Participant {
   solved?: number;
   penalty?: number;
   status: ParticipantStatus;
-  currentRound?: string;
+  currentStage?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,7 +88,7 @@ export interface Participant {
 // ============================================================
 // Contest Types
 // ============================================================
-export type ContestStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'CANCELLED';
+export type ContestStatus = 'UPCOMING' | 'PUBLISHED' | 'LIVE' | 'FINISHED' | 'CANCELLED';
 
 export interface Contest {
   _id: string;

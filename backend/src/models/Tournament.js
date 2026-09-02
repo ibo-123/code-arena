@@ -46,6 +46,7 @@ const TournamentSchema = new mongoose.Schema(
       type: Number,
       min: [1, 'Qualifiers per group must be at least 1'],
     },
+    // ✅ Added groupContests field
     groupContests: {
       type: Number,
       default: 1,
@@ -84,7 +85,7 @@ const TournamentSchema = new mongoose.Schema(
   }
 );
 
-// Pre-validation middleware (Synchronous Style - No next callback)
+// Pre-validation middleware
 TournamentSchema.pre('validate', function() {
   // Calculate participantsPerGroup if not provided
   if (
@@ -139,6 +140,13 @@ TournamentSchema.pre('validate', function() {
     }
   }
 
+  // ✅ Validate groupContests
+  if (this.groupContests !== undefined && this.groupContests !== null) {
+    if (this.groupContests < 1) {
+      throw new Error('Group contests must be at least 1');
+    }
+  }
+
   // Backward compatibility
   if (this.tournamentStart) {
     this.startDate = this.tournamentStart;
@@ -149,10 +157,9 @@ TournamentSchema.pre('validate', function() {
   }
 });
 
-// Generate slug from name before saving (Synchronous Style - No next callback)
+// Generate slug from name before saving
 TournamentSchema.pre('save', function() {
   if (this.isModified('name') && this.name) {
-    // Generate URL-safe slug
     this.slug = this.name
       .toLowerCase()
       .trim()

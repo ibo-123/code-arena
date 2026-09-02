@@ -19,9 +19,7 @@ export const AdminLogs = () => {
       const { tournaments } = await tournamentApi.list();
       setTournament(tournaments[0] || null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load tournament",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load tournament");
     }
   };
 
@@ -104,7 +102,7 @@ export const AdminLogs = () => {
           }}
         >
           <Badge tone={isCompleted ? "gold" : "blue"}>
-            {tournament.currentRound || tournament.status}
+            {tournament.currentStage || tournament.status}
           </Badge>
 
           <button
@@ -159,7 +157,7 @@ export const AdminLogs = () => {
           },
           {
             label: "Current Round",
-            value: tournament.currentRound || "N/A",
+            value: tournament.currentStage || "N/A",
             icon: Calendar,
             color: "#FF9800",
           },

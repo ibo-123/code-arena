@@ -32,6 +32,8 @@ router.post('/tournaments/:tournamentId/contests', contestController.publishCont
 router.get('/tournaments/:tournamentId/contests', contestController.getContests);
 router.post('/tournaments/:tournamentId/contests/:contestId/sync', contestController.syncResults);
 router.get('/tournaments/:tournamentId/contests/:contestId/leaderboard', contestController.getLeaderboard);
+// Reconcile contests with matches when contests published before matches were created
+router.post('/tournaments/:tournamentId/contests/reconcile', contestController.reconcileContestsMatches);
 
 // ============================================
 // PARTICIPANT MANAGEMENT (Added manual assignment)

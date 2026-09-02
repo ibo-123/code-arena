@@ -67,7 +67,7 @@ export const Dashboard = () => {
   // ---- Derived values ----
   const isCompleted = tournament?.status === "COMPLETED";
   const isRegistration = tournament?.status === "REGISTRATION";
-  const currentStage = tournament?.currentRound || tournament?.status || "Registration";
+  const currentStage = tournament?.currentStage || tournament?.status || "Registration";
   const statusLabel =
     participant?.status === "ACTIVE"
       ? isRegistration
@@ -445,7 +445,7 @@ export const Dashboard = () => {
                 >
                   {isRegistration
                     ? "Registration is Open"
-                    : tournament?.currentRound || "Upcoming Match"}
+                    : tournament?.currentStage || "Upcoming Match"}
                 </h2>
 
                 <p

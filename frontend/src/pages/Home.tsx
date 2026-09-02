@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Trophy, Users, Calendar, Clock, Sparkles, Crown } from "lucide-react";
+import { ArrowRight, Trophy, Users, Calendar, Clock, Sparkles, Crown, Plus } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { LoadingState } from "../components/ui/LoadingState";
 import { ErrorState } from "../components/ui/ErrorState";
+import { TournamentCard } from "../components/TournamentCard"; // ✅ Import directly
 import { tournamentApi } from "../services/tournamentApi";
+import { useAuth } from "../context/AuthContext";
 import type { Tournament } from "../types";
 
 const TOURNAMENT_STAGES = [
@@ -19,7 +21,8 @@ const TOURNAMENT_STAGES = [
 ];
 
 export const Home = () => {
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const { user, isAuthenticated } = useAuth();
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState({
@@ -30,23 +33,29 @@ export const Home = () => {
   });
 
   useEffect(() => {
-    const fetchTournament = async () => {
+    const fetchTournaments = async () => {
       try {
         setLoading(true);
-        const { tournaments } = await tournamentApi.list();
-        setTournament(tournaments[0] || null);
+        const { tournaments: allTournaments } = await tournamentApi.list();
+        setTournaments(allTournaments);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load tournament");
+        setError(err instanceof Error ? err.message : "Failed to load tournaments");
       } finally {
         setLoading(false);
       }
     };
-    fetchTournament();
+    fetchTournaments();
   }, []);
 
+  // Calculate countdown for the first upcoming tournament
   useEffect(() => {
-    const startDate = tournament?.startDate;
-    if (!startDate) return;
+    // ✅ Fix: Use 'REGISTRATION' instead of 'DRAFT' (DRAFT is not a valid TournamentStatus)
+    const upcomingTournament = tournaments.find((t) => t.status === "REGISTRATION");
+    const startDate = upcomingTournament?.tournamentStart;
+    if (!startDate) {
+      setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      return;
+    }
 
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
@@ -68,15 +77,13 @@ export const Home = () => {
     calculateTimeLeft();
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, [tournament]);
+  }, [tournaments]);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
 
-  const isCompleted = tournament?.status === "COMPLETED";
-  const badgeTone = isCompleted ? "gold" : "blue";
-  const statusLabel = tournament?.status || "REGISTRATION";
-
+  const activeTournaments = tournaments.filter((t) => t.status !== "COMPLETED");
+  const completedTournaments = tournaments.filter((t) => t.status === "COMPLETED");
   const isCountdownZero =
     timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0;
 
@@ -101,7 +108,7 @@ export const Home = () => {
               gridTemplateColumns: "1fr 1fr",
               gap: "60px",
               alignItems: "center",
-              minHeight: "500px",
+              minHeight: "400px",
               overflow: "hidden",
             }}
           >
@@ -186,9 +193,8 @@ export const Home = () => {
                   marginBottom: "32px",
                 }}
               >
-                Elite competitive programming championship where{" "}
-                <strong style={{ color: "white" }}>20</strong> top coders battle for the ultimate
-                crown.
+                Elite competitive programming championships where{" "}
+                <strong style={{ color: "white" }}>coders</strong> battle for the ultimate crown.
               </p>
 
               <div
@@ -198,33 +204,35 @@ export const Home = () => {
                   flexWrap: "wrap",
                 }}
               >
-                <Link to={tournament ? `/tournaments/${tournament._id}` : "/register"}>
-                  <Button
-                    style={{
-                      padding: "14px 32px",
-                      borderRadius: "12px",
-                      background: "linear-gradient(135deg, #FFD700, #FFA000)",
-                      color: "#0a0e1a",
-                      fontWeight: "700",
-                      border: "none",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      transition: "transform 0.2s, box-shadow 0.2s",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow = "0 8px 30px rgba(255, 215, 0, 0.4)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  >
-                    View Tournament <ArrowRight size={18} />
-                  </Button>
-                </Link>
+                {activeTournaments.length > 0 && (
+                  <Link to={`/tournaments/${activeTournaments[0]._id}`}>
+                    <Button
+                      style={{
+                        padding: "14px 32px",
+                        borderRadius: "12px",
+                        background: "linear-gradient(135deg, #FFD700, #FFA000)",
+                        color: "#0a0e1a",
+                        fontWeight: "700",
+                        border: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        transition: "transform 0.2s, box-shadow 0.2s",
+                        cursor: "pointer",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 8px 30px rgba(255, 215, 0, 0.4)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      View Active Tournament <ArrowRight size={18} />
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/bracket">
                   <div
                     style={{
@@ -254,6 +262,35 @@ export const Home = () => {
                     Explore Bracket
                   </div>
                 </Link>
+                {isAuthenticated && user?.role === "ADMIN" && (
+                  <Link to="/admin/tournaments/create">
+                    <div
+                      style={{
+                        padding: "14px 32px",
+                        borderRadius: "12px",
+                        background: "rgba(41,121,255,0.15)",
+                        color: "#2979FF",
+                        border: "1px solid rgba(41,121,255,0.2)",
+                        fontWeight: "600",
+                        fontSize: "16px",
+                        transition: "all 0.2s",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(41,121,255,0.25)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(41,121,255,0.15)";
+                      }}
+                    >
+                      <Plus size={18} />
+                      New Tournament
+                    </div>
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -363,8 +400,8 @@ export const Home = () => {
                   }}
                 >
                   <Calendar size={16} />
-                  {tournament?.startDate
-                    ? new Date(tournament.startDate).toLocaleDateString("en-US", {
+                  {activeTournaments.length > 0 && activeTournaments[0]?.tournamentStart
+                    ? new Date(activeTournaments[0].tournamentStart).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
@@ -372,23 +409,23 @@ export const Home = () => {
                     : "TBD"}
                 </div>
                 <Badge
-                  tone={badgeTone}
+                  tone={activeTournaments.length > 0 ? "blue" : "muted"}
                   style={{
                     fontSize: "11px",
                     padding: "4px 14px",
                     borderRadius: "100px",
                     fontWeight: "600",
-                    background: isCompleted
-                      ? "linear-gradient(135deg, #FFD700, #FFA000)"
-                      : "linear-gradient(135deg, #2979FF, #1565C0)",
+                    background:
+                      activeTournaments.length > 0
+                        ? "linear-gradient(135deg, #2979FF, #1565C0)"
+                        : "rgba(255,255,255,0.1)",
                   }}
                 >
-                  {statusLabel}
+                  {activeTournaments.length > 0 ? "Active" : "No Active"}
                 </Badge>
               </div>
             </div>
 
-            {/* Keyframes for glow animation */}
             <style>{`
               @keyframes pulseGlow {
                 0%, 100% { transform: scale(1); opacity: 0.4; }
@@ -444,18 +481,6 @@ export const Home = () => {
                 position: "relative",
               }}
             >
-              {/* Desktop connector line */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "10%",
-                  right: "10%",
-                  height: "2px",
-                  background: "linear-gradient(90deg, rgba(255,215,0,0.15), rgba(41,121,255,0.15))",
-                  display: "none",
-                }}
-              />
               {TOURNAMENT_STAGES.map(({ stage, label, icon, color }) => (
                 <div
                   key={stage}
@@ -518,35 +543,145 @@ export const Home = () => {
                   >
                     {label}
                   </strong>
-                  {stage < 5 && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: "-16px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "rgba(255,255,255,0.08)",
-                        display: "none",
-                      }}
-                    >
-                      →
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
-
-            {/* Responsive connector arrows */}
-            <style>{`
-              @media (min-width: 768px) {
-                .path-connector {
-                  display: block !important;
-                }
-              }
-            `}</style>
           </section>
 
-          {/* Reward Cards - FIXED: wrap content in div for hover events */}
+          {/* Tournaments Grid */}
+          <section style={{ padding: "40px 20px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    fontSize: "clamp(24px, 2.5vw, 32px)",
+                    fontWeight: "700",
+                    margin: 0,
+                    background: "linear-gradient(135deg, #FFFFFF, #64B5F6)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  Active Tournaments
+                </h2>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "rgba(255,255,255,0.5)",
+                    margin: "4px 0 0",
+                  }}
+                >
+                  {activeTournaments.length} tournaments running
+                </p>
+              </div>
+              {isAuthenticated && user?.role === "ADMIN" && (
+                <Link to="/admin/tournaments/create">
+                  <Button
+                    style={{
+                      padding: "10px 20px",
+                      borderRadius: "10px",
+                      background: "linear-gradient(135deg, #2979FF, #1565C0)",
+                      border: "none",
+                      color: "white",
+                      fontWeight: "600",
+                    }}
+                  >
+                    <Plus size={16} /> New Tournament
+                  </Button>
+                </Link>
+              )}
+            </div>
+
+            {activeTournaments.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                  gap: "24px",
+                }}
+              >
+                {activeTournaments.map((tournament) => (
+                  <TournamentCard key={tournament._id} tournament={tournament} />
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: "60px 20px",
+                  textAlign: "center",
+                  background: "rgba(255,255,255,0.02)",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <Trophy size={48} color="rgba(255,255,255,0.1)" />
+                <h3 style={{ color: "rgba(255,255,255,0.6)", margin: "16px 0 8px" }}>
+                  No Active Tournaments
+                </h3>
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "14px" }}>
+                  Check back later for upcoming competitions
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Completed Tournaments */}
+          {completedTournaments.length > 0 && (
+            <section style={{ padding: "40px 20px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "32px",
+                }}
+              >
+                <div>
+                  <h2
+                    style={{
+                      fontSize: "clamp(20px, 2vw, 28px)",
+                      fontWeight: "700",
+                      margin: 0,
+                      color: "rgba(255,255,255,0.6)",
+                    }}
+                  >
+                    Completed Tournaments
+                  </h2>
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(255,255,255,0.3)",
+                      margin: "4px 0 0",
+                    }}
+                  >
+                    {completedTournaments.length} tournaments finished
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: "20px",
+                }}
+              >
+                {completedTournaments.map((tournament) => (
+                  <TournamentCard key={tournament._id} tournament={tournament} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Reward Cards */}
           <section
             style={{
               display: "grid",
@@ -555,7 +690,6 @@ export const Home = () => {
               padding: "0 20px",
             }}
           >
-            {/* Card 1 - Trophy */}
             <Card
               style={{
                 padding: "32px",
@@ -568,7 +702,6 @@ export const Home = () => {
                 transition: "all 0.3s ease",
               }}
             >
-              {/* Hover wrapper div */}
               <div
                 style={{ display: "contents", width: "100%" }}
                 onMouseEnter={(e) => {
@@ -634,7 +767,6 @@ export const Home = () => {
               </div>
             </Card>
 
-            {/* Card 2 - Users */}
             <Card
               style={{
                 padding: "32px",
@@ -698,7 +830,7 @@ export const Home = () => {
                       display: "block",
                     }}
                   >
-                    20 Elite Coders
+                    Elite Coders
                   </strong>
                   <span
                     style={{
@@ -706,13 +838,12 @@ export const Home = () => {
                       color: "rgba(255,255,255,0.5)",
                     }}
                   >
-                    One ultimate arena
+                    Battle for supremacy
                   </span>
                 </div>
               </div>
             </Card>
 
-            {/* Card 3 - Crown */}
             <Card
               style={{
                 padding: "32px",

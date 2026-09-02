@@ -23,7 +23,7 @@ const updateMatchResult = async (req, res) => {
       const isWinner = p._id.toString() === winnerId;
       await Participant.findByIdAndUpdate(p._id, {
         status: isWinner ? "ADVANCED" : "ELIMINATED",
-        currentRound: isWinner ? match.round : "ELIMINATED"
+        currentStage: isWinner ? match.round : "ELIMINATED"
       });
     }));
 

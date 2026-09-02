@@ -1,53 +1,35 @@
 import { useEffect, useState } from "react";
 import { AdminContests as AdminContestsComponent } from "../../components/admin";
+import { useAdmin } from "../../context/AdminContext";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { Badge } from "../../components/ui/Badge";
 import { Trophy, RefreshCw, Calendar, Users, Clock } from "lucide-react";
-import { tournamentApi } from "../../services/tournamentApi";
 import type { Tournament } from "../../types";
 
 export const AdminContests = () => {
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const { selectedTournament, refreshTournaments } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchTournament = async () => {
-    try {
-      setLoading(true);
-      const { tournaments } = await tournamentApi.list();
-      setTournament(tournaments[0] || null);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load tournament",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      if (isMounted) await fetchTournament();
-    })();
-    return () => { isMounted = false; };
+    setLoading(false);
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchTournament();
+    await refreshTournaments();
     setRefreshing(false);
   };
 
   if (loading) return <LoadingState label="Loading tournament contests..." />;
   if (error) return <ErrorState error={error} />;
-  if (!tournament) return <EmptyState label="No active tournament found." />;
+  if (!selectedTournament) return <EmptyState label="No tournament selected." />;
 
-  const isCompleted = tournament.status === "COMPLETED";
-  const isRegistration = tournament.status === "REGISTRATION";
+  const isCompleted = selectedTournament.status === "COMPLETED";
+  const isRegistration = selectedTournament.status === "REGISTRATION";
 
   return (
     <div style={{ padding: "24px 0" }}>
@@ -100,7 +82,7 @@ export const AdminContests = () => {
           }}
         >
           <Badge tone={isCompleted ? "gold" : isRegistration ? "blue" : "blue"}>
-            {tournament.currentRound || tournament.status || "Registration"}
+            {selectedTournament.currentStage || selectedTournament.status || "Registration"}
           </Badge>
 
           <button
@@ -143,25 +125,25 @@ export const AdminContests = () => {
         {[
           {
             label: "Tournament",
-            value: tournament.name || "Code Arena 2026",
+            value: selectedTournament.name || "Code Arena 2026",
             icon: Trophy,
             color: "#FFD700",
           },
           {
             label: "Status",
-            value: tournament.status || "Registration",
+            value: selectedTournament.status || "Registration",
             icon: Clock,
             color: isCompleted ? "#FFD700" : "#2979FF",
           },
           {
             label: "Current Round",
-            value: tournament.currentRound || "N/A",
+            value: selectedTournament.currentStage || "N/A",
             icon: Calendar,
             color: "#4CAF50",
           },
           {
             label: "Max Participants",
-            value: tournament.maxParticipants || 20,
+            value: selectedTournament.maxParticipants || 20,
             icon: Users,
             color: "#9C27B0",
           },
@@ -216,7 +198,7 @@ export const AdminContests = () => {
         ))}
       </div>
 
-      <AdminContestsComponent tournament={tournament} />
+      <AdminContestsComponent tournament={selectedTournament} />
 
       <style>{`
         @keyframes spin {
