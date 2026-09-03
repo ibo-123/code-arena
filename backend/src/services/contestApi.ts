@@ -26,7 +26,7 @@ export const contestApi = {
     tournamentId: string,
     data: {
       name: string;
-      round: string;
+      stage: string;
       group?: string;
       matchNumber?: number;
       codeforcesContestId: number;
