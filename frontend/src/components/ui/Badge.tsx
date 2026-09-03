@@ -4,7 +4,7 @@ interface BadgeProps {
   children: React.ReactNode;
   tone?: "blue" | "gold" | "green" | "red" | "muted" | "purple" | "pink" | "orange";
   className?: string;
-  style?: React.CSSProperties;
+  style?: React.CSSProperties; // ✅ Added style prop
   glowing?: boolean;
   size?: "sm" | "md" | "lg";
   icon?: React.ReactNode;
@@ -103,7 +103,7 @@ export const Badge: React.FC<BadgeProps> = ({
         boxShadow: glowing ? styles.glow : "none",
         transition: "all 0.3s ease",
         ...sizeStyles[size],
-        ...style,
+        ...style, // ✅ Now style prop is properly applied
       }}
     >
       {icon && <span style={{ display: "inline-flex", alignItems: "center" }}>{icon}</span>}
