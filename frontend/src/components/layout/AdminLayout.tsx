@@ -28,6 +28,12 @@ interface Tournament {
   numberOfGroups?: number;
 }
 
+// Type for the outlet context
+export interface AdminLayoutContext {
+  selectedTournament: Tournament | null;
+  tournaments: Tournament[];
+}
+
 const AdminLayout: React.FC = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -268,9 +274,10 @@ const AdminLayout: React.FC = () => {
                           height: "6px",
                           borderRadius: "50%",
                           background:
-                            selectedTournament.status === "active"
+                            selectedTournament.status === "ACTIVE" ||
+                            selectedTournament.status === "REGISTRATION"
                               ? "#22c55e"
-                              : selectedTournament.status === "completed"
+                              : selectedTournament.status === "COMPLETED"
                                 ? "#3b82f6"
                                 : "#f59e0b",
                         }}
@@ -548,7 +555,7 @@ const AdminLayout: React.FC = () => {
                     width: "6px",
                     height: "6px",
                     borderRadius: "50%",
-                    background: "#22c55e",
+                    background: selectedTournament.status === "COMPLETED" ? "#3b82f6" : "#22c55e",
                   }}
                 />
                 {selectedTournament.name}

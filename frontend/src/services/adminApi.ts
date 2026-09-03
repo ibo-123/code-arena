@@ -69,6 +69,34 @@ export interface TournamentCreateResponse {
   tournament: Tournament;
 }
 
+export interface AdminSettingsResponse {
+  success: boolean;
+  settings: {
+    name: string;
+    email: string;
+    username: string;
+    role: string;
+    tournamentDefaults: {
+      maxParticipants: number;
+      numberOfGroups: number;
+      participantsPerGroup: number;
+      qualifiersPerGroup: number;
+      playoffFormat: string;
+    };
+  };
+}
+
+export interface AdminUpdateSettingsResponse {
+  success: boolean;
+  message: string;
+  settings: {
+    name: string;
+    email: string;
+    username: string;
+    role: string;
+  };
+}
+
 // ============================================
 // ADMIN API
 // ============================================
@@ -298,7 +326,7 @@ export const adminApi = {
    * GET /api/admin/settings
    * Get admin account settings and tournament defaults
    */
-  async getSettings(): Promise<{ success: boolean; settings: { name: string; email: string; username: string; role: string; tournamentDefaults: Record<string, unknown> } }> {
+  async getSettings(): Promise<AdminSettingsResponse> {
     const response = await apiClient.get('/admin/settings');
     return response.data;
   },
@@ -307,7 +335,18 @@ export const adminApi = {
    * PATCH /api/admin/settings
    * Update admin account settings (name, email, password)
    */
-  async updateSettings(data: { name?: string; email?: string; password?: string }): Promise<{ success: boolean; message: string; settings: { name: string; email: string; username: string; role: string } }> {
+  async updateSettings(data: { 
+    name?: string; 
+    email?: string; 
+    password?: string;
+    tournamentDefaults?: {
+      maxParticipants?: number;
+      numberOfGroups?: number;
+      participantsPerGroup?: number;
+      qualifiersPerGroup?: number;
+      playoffFormat?: string;
+    };
+  }): Promise<AdminUpdateSettingsResponse> {
     const response = await apiClient.patch('/admin/settings', data);
     return response.data;
   },

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Crown, ChevronRight, Trophy } from "lucide-react";
+import { Crown, ChevronRight, Trophy, ChevronDown, RefreshCw, Users, Calendar } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
 import { LoadingState } from "../components/ui/LoadingState";
 import { ErrorState } from "../components/ui/ErrorState";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -17,33 +18,72 @@ const getInitials = (name: string) =>
     .slice(0, 2);
 
 export const Bracket = () => {
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [bracket, setBracket] = useState<BracketType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showTournamentMenu, setShowTournamentMenu] = useState(false);
 
   useEffect(() => {
-    tournamentApi
-      .list()
-      .then(({ tournaments }) => {
-        const t = tournaments[0] || null;
-        setTournament(t);
-        if (t) {
-          return tournamentApi.bracket(t._id);
-        }
-        return null;
-      })
-      .then((result) => {
-        if (result) {
-          setBracket(result.bracket);
-        }
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadTournaments();
   }, []);
+
+  useEffect(() => {
+    if (selectedTournament) {
+      loadBracket(selectedTournament._id);
+    }
+  }, [selectedTournament]);
+
+  const loadTournaments = async () => {
+    try {
+      setLoading(true);
+      const { tournaments } = await tournamentApi.list();
+      setTournaments(tournaments);
+
+      if (tournaments.length > 0) {
+        // Try to load saved selection from localStorage
+        const savedId = localStorage.getItem("public-selected-tournament");
+        const savedTournament = savedId
+          ? tournaments.find((t: Tournament) => t._id === savedId)
+          : null;
+        setSelectedTournament(savedTournament || tournaments[0]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load tournaments");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadBracket = async (tournamentId: string) => {
+    try {
+      setLoading(true);
+      const { bracket: data } = await tournamentApi.bracket(tournamentId);
+      setBracket(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load bracket");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTournamentChange = (tournament: Tournament) => {
+    setSelectedTournament(tournament);
+    localStorage.setItem("public-selected-tournament", tournament._id);
+    setShowTournamentMenu(false);
+  };
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
+
+  const isCompleted = selectedTournament?.status === "COMPLETED";
+  const hasBracketData =
+    bracket &&
+    (bracket.quarterFinal?.length > 0 ||
+      bracket.semiFinal?.length > 0 ||
+      bracket.final ||
+      Object.keys(bracket.groupStage || {}).length > 0);
 
   // ---- Match Card ----
   const MatchCard = ({ match }: { match: Match }) => (
@@ -82,13 +122,12 @@ export const Bracket = () => {
         </span>
         <Badge
           tone={match.status === "COMPLETED" ? "green" : match.status === "LIVE" ? "red" : "muted"}
-          style={{ fontSize: "10px", padding: "2px 8px" }}
         >
-          {match.status}
+          {match.status || "PENDING"}
         </Badge>
       </div>
 
-      {match.participants.map((p: Participant) => {
+      {match.participants?.map((p: Participant) => {
         const isWinner = match.winner?._id === p._id;
         return (
           <div
@@ -122,7 +161,7 @@ export const Bracket = () => {
                 flexShrink: 0,
               }}
             >
-              {getInitials(p.user.username)}
+              {getInitials(p.user?.username || "?")}
             </div>
             <span
               style={{
@@ -132,7 +171,7 @@ export const Bracket = () => {
                 color: isWinner ? "#FFD700" : "rgba(255,255,255,0.9)",
               }}
             >
-              {p.user.username}
+              {p.user?.username || "Unknown"}
             </span>
             {isWinner && <Crown size={16} color="#FFD700" style={{ flexShrink: 0 }} />}
           </div>
@@ -167,6 +206,15 @@ export const Bracket = () => {
         width: "100%",
         maxWidth: "280px",
         margin: "0 auto",
+        transition: "all 0.3s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "rgba(41,121,255,0.2)";
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+        e.currentTarget.style.transform = "translateY(0)";
       }}
     >
       <div
@@ -177,63 +225,110 @@ export const Bracket = () => {
           marginBottom: "12px",
         }}
       >
-        <span style={{ fontSize: "14px", fontWeight: "700", color: "#64B5F6" }}>Group {group}</span>
-        <Badge tone="blue" style={{ fontSize: "10px" }}>
-          {players.length} participants
-        </Badge>
-      </div>
-      {players.length ? (
-        players.map((p) => (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div
-            key={p._id}
             style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              background: `linear-gradient(135deg, ${getGroupColor(group)}, ${getGroupColor(group)}cc)`,
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              padding: "6px 8px",
-              borderRadius: "6px",
-              marginBottom: "4px",
-              background: p.status === "ELIMINATED" ? "rgba(255,0,0,0.05)" : "transparent",
-              transition: "background 0.2s",
+              justifyContent: "center",
+              fontWeight: "700",
+              fontSize: "14px",
+              color: "white",
             }}
           >
-            <div
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #78909C, #37474F)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "10px",
-                fontWeight: "700",
-                color: "#fff",
-                flexShrink: 0,
-              }}
-            >
-              {getInitials(p.user.username)}
-            </div>
-            <span
-              style={{
-                flex: 1,
-                fontSize: "13px",
-                color:
-                  p.status === "ELIMINATED" ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.9)",
-              }}
-            >
-              #{p.seed} {p.user.username}
-            </span>
-            <Badge
-              tone={p.status === "ELIMINATED" ? "muted" : "green"}
-              style={{ fontSize: "9px", padding: "1px 6px" }}
-            >
-              {p.status}
-            </Badge>
+            {group}
           </div>
-        ))
+          <span style={{ fontSize: "14px", fontWeight: "700", color: "#64B5F6" }}>
+            Group {group}
+          </span>
+        </div>
+        <Badge tone="blue">
+          {players.length} {players.length === 1 ? "participant" : "participants"}
+        </Badge>
+      </div>
+
+      {players.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {players
+            .sort((a, b) => (a.seed || 999) - (b.seed || 999))
+            .map((p) => {
+              const isEliminated = p.status === "ELIMINATED";
+              const isTopSeed = p.seed && p.seed <= 2;
+
+              return (
+                <div
+                  key={p._id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "6px 8px",
+                    borderRadius: "6px",
+                    background: isEliminated
+                      ? "rgba(255,0,0,0.05)"
+                      : isTopSeed
+                        ? "rgba(255,215,0,0.05)"
+                        : "transparent",
+                    border:
+                      isTopSeed && !isEliminated
+                        ? "1px solid rgba(255,215,0,0.1)"
+                        : "1px solid transparent",
+                    transition: "background 0.2s",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: isEliminated
+                        ? "rgba(255,255,255,0.05)"
+                        : isTopSeed
+                          ? "rgba(255,215,0,0.1)"
+                          : "linear-gradient(135deg, #78909C, #37474F)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      color: isEliminated
+                        ? "rgba(255,255,255,0.3)"
+                        : isTopSeed
+                          ? "#FFD700"
+                          : "#fff",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {p.seed || "?"}
+                  </div>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: "13px",
+                      color: isEliminated ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.9)",
+                      fontWeight: isTopSeed && !isEliminated ? "600" : "400",
+                    }}
+                  >
+                    {p.user?.username || "Unknown"}
+                  </span>
+                  {isTopSeed && !isEliminated && (
+                    <span style={{ fontSize: "12px", color: "#FFD700" }}>⭐</span>
+                  )}
+                  <Badge
+                    tone={isEliminated ? "muted" : "green"}
+                    style={{ fontSize: "9px", padding: "1px 6px" }}
+                  >
+                    {p.status || "ACTIVE"}
+                  </Badge>
+                </div>
+              );
+            })}
+        </div>
       ) : (
-        // FIX: wrap EmptyState in a div to apply padding
         <div style={{ padding: "20px 0" }}>
           <EmptyState label="Awaiting draw" />
         </div>
@@ -254,7 +349,7 @@ export const Bracket = () => {
         }}
       >
         <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-          {/* Header */}
+          {/* Header with Tournament Selector */}
           <header
             style={{
               marginBottom: "40px",
@@ -290,13 +385,233 @@ export const Bracket = () => {
                 The road to the crown
               </p>
             </div>
-            <Badge
-              tone={tournament?.status === "COMPLETED" ? "gold" : "blue"}
-              style={{ fontSize: "14px", padding: "8px 20px" }}
-            >
-              {tournament?.status || "REGISTRATION"}
-            </Badge>
+
+            {/* Tournament Selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <Badge
+                tone={isCompleted ? "gold" : "blue"}
+                style={{ fontSize: "14px", padding: "8px 20px" }}
+              >
+                {selectedTournament?.status || "REGISTRATION"}
+              </Badge>
+
+              {tournaments.length > 1 && (
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowTournamentMenu(!showTournamentMenu)}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "white",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                  >
+                    <Trophy size={18} color="#FFD700" />
+                    <span>{selectedTournament?.name || "Select Tournament"}</span>
+                    <ChevronDown
+                      size={16}
+                      style={{
+                        transition: "transform 0.2s ease",
+                        transform: showTournamentMenu ? "rotate(180deg)" : "none",
+                      }}
+                    />
+                  </button>
+
+                  {showTournamentMenu && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        right: 0,
+                        minWidth: "280px",
+                        background: "#1e293b",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        zIndex: 100,
+                        maxHeight: "300px",
+                        overflowY: "auto",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+                      }}
+                    >
+                      {tournaments.map((tournament) => (
+                        <button
+                          key={tournament._id}
+                          onClick={() => handleTournamentChange(tournament)}
+                          style={{
+                            width: "100%",
+                            padding: "12px 16px",
+                            border: "none",
+                            background:
+                              selectedTournament?._id === tournament._id
+                                ? "rgba(59,130,246,0.2)"
+                                : "transparent",
+                            color: "white",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "background 0.15s ease",
+                            borderLeft:
+                              selectedTournament?._id === tournament._id
+                                ? "3px solid #3b82f6"
+                                : "3px solid transparent",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (selectedTournament?._id !== tournament._id) {
+                              e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedTournament?._id !== tournament._id) {
+                              e.currentTarget.style.background = "transparent";
+                            }
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight:
+                                selectedTournament?._id === tournament._id ? "600" : "500",
+                              color:
+                                selectedTournament?._id === tournament._id ? "#60a5fa" : "#f1f5f9",
+                            }}
+                          >
+                            {tournament.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#94a3b8",
+                              marginTop: "4px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            <span>{tournament.status || "Upcoming"}</span>
+                            <span>•</span>
+                            <span>{tournament.maxParticipants || 0} participants</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={() => selectedTournament && loadBracket(selectedTournament._id)}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "rgba(255,255,255,0.6)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "13px",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.color = "white";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                  e.currentTarget.style.color = "rgba(255,255,255,0.6)";
+                }}
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+            </div>
           </header>
+
+          {/* Tournament Info Card */}
+          {selectedTournament && (
+            <Card
+              style={{
+                padding: "20px 24px",
+                marginBottom: "32px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: "16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.3)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    Tournament
+                  </div>
+                  <div style={{ fontSize: "18px", fontWeight: "700", color: "white" }}>
+                    {selectedTournament.name}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.3)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    <Calendar size={14} style={{ marginRight: "4px", display: "inline" }} />
+                    Stage
+                  </div>
+                  <div style={{ fontSize: "15px", fontWeight: "600", color: "#64B5F6" }}>
+                    {selectedTournament.currentStage || selectedTournament.status || "Registration"}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.3)",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    <Users size={14} style={{ marginRight: "4px", display: "inline" }} />
+                    Participants
+                  </div>
+                  <div style={{ fontSize: "15px", fontWeight: "600", color: "white" }}>
+                    {selectedTournament.maxParticipants || 0}
+                  </div>
+                </div>
+              </div>
+              <Badge tone={isCompleted ? "gold" : "blue"}>
+                {isCompleted ? "🏆 COMPLETED" : "🔄 IN PROGRESS"}
+              </Badge>
+            </Card>
+          )}
 
           {/* Bracket columns - horizontal scroll on small screens */}
           <div
@@ -324,18 +639,22 @@ export const Bracket = () => {
               >
                 GROUP STAGE
               </h3>
-              {bracket?.groupStage ? (
+              {bracket?.groupStage && Object.keys(bracket.groupStage).length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {Object.entries(bracket.groupStage).map(([group, players]) => (
-                    <GroupCard key={group} group={group} players={players} />
-                  ))}
+                  {Object.entries(bracket.groupStage)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([group, players]) => (
+                      <GroupCard key={group} group={group} players={players} />
+                    ))}
                 </div>
               ) : (
-                <EmptyState label="Groups not yet drawn" />
+                <div style={{ padding: "20px" }}>
+                  <EmptyState label="Groups not yet drawn" />
+                </div>
               )}
             </section>
 
-            {/* Connector arrow (for visual flow) */}
+            {/* Connector arrow */}
             <div
               style={{
                 display: "flex",
@@ -368,7 +687,9 @@ export const Bracket = () => {
                     <MatchCard key={match.matchNumber} match={match} />
                   ))
                 ) : (
-                  <EmptyState label="Quarter finals pending" />
+                  <div style={{ padding: "20px" }}>
+                    <EmptyState label="Quarter finals pending" />
+                  </div>
                 )}
               </div>
             </section>
@@ -405,7 +726,9 @@ export const Bracket = () => {
                     <MatchCard key={match.matchNumber} match={match} />
                   ))
                 ) : (
-                  <EmptyState label="Semifinals pending" />
+                  <div style={{ padding: "20px" }}>
+                    <EmptyState label="Semifinals pending" />
+                  </div>
                 )}
               </div>
             </section>
@@ -447,7 +770,9 @@ export const Bracket = () => {
                 {bracket?.final ? (
                   <MatchCard match={bracket.final} />
                 ) : (
-                  <EmptyState label="Finalists pending" />
+                  <div style={{ padding: "20px" }}>
+                    <EmptyState label="Finalists pending" />
+                  </div>
                 )}
 
                 {/* Champion Card */}
@@ -456,14 +781,20 @@ export const Bracket = () => {
                     position: "relative",
                     width: "100%",
                     maxWidth: "280px",
-                    background:
-                      "linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,152,0,0.05))",
+                    background: bracket?.champion
+                      ? "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,152,0,0.08))"
+                      : "linear-gradient(135deg, rgba(255,215,0,0.05), rgba(255,152,0,0.02))",
                     borderRadius: "16px",
                     padding: "24px 20px",
-                    border: "1px solid rgba(255,215,0,0.2)",
+                    border: bracket?.champion
+                      ? "2px solid rgba(255,215,0,0.3)"
+                      : "1px solid rgba(255,215,0,0.1)",
                     textAlign: "center",
                     marginTop: "12px",
-                    boxShadow: "0 8px 32px rgba(255,215,0,0.1)",
+                    boxShadow: bracket?.champion
+                      ? "0 8px 32px rgba(255,215,0,0.15)"
+                      : "0 4px 16px rgba(255,215,0,0.05)",
+                    transition: "all 0.3s ease",
                   }}
                 >
                   <div
@@ -476,34 +807,51 @@ export const Bracket = () => {
                       padding: "0 12px",
                     }}
                   >
-                    <Trophy size={32} color="#FFD700" />
+                    <Trophy
+                      size={32}
+                      color={bracket?.champion ? "#FFD700" : "rgba(255,215,0,0.3)"}
+                    />
                   </div>
                   <div style={{ marginTop: "16px" }}>
                     <small
                       style={{
-                        color: "rgba(255,255,255,0.4)",
+                        color: bracket?.champion ? "rgba(255,215,0,0.8)" : "rgba(255,255,255,0.3)",
                         fontSize: "11px",
                         letterSpacing: "1px",
                       }}
                     >
-                      CHAMPION
+                      {bracket?.champion ? "🏆 CHAMPION" : "CROWN AWAITS"}
                     </small>
                     <div
                       style={{
                         fontSize: "22px",
                         fontWeight: "800",
                         margin: "8px 0",
-                        background: "linear-gradient(135deg, #FFD700, #F57C00)",
+                        background: bracket?.champion
+                          ? "linear-gradient(135deg, #FFD700, #F57C00)"
+                          : "linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))",
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
                       }}
                     >
-                      {bracket?.champion?.user.username || "To be crowned"}
+                      {bracket?.champion?.user?.username || "To be crowned"}
                     </div>
                     {bracket?.champion && (
                       <Badge tone="gold" style={{ fontSize: "12px", padding: "4px 16px" }}>
                         🏆 CHAMPION
                       </Badge>
+                    )}
+                    {!bracket?.champion && bracket?.final && (
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          fontSize: "12px",
+                          color: "rgba(255,255,255,0.3)",
+                        }}
+                      >
+                        Final match in progress...
+                      </div>
                     )}
                   </div>
                 </div>
@@ -515,3 +863,20 @@ export const Bracket = () => {
     </>
   );
 };
+
+// Helper function for group colors
+const getGroupColor = (group: string): string => {
+  const colors: Record<string, string> = {
+    A: "#4CAF50",
+    B: "#2979FF",
+    C: "#FF9800",
+    D: "#9C27B0",
+    E: "#E91E63",
+    F: "#00BCD4",
+    G: "#FF5722",
+    H: "#795548",
+  };
+  return colors[group] || "#607D8B";
+};
+
+export default Bracket;
