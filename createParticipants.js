@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // ---- CONFIG ----
 const BASE_URL = 'http://localhost:8080/api';
-const TOURNAMENT_ID = '6a986f0268ba6743ade91f69';
+const TOURNAMENT_ID = '6a9955f8277791aa8373a53b';
 const PASSWORD = 'Test123!';
 
 // Codeforces participants from Gym 709424 standings

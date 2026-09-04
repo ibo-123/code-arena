@@ -258,6 +258,7 @@ const joinTournament = async (req, res) => {
     });
   }
 };
+
 const getParticipants = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -290,6 +291,9 @@ const getParticipants = async (req, res) => {
   }
 };
 
+// ============================================================
+// FIXED: getGroups - Dynamically builds groups from participant data
+// ============================================================
 const getGroups = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -307,22 +311,27 @@ const getGroups = async (req, res) => {
       .populate("user", "name username codeforcesUsername")
       .sort({ seed: 1 });
 
-    const groups = {
-      A: [],
-      B: [],
-      C: [],
-      D: [],
-    };
-
+    // ✅ FIX: Dynamically build groups based on actual data
+    const groups = {};
+    
     participants.forEach((participant) => {
-      if (participant.group && groups[participant.group]) {
+      if (participant.group) {
+        if (!groups[participant.group]) {
+          groups[participant.group] = [];
+        }
         groups[participant.group].push(participant);
       }
     });
 
+    // Sort groups alphabetically for consistent display
+    const sortedGroups = {};
+    Object.keys(groups).sort().forEach(key => {
+      sortedGroups[key] = groups[key];
+    });
+
     return res.json({
       success: true,
-      groups,
+      groups: sortedGroups,
     });
   } catch (error) {
     console.error("getGroups error:", error);
