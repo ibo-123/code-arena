@@ -2,16 +2,12 @@ import { useEffect, useState } from "react";
 import {
   ExternalLink,
   Trophy,
-  // Users,
   Clock,
   Calendar,
-  // ChevronDown,
-  // ChevronUp,
-  // Medal,
-  // Star,
-  // Award,
   TrendingUp,
   RefreshCw,
+  ChevronDown,
+  Sparkles,
 } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
 import { Badge } from "../components/ui/Badge";
@@ -24,31 +20,33 @@ import { tournamentApi } from "../services/tournamentApi";
 import type { Contest, LeaderboardEntry, Tournament } from "../types";
 
 export const Live = () => {
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [contests, setContests] = useState<Contest[]>([]);
   const [selectedContestId, setSelectedContestId] = useState<string>("");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showTournamentDropdown, setShowTournamentDropdown] = useState(false);
 
+  // Load all tournaments
   useEffect(() => {
     let isMounted = true;
     tournamentApi
       .list()
       .then(({ tournaments }) => {
-        const t = tournaments[0] || null;
-        if (isMounted) setTournament(t);
-        if (t) {
-          return contestApi.list(t._id);
-        }
-        return { contests: [] };
-      })
-      .then(({ contests: items }) => {
         if (isMounted) {
-          setContests(items);
-          if (items.length > 0) {
-            setSelectedContestId(items[0]._id);
+          setTournaments(tournaments);
+          // Select first tournament by default, or a previously selected one
+          const savedId = localStorage.getItem("live-selected-tournament");
+          const found = savedId ? tournaments.find((t) => t._id === savedId) : null;
+          const selectedId = found?._id || (tournaments.length > 0 ? tournaments[0]._id : "");
+          setSelectedTournamentId(selectedId);
+          if (selectedId) {
+            const t = tournaments.find((tour) => tour._id === selectedId);
+            setSelectedTournament(t || null);
           }
         }
       })
@@ -63,13 +61,52 @@ export const Live = () => {
     };
   }, []);
 
+  // Load contests when tournament changes
   useEffect(() => {
-    if (!tournament || !selectedContestId) return;
+    if (!selectedTournamentId) {
+      setContests([]);
+      setSelectedContestId("");
+      setLeaderboard([]);
+      return;
+    }
+
     let isMounted = true;
-    const startLoading = () => setLeaderboardLoading(true);
-    startLoading();
+    setContests([]);
+    setSelectedContestId("");
+    setLeaderboard([]);
+
+    // Save selected tournament to localStorage
+    localStorage.setItem("live-selected-tournament", selectedTournamentId);
+
     contestApi
-      .leaderboard(tournament._id, selectedContestId)
+      .list(selectedTournamentId)
+      .then(({ contests: items }) => {
+        if (isMounted) {
+          setContests(items);
+          if (items.length > 0) {
+            setSelectedContestId(items[0]._id);
+          }
+        }
+      })
+      .catch((err: Error) => {
+        if (isMounted) setError(err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedTournamentId]);
+
+  // Load leaderboard when contest changes
+  useEffect(() => {
+    if (!selectedTournamentId || !selectedContestId) {
+      setLeaderboard([]);
+      return;
+    }
+
+    let isMounted = true;
+    setLeaderboardLoading(true);
+    contestApi
+      .leaderboard(selectedTournamentId, selectedContestId)
       .then(({ leaderboard: rows }) => {
         if (isMounted) setLeaderboard(rows);
       })
@@ -82,15 +119,76 @@ export const Live = () => {
     return () => {
       isMounted = false;
     };
-  }, [tournament, selectedContestId]);
+  }, [selectedTournamentId, selectedContestId]);
+
+  const handleTournamentSelect = (tournamentId: string) => {
+    setShowTournamentDropdown(false);
+    setSelectedTournamentId(tournamentId);
+    const t = tournaments.find((tour) => tour._id === tournamentId);
+    setSelectedTournament(t || null);
+  };
 
   if (loading) return <LoadingState label="Loading live contest session..." />;
   if (error) return <ErrorState error={error} />;
+  if (tournaments.length === 0) {
+    return (
+      <>
+        <Navbar />
+        <main
+          style={{
+            background: "linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0a0e1a 100%)",
+            minHeight: "100vh",
+            color: "white",
+            padding: "60px 40px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ maxWidth: "600px", width: "100%" }}>
+            <Card
+              style={{
+                padding: "48px",
+                background: "rgba(20, 25, 45, 0.85)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(8px)",
+                borderRadius: "24px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "rgba(255,215,0,0.05)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 24px",
+                }}
+              >
+                <Trophy size={40} color="rgba(255,215,0,0.3)" />
+              </div>
+              <h2 style={{ margin: "0 0 8px 0", fontSize: "24px", fontWeight: "700" }}>
+                No Tournaments Available
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "8px" }}>
+                There are no active tournaments to display.
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "14px" }}>
+                Check back later for upcoming competitions.
+              </p>
+            </Card>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const currentContest = contests.find((c) => c._id === selectedContestId);
   const isLive = currentContest?.status === "LIVE";
   const isFinished = currentContest?.status === "FINISHED";
-  // const isUpcoming = currentContest?.status === "UPCOMING";
 
   const getStatusColor = () => {
     if (isLive) return "#FF6B6B";
@@ -105,17 +203,14 @@ export const Live = () => {
   };
 
   // Get top 3 performers
-  const topPerformers = leaderboard.filter(
-    (entry) => entry.rank && entry.rank <= 3,
-  );
+  const topPerformers = leaderboard.filter((entry) => entry.rank && entry.rank <= 3);
 
   return (
     <>
       <Navbar />
       <main
         style={{
-          background:
-            "linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0a0e1a 100%)",
+          background: "linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0a0e1a 100%)",
           minHeight: "100vh",
           color: "white",
           padding: "0 40px 60px",
@@ -184,8 +279,119 @@ export const Live = () => {
               display: "flex",
               alignItems: "center",
               gap: "12px",
+              flexWrap: "wrap",
             }}
           >
+            {/* Tournament Selector */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowTournamentDropdown(!showTournamentDropdown)}
+                style={{
+                  padding: "8px 16px 8px 20px",
+                  borderRadius: "10px",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "white",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  transition: "all 0.2s ease",
+                  minWidth: "180px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                }}
+              >
+                <Sparkles size={14} color="#FFD700" />
+                <span
+                  style={{
+                    flex: 1,
+                    textAlign: "left",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {selectedTournament?.name || "Select Tournament"}
+                </span>
+                <ChevronDown
+                  size={16}
+                  style={{
+                    transition: "transform 0.2s ease",
+                    transform: showTournamentDropdown ? "rotate(180deg)" : "none",
+                  }}
+                />
+              </button>
+
+              {showTournamentDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    minWidth: "240px",
+                    background: "rgba(20, 25, 45, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    zIndex: 100,
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {tournaments.map((t) => (
+                    <button
+                      key={t._id}
+                      onClick={() => handleTournamentSelect(t._id)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        border: "none",
+                        background:
+                          t._id === selectedTournamentId ? "rgba(41,121,255,0.15)" : "transparent",
+                        color: t._id === selectedTournamentId ? "white" : "rgba(255,255,255,0.7)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.15s ease",
+                        borderLeft:
+                          t._id === selectedTournamentId
+                            ? "3px solid #2979FF"
+                            : "3px solid transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (t._id !== selectedTournamentId) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (t._id !== selectedTournamentId) {
+                          e.currentTarget.style.background = "transparent";
+                        }
+                      }}
+                    >
+                      <div style={{ fontSize: "14px", fontWeight: "600" }}>{t.name}</div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "rgba(255,255,255,0.3)",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {t.status || "DRAFT"} · {t.maxParticipants || 0} participants
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -204,9 +410,7 @@ export const Live = () => {
                   height: "10px",
                   borderRadius: "50%",
                   background: getStatusColor(),
-                  animation: isLive
-                    ? "pulse 1.5s ease-in-out infinite"
-                    : "none",
+                  animation: isLive ? "pulse 1.5s ease-in-out infinite" : "none",
                 }}
               />
               <span
@@ -219,8 +423,8 @@ export const Live = () => {
                 {getStatusLabel()}
               </span>
             </div>
-            <Badge tone={tournament?.status === "COMPLETED" ? "gold" : "blue"}>
-              {tournament?.status || "REGISTRATION"}
+            <Badge tone={selectedTournament?.status === "COMPLETED" ? "gold" : "blue"}>
+              {selectedTournament?.status || "REGISTRATION"}
             </Badge>
           </div>
         </header>
@@ -252,9 +456,7 @@ export const Live = () => {
                     style={{
                       padding: "10px 20px",
                       borderRadius: "10px",
-                      background: isActive
-                        ? "rgba(41,121,255,0.15)"
-                        : "rgba(255,255,255,0.03)",
+                      background: isActive ? "rgba(41,121,255,0.15)" : "rgba(255,255,255,0.03)",
                       border: isActive
                         ? "1px solid rgba(41,121,255,0.3)"
                         : "1px solid rgba(255,255,255,0.06)",
@@ -284,11 +486,7 @@ export const Live = () => {
                     {c.name}
                     <Badge
                       tone={
-                        c.status === "LIVE"
-                          ? "red"
-                          : c.status === "FINISHED"
-                            ? "green"
-                            : "muted"
+                        c.status === "LIVE" ? "red" : c.status === "FINISHED" ? "green" : "muted"
                       }
                       style={{
                         fontSize: "9px",
@@ -339,9 +537,7 @@ export const Live = () => {
                           width: "32px",
                           height: "32px",
                           borderRadius: "8px",
-                          background: isLive
-                            ? "rgba(255,107,107,0.15)"
-                            : "rgba(255,255,255,0.05)",
+                          background: isLive ? "rgba(255,107,107,0.15)" : "rgba(255,255,255,0.05)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -371,8 +567,7 @@ export const Live = () => {
                             }}
                           >
                             {currentContest.round}
-                            {currentContest.group &&
-                              ` · Group ${currentContest.group}`}
+                            {currentContest.group && ` · Group ${currentContest.group}`}
                           </small>
                           {currentContest.matchNumber && (
                             <Badge tone="muted" style={{ fontSize: "10px" }}>
@@ -401,12 +596,8 @@ export const Live = () => {
                         color: "rgba(255,255,255,0.5)",
                       }}
                     >
-                      <span>
-                        ⏱️ Duration: {currentContest.durationMinutes} mins
-                      </span>
-                      <span>
-                        📅 {new Date(currentContest.startTime).toLocaleString()}
-                      </span>
+                      <span>⏱️ Duration: {currentContest.durationMinutes} mins</span>
+                      <span>📅 {new Date(currentContest.startTime).toLocaleString()}</span>
                       {currentContest.codeforcesContestId && (
                         <span>🏷️ CF #{currentContest.codeforcesContestId}</span>
                       )}
@@ -541,10 +732,7 @@ export const Live = () => {
                   </small>
                 </div>
                 {leaderboardLoading && (
-                  <RefreshCw
-                    size={16}
-                    style={{ animation: "spin 1s linear infinite" }}
-                  />
+                  <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} />
                 )}
               </div>
 
@@ -593,12 +781,9 @@ export const Live = () => {
                             <tr
                               key={entry.participantId}
                               style={{
-                                borderBottom:
-                                  "1px solid rgba(255,255,255,0.03)",
+                                borderBottom: "1px solid rgba(255,255,255,0.03)",
                                 transition: "background 0.2s ease",
-                                background: isTop3
-                                  ? "rgba(255,215,0,0.03)"
-                                  : "transparent",
+                                background: isTop3 ? "rgba(255,215,0,0.03)" : "transparent",
                                 animation: `fadeIn 0.3s ease ${index * 0.03}s both`,
                               }}
                             >
@@ -606,9 +791,7 @@ export const Live = () => {
                                 style={{
                                   ...tdStyle,
                                   fontWeight: "700",
-                                  color: isTop3
-                                    ? "#FFD700"
-                                    : "rgba(255,255,255,0.6)",
+                                  color: isTop3 ? "#FFD700" : "rgba(255,255,255,0.6)",
                                   fontSize: isTop3 ? "16px" : "14px",
                                 }}
                               >
@@ -697,11 +880,7 @@ export const Live = () => {
               textAlign: "center",
             }}
           >
-            <Trophy
-              size={48}
-              color="rgba(255,255,255,0.1)"
-              style={{ marginBottom: "16px" }}
-            />
+            <Trophy size={48} color="rgba(255,255,255,0.1)" style={{ marginBottom: "16px" }} />
             <EmptyState label="No live or upcoming contests attached to this tournament yet." />
             <p
               style={{
