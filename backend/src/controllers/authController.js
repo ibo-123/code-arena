@@ -4,7 +4,7 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 // const User = require('../models/User');
 // Helper function to generate JWT
-const generateToken = (userId, role = 'PARTICIPANT') => {
+const generateToken  = (userId, role = 'PARTICIPANT') => {
   return jwt.sign(
     { userId, role, id: userId },
     process.env.JWT_SECRET || 'your-secret-key',

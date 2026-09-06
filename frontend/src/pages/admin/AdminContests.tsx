@@ -1,213 +1,68 @@
+
 import { useEffect, useState } from "react";
-import { AdminContests as AdminContestsComponent } from "../../components/admin";
 import { useAdmin } from "../../context/AdminContext";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { ErrorState } from "../../components/ui/ErrorState";
-import { LoadingState } from "../../components/ui/LoadingState";
-import { Badge } from "../../components/ui/Badge";
-import { Trophy, RefreshCw, Calendar, Users, Clock } from "lucide-react";
-import type { Tournament } from "../../types";
+import { AdminContests as AdminContestsComponent } from "../../components/admin";
+import { ErrorState, LoadingState } from "../../components/ui";
 
 export const AdminContests = () => {
-  const { selectedTournament, refreshTournaments } = useAdmin();
+  const {
+    selectedTournament,
+    refreshTournaments,
+  } = useAdmin();
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    setLoading(false);
-  }, []);
+    let mounted = true;
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refreshTournaments();
-    setRefreshing(false);
-  };
-
-  if (loading) return <LoadingState label="Loading tournament contests..." />;
-  if (error) return <ErrorState error={error} />;
-  if (!selectedTournament) return <EmptyState label="No tournament selected." />;
-
-  const isCompleted = selectedTournament.status === "COMPLETED";
-  const isRegistration = selectedTournament.status === "REGISTRATION";
-
-  return (
-    <div style={{ padding: "24px 0" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "32px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div>
-          <small
-            style={{
-              fontSize: "11px",
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-            }}
-          >
-            Codeforces Integration
-          </small>
-          <h1
-            style={{
-              fontSize: "clamp(24px, 2.5vw, 36px)",
-              fontWeight: "700",
-              margin: "4px 0 0 0",
-            }}
-          >
-            Contests Management
-          </h1>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "rgba(255,255,255,0.5)",
-              marginTop: "4px",
-            }}
-          >
-            Attach and manage Codeforces contests for the tournament
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <Badge tone={isCompleted ? "gold" : isRegistration ? "blue" : "blue"}>
-            {selectedTournament.currentStage || selectedTournament.status || "Registration"}
-          </Badge>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "13px",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                animation: refreshing ? "spin 1s linear infinite" : "none",
-              }}
-            />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-      </header>
-
-      {/* Tournament Info Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "16px",
-          marginBottom: "32px",
-        }}
-      >
-        {[
-          {
-            label: "Tournament",
-            value: selectedTournament.name || "Code Arena 2026",
-            icon: Trophy,
-            color: "#FFD700",
-          },
-          {
-            label: "Status",
-            value: selectedTournament.status || "Registration",
-            icon: Clock,
-            color: isCompleted ? "#FFD700" : "#2979FF",
-          },
-          {
-            label: "Current Round",
-            value: selectedTournament.currentStage || "N/A",
-            icon: Calendar,
-            color: "#4CAF50",
-          },
-          {
-            label: "Max Participants",
-            value: selectedTournament.maxParticipants || 20,
-            icon: Users,
-            color: "#9C27B0",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            style={{
-              padding: "16px 20px",
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-            }}
-          >
-            <div
-              style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "10px",
-                background: `${stat.color}22`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <stat.icon size={20} color={stat.color} />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.4)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {stat.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: "700",
-                  color: "white",
-                }}
-              >
-                {stat.value}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <AdminContestsComponent tournament={selectedTournament} />
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+    const loadTournament = async () => {
+      try {
+        await refreshTournaments();
+      } catch (error) {
+        console.error(
+          "Failed to refresh tournaments:",
+          error,
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
-      `}</style>
-    </div>
+      }
+    };
+
+    void loadTournament();
+
+    return () => {
+      mounted = false;
+    };
+  }, [refreshTournaments]);
+
+  /*
+   * Wait until AdminContext has finished loading.
+   * Otherwise selectedTournament can temporarily be null
+   * while the dashboard is initializing.
+   */
+  if (loading && !selectedTournament) {
+    return <LoadingState />;
+  }
+
+  /*
+   * No tournament was found after loading.
+   */
+  if (!selectedTournament) {
+    return (
+      <ErrorState
+        error="No active tournament is selected. Please select or create a tournament first."
+      />
+    );
+  }
+
+  /*
+   * Pass the actual tournament to the contest manager.
+   */
+  return (
+    <AdminContestsComponent
+      tournament={selectedTournament}
+    />
   );
 };
-
-export default AdminContests;

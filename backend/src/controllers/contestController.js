@@ -13,66 +13,95 @@ const codeforcesService = require('../services/codeforcesService');
 // ============================================================
 
 exports.validateCodeforcesContest = async (req, res) => {
-  try {
-    const { contestId } = req.params;
+try {
+const { contestId } = req.params;
 
-    if (!contestId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Contest ID is required',
-      });
-    }
+if (!contestId) {
+  return res.status(400).json({
+    success: false,
+    message: 'Contest ID is required',
+  });
+}
 
-    const id = parseInt(contestId, 10);
+const id = Number(contestId);
 
-    if (isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid contest ID',
-      });
-    }
+if (!Number.isInteger(id) || id <= 0) {
+  return res.status(400).json({
+    success: false,
+    message: 'Invalid contest ID',
+  });
+}
 
-    const result = await codeforcesService.validateContest(id);
+/*
+ * IMPORTANT:
+ *
+ * validateContest() now uses authenticated
+ * contest.standings internally.
+ *
+ * This allows private contests such as 709424
+ * even when they are not returned by contest.list.
+ */
+const result =
+  await codeforcesService.validateContest(id);
 
-    if (!result.valid) {
-      return res.status(404).json({
-        success: false,
-        message: result.error || 'Contest not found',
-      });
-    }
+if (!result.valid) {
+  return res.status(404).json({
+    success: false,
+    message:
+      result.error ||
+      'Contest not found or not accessible',
+  });
+}
 
-    return res.json({
-      success: true,
-      contest: {
-        id: result.contest.id,
-        name: result.contest.name,
-        type: result.contest.type,
-        phase: result.contest.phase,
-        startTime: new Date(
-          result.contest.startTimeSeconds * 1000
-        ),
-        durationSeconds: result.contest.durationSeconds,
-        url: codeforcesService.formatContestUrl(
-          result.contest.id
-        ),
-      },
-    });
-  } catch (error) {
-    console.error(
-      '[validateCodeforcesContest] ERROR:',
-      error
-    );
+const contest = result.contest;
 
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to validate contest',
-      error:
-        process.env.NODE_ENV === 'development'
-          ? error.message
-          : undefined,
-    });
-  }
+return res.json({
+  success: true,
+  contest: {
+    id: contest.id,
+    name: contest.name,
+    type: contest.type,
+    phase: contest.phase,
+
+    startTime:
+      contest.startTimeSeconds
+        ? new Date(
+            contest.startTimeSeconds * 1000
+          )
+        : null,
+
+    durationSeconds:
+      contest.durationSeconds || 0,
+
+    url:
+      codeforcesService.formatContestUrl(
+        contest.id
+      ),
+  },
+});
+
+
+} catch (error) {
+console.error(
+'[validateCodeforcesContest] ERROR:',
+error
+);
+
+
+return res.status(500).json({
+  success: false,
+  message:
+    'Failed to validate contest',
+  error:
+    process.env.NODE_ENV === 'development'
+      ? error.message
+      : undefined,
+});
+
+
+}
 };
+
 
 // ============================================================
 // PUBLISH CONTEST
