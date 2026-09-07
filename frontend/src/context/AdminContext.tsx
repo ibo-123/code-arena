@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import type { ReactNode } from "react"; // ✅ Use type-only import
+import type { ReactNode } from "react";
 import type { Tournament } from "../types";
 import { tournamentApi } from "../services/tournamentApi";
 
@@ -32,6 +32,8 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
         const savedId = localStorage.getItem("admin-selected-tournament");
         const found = savedId ? allTournaments.find((t) => t._id === savedId) : null;
         setSelectedTournament(found || allTournaments[0]);
+      } else {
+        setSelectedTournament(null);
       }
     } catch (error) {
       console.error("Failed to load tournaments:", error);

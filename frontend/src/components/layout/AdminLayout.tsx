@@ -28,7 +28,6 @@ interface Tournament {
   numberOfGroups?: number;
 }
 
-// Type for the outlet context
 export interface AdminLayoutContext {
   selectedTournament: Tournament | null;
   tournaments: Tournament[];
@@ -500,7 +499,7 @@ const AdminLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* MAIN AREA - Dark theme */}
+      {/* MAIN AREA */}
       <main
         style={{
           marginLeft: "280px",
@@ -510,7 +509,7 @@ const AdminLayout: React.FC = () => {
           color: "var(--text-primary)",
         }}
       >
-        {/* Top header - Dark */}
+        {/* Top header */}
         <header
           style={{
             height: "80px",
@@ -596,7 +595,7 @@ const AdminLayout: React.FC = () => {
           </div>
         </header>
 
-        {/* Content area - Dark theme */}
+        {/* Content area */}
         <div
           style={{
             padding: "32px 40px",

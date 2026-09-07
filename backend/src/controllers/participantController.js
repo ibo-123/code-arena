@@ -8,11 +8,10 @@ const joinTournament = async (req, res) => {
     const tournamentId = req.params.tournamentId || req.params.id;
     const userId = req.user.userId || req.user._id;
 
-    // Only participants can register
-    if (req.user.role !== "PARTICIPANT") {
+    if (req.user.role === "ADMIN") {
       return res.status(403).json({
         success: false,
-        message: "Only participants can join a tournament",
+        message: "Admins cannot register as participants",
       });
     }
 
@@ -35,18 +34,6 @@ const joinTournament = async (req, res) => {
       ? new Date(tournament.registrationEnd)
       : null;
 
-    const tournamentStart = tournament.tournamentStart
-      ? new Date(tournament.tournamentStart)
-      : tournament.startDate
-        ? new Date(tournament.startDate)
-        : null;
-
-    /*
-     * ---------------------------------------------------------
-     * REGISTRATION TIME VALIDATION
-     * ---------------------------------------------------------
-     */
-
     if (registrationStart && now < registrationStart) {
       return res.status(400).json({
         success: false,
@@ -61,18 +48,12 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    if (tournamentStart && now >= tournamentStart) {
+    if (tournament.status === "GROUP_STAGE" || tournament.status === "COMPLETED") {
       return res.status(400).json({
         success: false,
-        message: "Tournament has already started",
+        message: "Tournament has already started or completed",
       });
     }
-
-    /*
-     * ---------------------------------------------------------
-     * TOURNAMENT CAPACITY
-     * ---------------------------------------------------------
-     */
 
     const participantCount = await Participant.countDocuments({
       tournamentId,
@@ -87,12 +68,6 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    /*
-     * ---------------------------------------------------------
-     * DUPLICATE REGISTRATION
-     * ---------------------------------------------------------
-     */
-
     const existingParticipant = await Participant.findOne({
       tournamentId,
       user: userId,
@@ -101,16 +76,80 @@ const joinTournament = async (req, res) => {
     if (existingParticipant) {
       return res.status(409).json({
         success: false,
-        message: "You already joined this tournament",
+        message: "You already registered for this tournament",
+        participant: existingParticipant,
       });
     }
 
-    /*
-     * ---------------------------------------------------------
-     * AUTOMATIC GROUP ASSIGNMENT
-     * ---------------------------------------------------------
-     */
+    const participant = await Participant.create({
+      tournamentId,
+      user: userId,
+      registrationStatus: "PENDING",
+      status: "ACTIVE",
+      currentStage: "REGISTRATION",
+    });
 
+    await AuditLog.create({
+      action: 'PARTICIPANT_REGISTERED',
+      description: `Participant ${userId} registered for tournament ${tournament.name}`,
+      admin: null,
+      tournament: tournamentId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Registration submitted. Awaiting admin approval.",
+      participant,
+    });
+  } catch (error) {
+    console.error("joinTournament error:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "You already registered for this tournament",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+const approveParticipant = async (req, res) => {
+  try {
+    const { tournamentId, participantId } = req.params;
+
+    const participant = await Participant.findOne({
+      _id: participantId,
+      tournamentId,
+    }).populate('user');
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: "Participant not found",
+      });
+    }
+
+    if (participant.registrationStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: `Participant is already ${participant.registrationStatus.toLowerCase()}`,
+      });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+
+    // Assign group automatically
     const totalGroups = Math.max(1, Number(tournament.numberOfGroups || 4));
     const groupNames = Array.from({ length: totalGroups }, (_, index) =>
       String.fromCharCode(65 + index)
@@ -121,6 +160,7 @@ const joinTournament = async (req, res) => {
         $match: {
           tournamentId: new mongoose.Types.ObjectId(tournamentId),
           group: { $exists: true, $ne: null, $ne: '' },
+          registrationStatus: "APPROVED",
         },
       },
       {
@@ -166,92 +206,76 @@ const joinTournament = async (req, res) => {
 
     const assignedSeed = (countsByGroup[assignedGroup] || 0) + 1;
 
-    /*
-     * ---------------------------------------------------------
-     * CREATE PARTICIPANT
-     * ---------------------------------------------------------
-     */
-
-    const participant = await Participant.create({
-      tournamentId,
-      user: userId,
-      group: assignedGroup,
-      seed: assignedSeed,
-      status: 'ACTIVE',
-      currentStage: 'REGISTRATION',
-    });
-
-    /*
-     * ---------------------------------------------------------
-     * UPDATE TOURNAMENT GROUP COUNT
-     * ---------------------------------------------------------
-     */
-
-    const currentGroupCount = await Participant.distinct('group', {
-      tournamentId,
-      group: { $ne: null, $ne: '' },
-    });
-
-    const numberOfGroups = currentGroupCount.length;
-
-    if (tournament.numberOfGroups !== numberOfGroups) {
-      tournament.numberOfGroups = Math.max(
-        tournament.numberOfGroups || 1,
-        numberOfGroups
-      );
-      await tournament.save();
-    }
-
-    /*
-     * ---------------------------------------------------------
-     * AUDIT LOG
-     * ---------------------------------------------------------
-     */
+    participant.registrationStatus = "APPROVED";
+    participant.group = assignedGroup;
+    participant.seed = assignedSeed;
+    await participant.save();
 
     await AuditLog.create({
-      action: 'PARTICIPANT_REGISTERED',
-      description:
-        `Participant ${userId} registered for tournament ` +
-        `${tournament.name} and was assigned to Group ${assignedGroup}`,
-      admin: null,
+      action: 'PARTICIPANT_APPROVED',
+      description: `Participant ${participant.user.username} approved for tournament ${tournament.name}`,
+      admin: req.user._id,
       tournament: tournamentId,
     });
 
-    /*
-     * ---------------------------------------------------------
-     * RESPONSE
-     * ---------------------------------------------------------
-     */
-
-    return res.status(201).json({
+    return res.json({
       success: true,
-      message: 'Successfully joined tournament',
+      message: "Participant approved successfully",
       participant,
-      group: {
-        number: assignedGroup,
-        name: `Group ${assignedGroup}`,
-      },
     });
   } catch (error) {
-    console.error("joinTournament error:", error);
+    console.error("approveParticipant error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
 
-    /*
-     * MongoDB duplicate-key protection.
-     *
-     * Your Participant schema already has:
-     *
-     * { tournamentId: 1, user: 1 } unique
-     *
-     * So concurrent duplicate registrations are still protected.
-     */
+const rejectParticipant = async (req, res) => {
+  try {
+    const { tournamentId, participantId } = req.params;
+    const { reason } = req.body;
 
-    if (error.code === 11000) {
-      return res.status(409).json({
+    const participant = await Participant.findOne({
+      _id: participantId,
+      tournamentId,
+    }).populate('user');
+
+    if (!participant) {
+      return res.status(404).json({
         success: false,
-        message: "You already joined this tournament",
+        message: "Participant not found",
       });
     }
 
+    if (participant.registrationStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: `Participant is already ${participant.registrationStatus.toLowerCase()}`,
+      });
+    }
+
+    participant.registrationStatus = "REJECTED";
+    participant.status = "ELIMINATED";
+    await participant.save();
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    await AuditLog.create({
+      action: 'PARTICIPANT_REJECTED',
+      description: `Participant ${participant.user.username} rejected from tournament ${tournament?.name || tournamentId}`,
+      admin: req.user._id,
+      tournament: tournamentId,
+    });
+
+    return res.json({
+      success: true,
+      message: "Participant rejected",
+      participant,
+    });
+  } catch (error) {
+    console.error("rejectParticipant error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -273,7 +297,7 @@ const getParticipants = async (req, res) => {
     }
 
     const participants = await Participant.find({ tournamentId })
-      .populate("user", "name username codeforcesUsername")
+      .populate("user", "name username codeforcesUsername email")
       .sort({ createdAt: 1 });
 
     return res.status(200).json({
@@ -283,7 +307,6 @@ const getParticipants = async (req, res) => {
     });
   } catch (error) {
     console.error("getParticipants error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -291,9 +314,59 @@ const getParticipants = async (req, res) => {
   }
 };
 
-// ============================================================
-// FIXED: getGroups - Dynamically builds groups from participant data
-// ============================================================
+const getMyStatus = async (req, res) => {
+  try {
+    const tournamentId = req.params.tournamentId || req.params.id;
+    const userId = req.user.userId || req.user._id;
+
+    const participant = await Participant.findOne({
+      tournamentId,
+      user: userId,
+    }).populate('user', 'name username codeforcesUsername');
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: "You are not registered for this tournament",
+      });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    return res.json({
+      success: true,
+      participant: {
+        id: participant._id,
+        registrationStatus: participant.registrationStatus,
+        group: participant.group,
+        seed: participant.seed,
+        rank: participant.rank,
+        score: participant.score,
+        solved: participant.solved,
+        penalty: participant.penalty,
+        status: participant.status,
+        currentStage: participant.currentStage,
+        isApproved: participant.registrationStatus === "APPROVED",
+        isEliminated: participant.status === "ELIMINATED",
+        hasAdvanced: participant.status === "ADVANCED" || participant.status === "CHAMPION",
+        user: participant.user,
+      },
+      tournament: {
+        id: tournament?._id,
+        name: tournament?.name,
+        status: tournament?.status,
+        currentStage: tournament?.currentStage,
+      },
+    });
+  } catch (error) {
+    console.error("getMyStatus error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 const getGroups = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -307,11 +380,13 @@ const getGroups = async (req, res) => {
       });
     }
 
-    const participants = await Participant.find({ tournamentId })
+    const participants = await Participant.find({
+      tournamentId,
+      registrationStatus: "APPROVED",
+    })
       .populate("user", "name username codeforcesUsername")
       .sort({ seed: 1 });
 
-    // ✅ FIX: Dynamically build groups based on actual data
     const groups = {};
     
     participants.forEach((participant) => {
@@ -323,7 +398,6 @@ const getGroups = async (req, res) => {
       }
     });
 
-    // Sort groups alphabetically for consistent display
     const sortedGroups = {};
     Object.keys(groups).sort().forEach(key => {
       sortedGroups[key] = groups[key];
@@ -332,10 +406,11 @@ const getGroups = async (req, res) => {
     return res.json({
       success: true,
       groups: sortedGroups,
+      groupCount: Object.keys(sortedGroups).length,
+      totalParticipants: participants.length,
     });
   } catch (error) {
     console.error("getGroups error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -343,12 +418,11 @@ const getGroups = async (req, res) => {
   }
 };
 
-// Admin only
 const updateParticipant = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
     const { participantId } = req.params;
-    const { group, seed } = req.body;
+    const { group, seed, status, currentStage } = req.body;
 
     const participant = await Participant.findOne({
       _id: participantId,
@@ -362,17 +436,25 @@ const updateParticipant = async (req, res) => {
       });
     }
 
-    if (group !== undefined && group !== null && group !== '') participant.group = String(group).toUpperCase();
-    if (seed !== undefined && seed !== null) participant.seed = Number(seed);
+    if (group !== undefined && group !== null && group !== '') {
+      participant.group = String(group).toUpperCase();
+    }
+    if (seed !== undefined && seed !== null) {
+      participant.seed = Number(seed);
+    }
+    if (status !== undefined) {
+      participant.status = status;
+    }
+    if (currentStage !== undefined) {
+      participant.currentStage = currentStage;
+    }
 
     await participant.save();
 
     await AuditLog.create({
       action: "PARTICIPANT_UPDATED",
-      description: `Updated participant ${participant.user} (Group: ${
-        group || "N/A"
-      }, Seed: ${seed || "N/A"})`,
-      admin: req.user?._id,
+      description: `Updated participant ${participant.user}`,
+      admin: req.user._id,
       tournament: tournamentId,
     });
 
@@ -382,7 +464,6 @@ const updateParticipant = async (req, res) => {
     });
   } catch (error) {
     console.error("updateParticipant error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -392,7 +473,10 @@ const updateParticipant = async (req, res) => {
 
 module.exports = {
   joinTournament,
+  approveParticipant,
+  rejectParticipant,
   getParticipants,
+  getMyStatus,
   getGroups,
   updateParticipant,
 };

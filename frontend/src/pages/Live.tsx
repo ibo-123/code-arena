@@ -483,7 +483,7 @@ export const Live = () => {
                         }}
                       />
                     )}
-                    {c.name}
+                    {c.codeforcesContestName || c.name || `Contest ${c.codeforcesContestId}`}
                     <Badge
                       tone={
                         c.status === "LIVE" ? "red" : c.status === "FINISHED" ? "green" : "muted"
@@ -566,7 +566,7 @@ export const Live = () => {
                               letterSpacing: "1px",
                             }}
                           >
-                            {currentContest.round}
+                            {currentContest.stage || "GROUP_STAGE"}
                             {currentContest.group && ` · Group ${currentContest.group}`}
                           </small>
                           {currentContest.matchNumber && (
@@ -583,7 +583,9 @@ export const Live = () => {
                             color: "white",
                           }}
                         >
-                          {currentContest.name}
+                          {currentContest.codeforcesContestName ||
+                            currentContest.name ||
+                            `CF #${currentContest.codeforcesContestId}`}
                         </h2>
                       </div>
                     </div>
@@ -596,7 +598,9 @@ export const Live = () => {
                         color: "rgba(255,255,255,0.5)",
                       }}
                     >
-                      <span>⏱️ Duration: {currentContest.durationMinutes} mins</span>
+                      <span>
+                        ⏱️ Duration: {Math.floor(currentContest.durationSeconds / 60)} mins
+                      </span>
                       <span>📅 {new Date(currentContest.startTime).toLocaleString()}</span>
                       {currentContest.codeforcesContestId && (
                         <span>🏷️ CF #{currentContest.codeforcesContestId}</span>

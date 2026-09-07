@@ -6,6 +6,9 @@ const tournamentRoutes = require('./routes/tournamentRoutes');
 const contestRoutes = require('./routes/contestRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const participantRoutes = require('./routes/participantRoutes');
+const videoRoutes = require('./routes/videoRoutes');
+const invitationRoutes = require('./routes/invitationRoutes');
 
 const app = express();
 
@@ -18,6 +21,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:8080',
+  'http://127.0.0.1:3000',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
@@ -27,28 +31,42 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      // For development, allow all origins
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 86400, // 24 hours
 }));
 
-// Handle preflight requests - FIXED: use named wildcard for Express 5
-// Using '{*path}' or '/*splat' instead of '*' or '/*'
-app.options('/{*path}', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
+// Handle preflight requests - FIXED for Express 5
+// Use a middleware that catches all OPTIONS requests
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(200);
+  }
+  next();
 });
 
 app.use(express.json());
@@ -77,6 +95,9 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api', contestRoutes);
 app.use('/api', auditLogRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/tournaments', participantRoutes);
+app.use('/api', videoRoutes);
+app.use('/api', invitationRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -152,8 +173,5 @@ app.use((err, req, res, next) => {
     }),
   });
 });
-
-
-
 
 module.exports = app;

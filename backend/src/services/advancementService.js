@@ -139,15 +139,15 @@ const advanceGroupStage = async (tournamentId) => {
 };
 
 // Generic knockout advancement
-const advanceKnockout = async (tournamentId, round, nextRound, expectedMatches) => {
+const advanceKnockout = async (tournamentId, stage, nextStage, expectedMatches) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
-  if (tournament.status !== round) {
-    throw new Error(`Tournament is not in ${round}`);
+  if (tournament.status !== stage) {
+    throw new Error(`Tournament is not in ${stage}`);
   }
 
   // Each match has its own contest – we need to check all are finished
-  const matches = await Match.find({ tournament: tournamentId, round }).sort({ matchNumber: 1 });
+  const matches = await Match.find({ tournament: tournamentId, stage }).sort({ matchNumber: 1 });
   if (matches.length !== expectedMatches) {
     throw new Error(`Expected ${expectedMatches} matches, found ${matches.length}`);
   }
@@ -167,7 +167,7 @@ const advanceKnockout = async (tournamentId, round, nextRound, expectedMatches) 
         setParticipantStatus(
           p,
           p.equals(winner) ? "ADVANCED" : "ELIMINATED",
-          p.equals(winner) ? nextRound : "ELIMINATED"
+          p.equals(winner) ? nextStage : "ELIMINATED"
         )
       )
     );
@@ -179,10 +179,10 @@ const advanceKnockout = async (tournamentId, round, nextRound, expectedMatches) 
     pairs.push([winners[i], winners[i+1]]);
   }
 
-  const nextMatches = await createMatches(tournamentId, nextRound, pairs);
+  const nextMatches = await createMatches(tournamentId, nextStage, pairs);
 
-  tournament.status = nextRound;
-  tournament.currentStage = nextRound;
+  tournament.status = nextStage;
+  tournament.currentStage = nextStage;
   await tournament.save();
 
   return { winners, matches: nextMatches };
@@ -200,7 +200,7 @@ const completeTournament = async (tournamentId) => {
 
   // Ensure final contest finished
   await finishedContests(tournamentId, "FINAL", 1);
-  const match = await Match.findOne({ tournament: tournamentId, round: "FINAL" });
+  const match = await Match.findOne({ tournament: tournamentId, stage: "FINAL" });
   if (!match) throw new Error("Final match not found");
 
   const results = await resultForMatch(match);

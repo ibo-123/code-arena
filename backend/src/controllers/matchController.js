@@ -23,14 +23,14 @@ const updateMatchResult = async (req, res) => {
       const isWinner = p._id.toString() === winnerId;
       await Participant.findByIdAndUpdate(p._id, {
         status: isWinner ? "ADVANCED" : "ELIMINATED",
-        currentStage: isWinner ? match.round : "ELIMINATED"
+        currentStage: isWinner ? match.stage : "ELIMINATED"
       });
     }));
 
     // Audit log
     await AuditLog.create({
       action: "MATCH_RESULT_SET",
-      description: `Set winner for Match ${match.matchNumber} (${match.round})`,
+      description: `Set winner for Match ${match.matchNumber} (${match.stage})`,
       admin: req.user?._id,
       tournament: match.tournament,
     });

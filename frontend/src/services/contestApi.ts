@@ -22,7 +22,10 @@ export const contestApi = {
     return response.data;
   },
 
-  async validateCodeforces(tournamentId: string, contestId: number): Promise<{ success: boolean; contest?: { id: number; name: string; phase: string } }> {
+  async validateCodeforces(tournamentId: string, contestId: number): Promise<{ 
+    success: boolean; 
+    contest?: { id: number; name: string; phase: string; startTimeSeconds?: number; durationSeconds?: number } 
+  }> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/contests/validate/${contestId}`);
     return response.data;
   },

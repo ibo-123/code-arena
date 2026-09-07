@@ -13,10 +13,10 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import { Card } from "../components/ui/Card";
-import { Button } from "../components/ui/Button";
-import { Badge } from "../components/ui/Badge";
+import { useAuth } from "../../context/AuthContext";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
 
 export const Register = () => {
   const { register } = useAuth();
@@ -92,8 +92,7 @@ export const Register = () => {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0a0e1a 100%)",
+        background: "linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0a0e1a 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -111,8 +110,7 @@ export const Register = () => {
           right: "-30%",
           width: "600px",
           height: "600px",
-          background:
-            "radial-gradient(circle, rgba(41, 121, 255, 0.08) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(41, 121, 255, 0.08) 0%, transparent 70%)",
           borderRadius: "50%",
           animation: "pulse 6s ease-in-out infinite",
         }}
@@ -124,8 +122,7 @@ export const Register = () => {
           left: "-20%",
           width: "500px",
           height: "500px",
-          background:
-            "radial-gradient(circle, rgba(156, 39, 176, 0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(156, 39, 176, 0.06) 0%, transparent 70%)",
           borderRadius: "50%",
           animation: "pulse 8s ease-in-out infinite reverse",
         }}
@@ -222,10 +219,7 @@ export const Register = () => {
                 letterSpacing: "1px",
               }}
             >
-              <Sparkles
-                size={12}
-                style={{ marginRight: "6px", display: "inline" }}
-              />
+              <Sparkles size={12} style={{ marginRight: "6px", display: "inline" }} />
               Join the Arena
             </Badge>
           </div>
@@ -296,12 +290,7 @@ export const Register = () => {
               <User size={16} color="rgba(255,255,255,0.3)" />
               Display Name
             </label>
-            <input
-              required
-              name="name"
-              placeholder="Your full name"
-              style={inputStyle}
-            />
+            <input required name="name" placeholder="Your full name" style={inputStyle} />
           </div>
 
           {/* Username */}
@@ -325,12 +314,7 @@ export const Register = () => {
               <UserCheck size={16} color="rgba(255,255,255,0.3)" />
               Username
             </label>
-            <input
-              required
-              name="username"
-              placeholder="arena_handle"
-              style={inputStyle}
-            />
+            <input required name="username" placeholder="arena_handle" style={inputStyle} />
           </div>
 
           {/* Email */}
@@ -384,12 +368,7 @@ export const Register = () => {
               <Code2 size={16} color="rgba(255,255,255,0.3)" />
               Codeforces Username
             </label>
-            <input
-              required
-              name="codeforcesUsername"
-              placeholder="tourist"
-              style={inputStyle}
-            />
+            <input required name="codeforcesUsername" placeholder="tourist" style={inputStyle} />
           </div>
 
           {/* Password */}
@@ -411,9 +390,7 @@ export const Register = () => {
                 justifyContent: "space-between",
               }}
             >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Lock size={16} color="rgba(255,255,255,0.3)" />
                 Password
               </div>
@@ -509,8 +486,7 @@ export const Register = () => {
               }}
             />
             <span>
-              I agree to the tournament{" "}
-              <span style={{ color: "#2979FF" }}>Code of Conduct</span>
+              I agree to the tournament <span style={{ color: "#2979FF" }}>Code of Conduct</span>
             </span>
           </label>
 

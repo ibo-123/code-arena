@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Crown, ChevronRight, Trophy, ChevronDown, RefreshCw, Users, Calendar } from "lucide-react";
-import { Navbar } from "../components/layout/Navbar";
-import { Badge } from "../components/ui/Badge";
-import { Card } from "../components/ui/Card";
-import { LoadingState } from "../components/ui/LoadingState";
-import { ErrorState } from "../components/ui/ErrorState";
-import { EmptyState } from "../components/ui/EmptyState";
-import { tournamentApi } from "../services/tournamentApi";
-import type { Tournament, Bracket as BracketType, Match, Participant } from "../types";
+import { Navbar } from "../../components/layout/Navbar";
+import { Badge } from "../../components/ui/Badge";
+import { Card } from "../../components/ui/Card";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { tournamentApi } from "../../services/tournamentApi";
+import type { Tournament, Bracket as BracketType, BracketMatch, Participant } from "../../types";
 
 const getInitials = (name: string) =>
   name
@@ -78,15 +78,9 @@ export const Bracket = () => {
   if (error) return <ErrorState error={error} />;
 
   const isCompleted = selectedTournament?.status === "COMPLETED";
-  const hasBracketData =
-    bracket &&
-    (bracket.quarterFinal?.length > 0 ||
-      bracket.semiFinal?.length > 0 ||
-      bracket.final ||
-      Object.keys(bracket.groupStage || {}).length > 0);
 
   // ---- Match Card ----
-  const MatchCard = ({ match }: { match: Match }) => (
+  const MatchCard = ({ match }: { match: BracketMatch }) => (
     <div
       style={{
         background: "rgba(255,255,255,0.04)",
@@ -376,7 +370,7 @@ export const Bracket = () => {
                   background: "linear-gradient(135deg, #FFFFFF, #64B5F6)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
-                  letterSpacing: "-0.02em",
+                  backgroundClip: "text",
                 }}
               >
                 Championship Bracket
@@ -603,7 +597,7 @@ export const Bracket = () => {
                     Participants
                   </div>
                   <div style={{ fontSize: "15px", fontWeight: "600", color: "white" }}>
-                    {selectedTournament.maxParticipants || 0}
+                    {selectedTournament.participantCount || selectedTournament.maxParticipants || 0}
                   </div>
                 </div>
               </div>

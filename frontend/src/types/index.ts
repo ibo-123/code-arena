@@ -1,16 +1,15 @@
 // ============================================================
-// User Types
+// AUTH TYPES
 // ============================================================
 export interface User {
   _id: string;
-  id?: string; // For backward compatibility
   username: string;
   email: string;
   name: string;
-  role: 'ADMIN' | 'PARTICIPANT';
+  role: 'ADMIN' | 'PARTICIPANT' | 'USER';
   codeforcesUsername?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginCredentials {
@@ -27,9 +26,18 @@ export interface RegisterData {
 }
 
 // ============================================================
-// Tournament Types – CANONICAL DATE FIELDS
+// TOURNAMENT TYPES
 // ============================================================
-export type TournamentStatus = 'REGISTRATION' | 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL' | 'COMPLETED';
+export type TournamentStatus = 
+  | 'DRAFT'
+  | 'REGISTRATION'
+  | 'GROUP_STAGE'
+  | 'QUARTER_FINAL'
+  | 'SEMI_FINAL'
+  | 'FINAL'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
 export type TournamentStage = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL';
 
 export interface Tournament {
@@ -37,42 +45,34 @@ export interface Tournament {
   name: string;
   description: string;
   status: TournamentStatus;
-  currentStage?: TournamentStage | string;          // current stage (optional)
+  currentStage?: TournamentStage | string;
   maxParticipants: number;
   participantCount?: number;
-
-  // ---- CANONICAL DATE FIELDS (use these) ----
-  registrationStart?: string;     // ISO 8601 UTC
-  registrationEnd?: string;       // ISO 8601 UTC
-  tournamentStart?: string;       // ISO 8601 UTC
-  tournamentEnd?: string;         // ISO 8601 UTC
-
-  // ---- LEGACY (avoid using) ----
-  /** @deprecated Use `tournamentStart` instead */
-  startDate?: Date;
-  /** @deprecated Use `tournamentEnd` instead */
-  endDate?: Date;
-
-  // Format & structure
   numberOfGroups?: number;
   participantsPerGroup?: number;
   qualifiersPerGroup?: number;
+  groupContests?: number;
   playoffFormat?: string;
-
-  createdAt: Date;
-  updatedAt: Date;
+  registrationStart?: string;
+  registrationEnd?: string;
+  tournamentStart?: string;
+  tournamentEnd?: string;
+  createdBy: { _id: string; name: string; username: string };
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ============================================================
-// Participant Types
+// PARTICIPANT TYPES
 // ============================================================
 export type ParticipantStatus = 'ACTIVE' | 'ELIMINATED' | 'ADVANCED' | 'CHAMPION';
+export type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface Participant {
   _id: string;
-  userId: string;
-  tournamentId: string;
   user: User;
+  tournamentId: string;
+  registrationStatus?: RegistrationStatus;
   group?: string;
   seed?: number;
   rank?: number;
@@ -81,12 +81,12 @@ export interface Participant {
   penalty?: number;
   status: ParticipantStatus;
   currentStage?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ============================================================
-// Contest Types
+// CONTEST TYPES
 // ============================================================
 export type ContestStatus = 'UPCOMING' | 'PUBLISHED' | 'LIVE' | 'FINISHED' | 'CANCELLED';
 
@@ -111,66 +111,69 @@ export interface Contest {
   publishedAt?: Date;
   lastSyncedAt?: Date;
   syncedCount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ============================================================
-// Result Types
+// VIDEO SUBMISSION TYPES
 // ============================================================
-export interface ProblemResult {
-  problemIndex: string;
-  problemName: string;
-  points: number;
-  solved: boolean;
-  wrongAttempts: number;
-  bestSubmissionTime?: number;
-}
+export type VideoStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_SUBMITTED';
 
-export interface Result {
+export interface VideoSubmission {
   _id: string;
   contestId: string;
   tournamentId: string;
   participantId: string;
-  codeforcesHandle: string;
-  rank: number;
-  points: number;
-  score: number;
-  penalty: number;
-  solvedCount: number;
-  solved: number;
-  problemResults: ProblemResult[];
-  syncedAt: Date;
-  participant?: {
-    _id: string;
-    user?: {
-      username?: string;
-      name?: string;
-      codeforcesUsername?: string;
-    };
-    group?: string;
-  };
+  videoUrl: string;
+  note?: string;
+  status: VideoStatus;
+  reviewedBy?: User;
+  reviewedAt?: Date;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ============================================================
-// Leaderboard Types
+// INVITATION TYPES
 // ============================================================
-export interface LeaderboardEntry {
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+export interface Invitation {
+  _id: string;
+  contestId: string;
+  tournamentId: string;
+  participantId: string;
+  status: InvitationStatus;
+  invitedBy: User;
+  respondedAt?: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// STANDINGS TYPES
+// ============================================================
+export interface StandingsEntry {
   rank: number;
   participantId: string;
   username: string;
   name?: string;
-  codeforcesUsername: string;
+  codeforcesUsername?: string;
   group?: string;
   solved: number;
   score: number;
   penalty: number;
+  status: ParticipantStatus;
+  isEliminated?: boolean;
+  hasAdvanced?: boolean;
 }
 
 // ============================================================
-// Bracket Types
+// BRACKET TYPES
 // ============================================================
-export interface Match {
+export interface BracketMatch {
   matchNumber: number;
   participants: Participant[];
   winner?: Participant;
@@ -178,10 +181,7 @@ export interface Match {
   status: 'PENDING' | 'LIVE' | 'COMPLETED';
 }
 
-export type BracketMatch = Match;
-
 export interface Bracket {
-  tournamentId: string;
   groupStage: Record<string, Participant[]>;
   quarterFinal: BracketMatch[];
   semiFinal: BracketMatch[];
@@ -190,20 +190,7 @@ export interface Bracket {
 }
 
 // ============================================================
-// Audit Log Types
-// ============================================================
-export interface AuditLog {
-  _id: string;
-  action: string;
-  description: string;
-  admin: User;
-  tournament?: string;
-  details: unknown;
-  createdAt: Date;
-}
-
-// ============================================================
-// API Response Types
+// API RESPONSE TYPES
 // ============================================================
 export interface ApiResponse<T = unknown> {
   success: boolean;

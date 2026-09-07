@@ -13,15 +13,15 @@ import {
   Sparkles,
   ListChecks,
 } from "lucide-react";
-import { Navbar } from "../components/layout/Navbar";
-import { Badge } from "../components/ui/Badge";
-import { Card } from "../components/ui/Card";
-import { Button } from "../components/ui/Button";
-import { LoadingState } from "../components/ui/LoadingState";
-import { ErrorState } from "../components/ui/ErrorState";
-import { useAuth } from "../context/AuthContext";
-import { tournamentApi } from "../services/tournamentApi";
-import type { Tournament, Participant } from "../types";
+import { Navbar } from "../../components/layout/Navbar";
+import { Badge } from "../../components/ui/Badge";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { useAuth } from "../../context/AuthContext";
+import { tournamentApi } from "../../services/tournamentApi";
+import type { Tournament, Participant } from "../../types";
 import { AxiosError } from "axios";
 
 // ----- Helper to display dates in Ethiopia time (EAT, UTC+3) -----
@@ -366,6 +366,9 @@ export const TournamentDetails = () => {
   const availableSlots = Math.max(0, maxParticipants - participantCount);
   const isFull = participantCount >= maxParticipants;
   const isRegistered = !!participant;
+  const isApproved = participant?.registrationStatus === "APPROVED";
+  const isPending = participant?.registrationStatus === "PENDING";
+  const isRejected = participant?.registrationStatus === "REJECTED";
 
   const getCountdown = (target: Date | null) => {
     if (!target) return null;
@@ -381,11 +384,11 @@ export const TournamentDetails = () => {
   const tournamentCountdown = hasTournamentStarted ? null : getCountdown(tournamentStart);
 
   const getStatusBadge = () => {
-    if (hasTournamentStarted) return { tone: "gold", label: "LIVE" };
-    if (isRegistrationOpen) return { tone: "blue", label: "REGISTRATION OPEN" };
-    if (isRegistrationNotStarted) return { tone: "muted", label: "UPCOMING" };
-    if (isRegistrationClosed) return { tone: "red", label: "CLOSED" };
-    return { tone: "muted", label: tournament.status };
+    if (hasTournamentStarted) return { tone: "gold" as const, label: "LIVE" };
+    if (isRegistrationOpen) return { tone: "blue" as const, label: "REGISTRATION OPEN" };
+    if (isRegistrationNotStarted) return { tone: "muted" as const, label: "UPCOMING" };
+    if (isRegistrationClosed) return { tone: "red" as const, label: "CLOSED" };
+    return { tone: "muted" as const, label: tournament.status };
   };
 
   const status = getStatusBadge();
@@ -468,7 +471,7 @@ export const TournamentDetails = () => {
           >
             <div>
               <Badge
-                tone={status.tone as any}
+                tone={status.tone}
                 style={{
                   fontSize: "11px",
                   padding: "4px 14px",
@@ -617,9 +620,24 @@ export const TournamentDetails = () => {
                         fontSize: "14px",
                       }}
                     >
-                      Group:{" "}
-                      <strong>{participant?.group ? `Group ${participant.group}` : "—"}</strong>
+                      Status:{" "}
+                      <strong>
+                        {participant?.registrationStatus === "PENDING"
+                          ? "⏳ Pending Approval"
+                          : "✅ Approved"}
+                      </strong>
                     </p>
+                    {participant?.group && (
+                      <p
+                        style={{
+                          color: "rgba(255,255,255,0.5)",
+                          margin: "0 0 12px 0",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Group: <strong>Group {participant.group}</strong>
+                      </p>
+                    )}
                     <p
                       style={{
                         color: "rgba(255,255,255,0.5)",
@@ -684,18 +702,33 @@ export const TournamentDetails = () => {
                             alignItems: "center",
                             gap: "10px",
                             padding: "10px 24px",
-                            background: "rgba(76, 175, 80, 0.15)",
-                            color: "#4CAF50",
+                            background: isApproved
+                              ? "rgba(76, 175, 80, 0.15)"
+                              : "rgba(255, 193, 7, 0.15)",
+                            color: isApproved ? "#4CAF50" : "#FFC107",
                             borderRadius: "100px",
-                            border: "1px solid rgba(76, 175, 80, 0.3)",
+                            border: `1px solid ${isApproved ? "rgba(76, 175, 80, 0.3)" : "rgba(255, 193, 7, 0.3)"}`,
                             fontWeight: "600",
                             fontSize: "16px",
                           }}
                         >
-                          <CheckCircle2 size={20} />✓ You are registered
+                          <CheckCircle2 size={20} />
+                          {isApproved
+                            ? "✓ Approved"
+                            : isPending
+                              ? "⏳ Pending Approval"
+                              : isRejected
+                                ? "✗ Rejected"
+                                : "Registered"}
                         </div>
                         <span style={{ color: "rgba(255,255,255,0.6)" }}>
-                          You have successfully registered for this tournament.
+                          {isApproved
+                            ? "You have been approved for this tournament."
+                            : isPending
+                              ? "Your registration is awaiting admin approval."
+                              : isRejected
+                                ? "Your registration was rejected."
+                                : "You are registered for this tournament."}
                         </span>
                       </div>
                     ) : hasTournamentStarted ? (

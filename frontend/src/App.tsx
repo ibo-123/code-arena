@@ -1,96 +1,100 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 
-import { AuthProvider } from "./context/AuthContext";
-import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { AdminRoute } from "./components/auth/AdminRoute";
+// Layouts
+import { PublicLayout } from "./layouts/PublicLayout";
+import { ParticipantLayout } from "./layouts/ParticipantLayout";
+import { AdminLayout } from "./layouts/AdminLayout";
 
-import { AdminProvider } from "./context/AdminContext";
-import AdminLayout from "./components/layout/AdminLayout";
-import { Home } from "./pages/Home";
-import { Login } from "./pages/Login";
-import { Register } from "./pages/Register";
-import { Bracket } from "./pages/Bracket";
-import { Live } from "./pages/Live";
-import { Leaderboard } from "./pages/Leaderboard";
-import { Results } from "./pages/Results";
-import { ContestDetails } from "./pages/ContestDetails";
-import { TournamentDetails } from "./pages/TournamentDetails";
-import { Champion } from "./pages/Champion";
+// Public Pages
+import { Home } from "./pages/public/Home";
+import { Tournaments } from "./pages/public/Tournaments";
+import { TournamentDetails } from "./pages/public/TournamentDetails";
+import { Bracket } from "./pages/public/Bracket";
+import { Login } from "./pages/auth/Login";
+import { Register } from "./pages/auth/Register";
 
-import { Dashboard } from "./pages/Dashboard";
-// ✅ Fix: Use default import for ParticipantProfile
-import ParticipantProfile from "./pages/ParticipantProfile";
+// Participant Pages
+import { Dashboard } from "./pages/participant/Dashboard";
+import { MyTournaments } from "./pages/participant/MyTournaments";
+import { ParticipantTournament } from "./pages/participant/ParticipantTournament";
+import { ContestDetails } from "./pages/participant/ContestDetails";
+import { Standings } from "./pages/participant/Standings";
+import { Invitations } from "./pages/participant/Invitations";
+import { Profile } from "./pages/participant/Profile";
 
+// Admin Pages
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
-import { AdminContests } from "./pages/admin/AdminContests";
-import { AdminBracket } from "./pages/admin/AdminBracket";
-import { AdminGroups } from "./pages/admin/AdminGroups";
+import { AdminTournaments } from "./pages/admin/AdminTournaments";
+import { AdminTournamentDetail } from "./pages/admin/AdminTournamentDetail";
 import { AdminParticipants } from "./pages/admin/AdminParticipants";
-import { AdminLogs } from "./pages/admin/AdminLogs";
-import { AdminResults } from "./pages/admin/AdminResults";
+import { AdminGroups } from "./pages/admin/AdminGroups";
+import { AdminContests } from "./pages/admin/AdminContests";
+import { AdminInvitations } from "./pages/admin/AdminInvitations";
+import { AdminVideos } from "./pages/admin/AdminVideos";
+import { AdminStandings } from "./pages/admin/AdminStandings";
+import { AdminBracket } from "./pages/admin/AdminBracket";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
-import CreateTournament from "./pages/admin/CreateTournament";
-import EditTournament from "./pages/admin/EditTournament";
+// Route Guards
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { AdminRoute } from "./components/auth/AdminRoute";
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* =====================================================
+          {/* =============================================
               PUBLIC ROUTES
-          ====================================================== */}
-
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/bracket" element={<Bracket />} />
-          <Route path="/live" element={<Live />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="/contests/:id" element={<ContestDetails />} />
-          <Route path="/tournaments/:id" element={<TournamentDetails />} />
-          <Route path="/champion" element={<Champion />} />
-
-          {/* =====================================================
-              PROTECTED USER ROUTES
-          ====================================================== */}
-
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<ParticipantProfile />} />
+          ============================================== */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/tournaments" element={<Tournaments />} />
+            <Route path="/tournaments/:id" element={<TournamentDetails />} />
+            <Route path="/tournaments/:id/bracket" element={<Bracket />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
           </Route>
 
-          {/* =====================================================
-              ADMIN ROUTES
-          ====================================================== */}
-
-          <Route path="/admin" element={<AdminRoute />}>
-            <Route
-              element={
-                <AdminProvider>
-                  <AdminLayout />
-                </AdminProvider>
-              }
-            >
-              <Route index element={<AdminDashboard />} />
-              <Route path="contests" element={<AdminContests />} />
-              <Route path="bracket" element={<AdminBracket />} />
-              <Route path="groups" element={<AdminGroups />} />
-              <Route path="participants" element={<AdminParticipants />} />
-              <Route path="logs" element={<AdminLogs />} />
-              <Route path="results" element={<AdminResults />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="tournaments/create" element={<CreateTournament />} />
-              <Route path="tournaments/:id/edit" element={<EditTournament />} />
+          {/* =============================================
+              PARTICIPANT ROUTES
+          ============================================== */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<ParticipantLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard/tournaments" element={<MyTournaments />} />
+              <Route path="/dashboard/tournaments/:id" element={<ParticipantTournament />} />
+              <Route
+                path="/dashboard/tournaments/:id/contests/:contestId"
+                element={<ContestDetails />}
+              />
+              <Route path="/dashboard/standings" element={<Standings />} />
+              <Route path="/dashboard/invitations" element={<Invitations />} />
+              <Route path="/dashboard/profile" element={<Profile />} />
             </Route>
           </Route>
 
-          {/* =====================================================
-              FALLBACK
-          ====================================================== */}
+          {/* =============================================
+              ADMIN ROUTES
+          ============================================== */}
+          <Route element={<AdminRoute />}>
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/tournaments" element={<AdminTournaments />} />
+              <Route path="/admin/tournaments/:id" element={<AdminTournamentDetail />} />
+              <Route path="/admin/tournaments/:id/participants" element={<AdminParticipants />} />
+              <Route path="/admin/tournaments/:id/groups" element={<AdminGroups />} />
+              <Route path="/admin/tournaments/:id/contests" element={<AdminContests />} />
+              <Route path="/admin/tournaments/:id/invitations" element={<AdminInvitations />} />
+              <Route path="/admin/tournaments/:id/videos" element={<AdminVideos />} />
+              <Route path="/admin/tournaments/:id/standings" element={<AdminStandings />} />
+              <Route path="/admin/tournaments/:id/bracket" element={<AdminBracket />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
+            </Route>
+          </Route>
 
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

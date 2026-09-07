@@ -7,51 +7,48 @@ const ParticipantSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-
     tournamentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Tournament',
       required: true,
     },
-
-    // Automatically assigned during tournament registration.
-    // 1 = Group 1, 2 = Group 2, etc.
+    // Registration status
+    registrationStatus: {
+      type: String,
+      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      default: 'PENDING',
+    },
     group: {
       type: String,
       trim: true,
     },
-
     seed: {
       type: Number,
     },
-
     rank: {
       type: Number,
     },
-
     score: {
       type: Number,
       default: 0,
     },
-
     solved: {
       type: Number,
       default: 0,
     },
-
     penalty: {
       type: Number,
       default: 0,
     },
-
     status: {
       type: String,
       enum: ['ACTIVE', 'ELIMINATED', 'ADVANCED', 'CHAMPION'],
       default: 'ACTIVE',
     },
-
     currentStage: {
       type: String,
+      enum: ['REGISTRATION', 'GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL', 'COMPLETED'],
+      default: 'REGISTRATION',
     },
   },
   {
@@ -59,14 +56,8 @@ const ParticipantSchema = new mongoose.Schema(
   }
 );
 
-ParticipantSchema.index(
-  { tournamentId: 1, user: 1 },
-  { unique: true }
-);
-
-ParticipantSchema.index({
-  tournamentId: 1,
-  group: 1,
-});
+ParticipantSchema.index({ tournamentId: 1, user: 1 }, { unique: true });
+ParticipantSchema.index({ tournamentId: 1, group: 1 });
+ParticipantSchema.index({ tournamentId: 1, registrationStatus: 1 });
 
 module.exports = mongoose.model('Participant', ParticipantSchema);

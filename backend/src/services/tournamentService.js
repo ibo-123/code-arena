@@ -17,7 +17,7 @@ const getBracket = async (tournamentId) => {
       })
       .populate("contest", "name status codeforcesUrl")
       .populate({ path: "winner", populate: { path: "user", select: "name username" } })
-      .sort({ round: 1, matchNumber: 1 })
+      .sort({ stage: 1, matchNumber: 1 })
   ]);
 
   // Build groupStage object dynamically
@@ -45,9 +45,9 @@ const getBracket = async (tournamentId) => {
       winner: match.winner,
       status: match.status || "PENDING"
     };
-    if (match.round === "QUARTER_FINAL") bracket.quarterFinal.push(item);
-    else if (match.round === "SEMI_FINAL") bracket.semiFinal.push(item);
-    else if (match.round === "FINAL") bracket.final = item;
+    if (match.stage === "QUARTER_FINAL") bracket.quarterFinal.push(item);
+    else if (match.stage === "SEMI_FINAL") bracket.semiFinal.push(item);
+    else if (match.stage === "FINAL") bracket.final = item;
   });
 
   return bracket;

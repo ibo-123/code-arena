@@ -15,7 +15,6 @@ import {
   Trophy,
   Zap,
   Settings,
-  // LayoutGrid,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navbar } from "../components/layout/Navbar";
@@ -68,12 +67,24 @@ export const Dashboard = () => {
   const isCompleted = tournament?.status === "COMPLETED";
   const isRegistration = tournament?.status === "REGISTRATION";
   const currentStage = tournament?.currentStage || tournament?.status || "Registration";
-  const statusLabel =
-    participant?.status === "ACTIVE"
-      ? isRegistration
-        ? "✓ Registered"
-        : "Active"
-      : participant?.status || (isRegistration ? "Registration" : "Not Registered");
+
+  const isRegistered =
+    participant?.registrationStatus === "APPROVED" || participant?.registrationStatus === "PENDING";
+  const isApproved = participant?.registrationStatus === "APPROVED";
+  const isPending = participant?.registrationStatus === "PENDING";
+  const isRejected = participant?.registrationStatus === "REJECTED";
+
+  const statusLabel = isApproved
+    ? isRegistration
+      ? "✓ Approved"
+      : "Active"
+    : isPending
+      ? "⏳ Pending Approval"
+      : isRejected
+        ? "✗ Rejected"
+        : participant?.status === "ACTIVE"
+          ? "Active"
+          : participant?.status || (isRegistration ? "Registration" : "Not Registered");
 
   const rank = participant?.rank || 0;
   const group = participant?.group ? `Group ${participant.group}` : "Not assigned yet";
@@ -211,6 +222,7 @@ export const Dashboard = () => {
                       background: "linear-gradient(135deg, #FFFFFF, #64B5F6)",
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
                     }}
                   >
                     Welcome back, {user?.username}
@@ -268,7 +280,19 @@ export const Dashboard = () => {
               }}
             >
               <Badge
-                tone={isCompleted ? "gold" : isRegistration ? "blue" : "purple"}
+                tone={
+                  isCompleted
+                    ? "gold"
+                    : isApproved
+                      ? "green"
+                      : isPending
+                        ? "blue"
+                        : isRejected
+                          ? "red"
+                          : isRegistration
+                            ? "blue"
+                            : "muted"
+                }
                 style={{
                   fontSize: "12px",
                   padding: "6px 16px",
@@ -278,7 +302,7 @@ export const Dashboard = () => {
               >
                 {statusLabel}
               </Badge>
-              {isTopRank && (
+              {isTopRank && isApproved && (
                 <Badge
                   tone="gold"
                   style={{
@@ -320,7 +344,6 @@ export const Dashboard = () => {
                   cursor: "default",
                 }}
               >
-                {/* FIX: wrap content in a div with mouse events */}
                 <div
                   onMouseEnter={(e) => {
                     e.currentTarget.parentElement!.style.transform = "translateY(-4px)";
@@ -458,7 +481,11 @@ export const Dashboard = () => {
                 >
                   {isRegistration
                     ? participant
-                      ? "You are registered! Wait for the tournament to start to receive your group and seed."
+                      ? isApproved
+                        ? "You are approved and registered! Wait for the tournament to start to receive your group and seed."
+                        : isPending
+                          ? "Your registration is pending admin approval. You'll be notified once approved."
+                          : "You are registered! Wait for the tournament to start."
                       : "Secure your spot in the arena. Registration closes soon!"
                     : "Check the live contest and bracket for the official match state."}
                 </p>
@@ -564,7 +591,7 @@ export const Dashboard = () => {
                 </small>
               </div>
 
-              {participant ? (
+              {participant && isApproved ? (
                 <div>
                   <div
                     style={{
@@ -718,8 +745,12 @@ export const Dashboard = () => {
                 </div>
               ) : (
                 <EmptyState
-                  label="No contest results yet."
-                  description="Your performance data will appear here once you participate in matches."
+                  label={isPending ? "Registration pending approval" : "No contest results yet."}
+                  description={
+                    isPending
+                      ? "Your registration is being reviewed."
+                      : "Your performance data will appear here once you participate in matches."
+                  }
                   icon={<Code2 size={32} />}
                 />
               )}
@@ -781,3 +812,5 @@ export const Dashboard = () => {
     </>
   );
 };
+
+export default Dashboard;

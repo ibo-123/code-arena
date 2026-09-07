@@ -1,20 +1,12 @@
-import React from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { LoadingState } from '../ui'
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { LoadingState } from "../common/LoadingState";
 
-export const ProtectedRoute: React.FC = () => {
-  const { isAuthenticated, loading } = useAuth()
+export const ProtectedRoute = () => {
+  const { isAuthenticated, loading } = useAuth();
 
-  if (loading) {
-    return <LoadingState label="Verifying access..." />
-  }
+  if (loading) return <LoadingState />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
-  }
-
-  return <Outlet />
-}
-
-export default ProtectedRoute
+  return <Outlet />;
+};
