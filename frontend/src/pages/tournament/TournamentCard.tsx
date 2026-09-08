@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Trophy, Users, Calendar } from "lucide-react";
-import { StatusBadge } from "../common/StatusBadge";
+import { StatusBadge } from "../../components/common/StatusBadge";
 import type { Tournament } from "../../types";
 
 interface TournamentCardProps {

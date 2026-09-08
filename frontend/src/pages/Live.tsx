@@ -19,6 +19,9 @@ import { contestApi } from "../services/contestApi";
 import { tournamentApi } from "../services/tournamentApi";
 import type { Contest, LeaderboardEntry, Tournament } from "../types";
 
+// ... rest of the file remains the same as previously provided
+// (The Live.tsx file was already correct with the import)
+
 export const Live = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");

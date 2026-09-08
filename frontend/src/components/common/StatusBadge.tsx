@@ -1,37 +1,42 @@
-import type { TournamentStatus } from "../../types";
+// frontend/src/components/common/StatusBadge.tsx
+import type { TournamentStatus, ParticipantStatus, RegistrationStatus } from "../../types";
 
 interface StatusBadgeProps {
-  status: TournamentStatus | string;
+  status: string | TournamentStatus | ParticipantStatus | RegistrationStatus;
   size?: "sm" | "md";
+  className?: string;
 }
 
-export const StatusBadge = ({ status, size = "md" }: StatusBadgeProps) => {
-  const getTone = () => {
-    if (status === "COMPLETED") return "gold";
-    if (status === "REGISTRATION") return "blue";
-    if (status === "GROUP_STAGE") return "purple";
-    if (status === "QUARTER_FINAL") return "orange";
-    if (status === "SEMI_FINAL") return "pink";
-    if (status === "FINAL") return "red";
-    if (status === "LIVE") return "red";
-    if (status === "FINISHED") return "green";
-    if (status === "PENDING") return "muted";
-    if (status === "APPROVED") return "green";
-    if (status === "REJECTED") return "red";
-    if (status === "ELIMINATED") return "muted";
-    if (status === "ADVANCED") return "blue";
-    if (status === "CHAMPION") return "gold";
+export const StatusBadge = ({ status, size = "md", className = "" }: StatusBadgeProps) => {
+  const getTone = (): string => {
+    const s = String(status).toUpperCase();
+    if (s === "COMPLETED" || s === "CHAMPION" || s === "APPROVED") return "gold";
+    if (s === "REGISTRATION" || s === "ADVANCED" || s === "ACCEPTED") return "blue";
+    if (s === "GROUP_STAGE" || s === "ACTIVE") return "green";
+    if (s === "QUARTER_FINAL" || s === "LIVE" || s === "ONGOING") return "orange";
+    if (s === "SEMI_FINAL") return "purple";
+    if (s === "FINAL") return "pink";
+    if (s === "PENDING" || s === "UPCOMING") return "muted";
+    if (s === "REJECTED" || s === "ELIMINATED" || s === "CANCELLED" || s === "DECLINED")
+      return "red";
+    if (s === "FINISHED") return "green";
     return "muted";
   };
 
-  const getLabel = () => {
-    if (status === "GROUP_STAGE") return "Group Stage";
-    if (status === "QUARTER_FINAL") return "Quarter Final";
-    if (status === "SEMI_FINAL") return "Semi Final";
-    return status;
+  const getLabel = (): string => {
+    const s = String(status);
+    if (s === "GROUP_STAGE") return "Group Stage";
+    if (s === "QUARTER_FINAL") return "Quarter Final";
+    if (s === "SEMI_FINAL") return "Semi Final";
+    if (s === "REGISTRATION") return "Registration";
+    if (s === "COMPLETED") return "Completed";
+    if (s === "CANCELLED") return "Cancelled";
+    return s;
   };
 
   const sizeClass = size === "sm" ? "badge-sm" : "";
 
-  return <span className={`badge ${getTone()} ${sizeClass}`}>{getLabel()}</span>;
+  return <span className={`badge ${getTone()} ${sizeClass} ${className}`}>{getLabel()}</span>;
 };
+
+export default StatusBadge;

@@ -1,13 +1,13 @@
+// frontend/src/pages/participant/Dashboard.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Trophy, Users, Medal, Star, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { useAuth } from "../../contexts/AuthContext";
+import { Trophy, Medal, Star, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 import { tournamentApi } from "../../services/tournamentApi";
-import { LoadingState } from "../../components/common/LoadingState";
-import { ErrorState } from "../../components/common/ErrorState";
+import { LoadingState, ErrorState } from "../../components/common";
 import type { Tournament, Participant } from "../../types";
 
-export const Dashboard = () => {
+export const ParticipantDashboard = () => {
   const { user } = useAuth();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [participant, setParticipant] = useState<Participant | null>(null);
@@ -26,7 +26,7 @@ export const Dashboard = () => {
 
         if (t) {
           const { participants } = await tournamentApi.participants(t._id);
-          const p = participants.find((p) => p.user._id === user?._id || p.user.id === user?.id);
+          const p = participants.find((p) => p.user._id === user?._id);
           setParticipant(p || null);
         }
       } catch (err) {
@@ -68,7 +68,6 @@ export const Dashboard = () => {
 
       {participant ? (
         <>
-          {/* Status Cards */}
           <div className="status-grid">
             <div className="status-card">
               <div className="status-label">Tournament</div>
@@ -94,7 +93,6 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {/* Stats Grid */}
           <div className="stats-grid">
             <div className="stat-card">
               <Medal size={20} />
@@ -126,7 +124,6 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {/* Current Phase */}
           <div className="phase-card">
             <div className="phase-label">Current Phase</div>
             <div className="phase-value">
@@ -153,7 +150,6 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="dashboard-actions">
             <Link to={`/dashboard/tournaments/${tournament?._id}`} className="btn-primary">
               View Tournament
@@ -176,3 +172,5 @@ export const Dashboard = () => {
     </div>
   );
 };
+
+export default ParticipantDashboard;

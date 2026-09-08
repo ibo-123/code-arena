@@ -1,4 +1,4 @@
-import apiClient from './api';
+import {apiClient} from './api';
 import type { Tournament, Participant, Bracket, LeaderboardEntry } from '../types';
 
 export const tournamentApi = {

@@ -1,4 +1,4 @@
-import apiClient from './api';
+import {apiClient} from './api';
 import type { AuditLog, Tournament, Participant } from '../types';
 
 export interface AdminActionResponse {

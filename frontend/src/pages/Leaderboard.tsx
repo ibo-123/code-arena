@@ -299,3 +299,5 @@ export const Leaderboard = () => {
     </>
   );
 };
+
+export default Leaderboard;

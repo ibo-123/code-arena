@@ -1,3 +1,4 @@
+// frontend/src/pages/public/TournamentDetails.tsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -12,6 +13,9 @@ import {
   ChevronDown,
   Sparkles,
   ListChecks,
+  Info,
+  Timer,
+  Zap,
 } from "lucide-react";
 import { Navbar } from "../../components/layout/Navbar";
 import { Badge } from "../../components/ui/Badge";
@@ -53,7 +57,7 @@ export const TournamentDetails = () => {
   const [showTournamentDropdown, setShowTournamentDropdown] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [loadingTournaments, setLoadingTournaments] = useState(false);
+  const [, setLoadingTournaments] = useState(false);
   const [error, setError] = useState("");
 
   const [registering, setRegistering] = useState(false);
@@ -111,9 +115,7 @@ export const TournamentDetails = () => {
         setParticipantCount(participantsRes.participants.length);
 
         if (isAuthenticated && user) {
-          const userParticipant = participantsRes.participants.find(
-            (p) => p.user._id === user._id || p.user.id === user.id,
-          );
+          const userParticipant = participantsRes.participants.find((p) => p.user._id === user._id);
           if (userParticipant) {
             setParticipant(userParticipant);
           }
@@ -374,9 +376,14 @@ export const TournamentDetails = () => {
     if (!target) return null;
     const diff = target.getTime() - now.getTime();
     if (diff <= 0) return null;
-    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    }
     return `${hours}h ${minutes}m ${seconds}s`;
   };
 
@@ -384,16 +391,28 @@ export const TournamentDetails = () => {
   const tournamentCountdown = hasTournamentStarted ? null : getCountdown(tournamentStart);
 
   const getStatusBadge = () => {
-    if (hasTournamentStarted) return { tone: "gold" as const, label: "LIVE" };
-    if (isRegistrationOpen) return { tone: "blue" as const, label: "REGISTRATION OPEN" };
-    if (isRegistrationNotStarted) return { tone: "muted" as const, label: "UPCOMING" };
-    if (isRegistrationClosed) return { tone: "red" as const, label: "CLOSED" };
-    return { tone: "muted" as const, label: tournament.status };
+    if (hasTournamentStarted) return { tone: "gold" as const, label: "LIVE", icon: Zap };
+    if (isRegistrationOpen)
+      return { tone: "blue" as const, label: "REGISTRATION OPEN", icon: Clock };
+    if (isRegistrationNotStarted)
+      return { tone: "muted" as const, label: "UPCOMING", icon: Calendar };
+    if (isRegistrationClosed) return { tone: "red" as const, label: "CLOSED", icon: ShieldAlert };
+    return { tone: "muted" as const, label: tournament.status, icon: Info };
   };
 
   const status = getStatusBadge();
+  const StatusIcon = status.icon;
 
-  // ---------- Render ----------
+  // Get participant status display
+  const getParticipantStatusDisplay = () => {
+    if (isApproved) return { label: "Approved", color: "#4CAF50", icon: CheckCircle2 };
+    if (isPending) return { label: "Pending Approval", color: "#FFC107", icon: Clock };
+    if (isRejected) return { label: "Rejected", color: "#FF6B6B", icon: ShieldAlert };
+    return null;
+  };
+
+  const participantStatus = getParticipantStatusDisplay();
+
   return (
     <>
       <Navbar />
@@ -474,21 +493,33 @@ export const TournamentDetails = () => {
                 tone={status.tone}
                 style={{
                   fontSize: "11px",
-                  padding: "4px 14px",
+                  padding: "6px 16px",
                   borderRadius: "100px",
                   fontWeight: "600",
                   marginBottom: "12px",
-                  display: "inline-block",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
                   background:
                     status.tone === "gold"
-                      ? "linear-gradient(135deg, #FFD700, #FFA000)"
+                      ? "linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,152,0,0.1))"
                       : status.tone === "blue"
-                        ? "linear-gradient(135deg, #2979FF, #1565C0)"
+                        ? "linear-gradient(135deg, rgba(41,121,255,0.2), rgba(21,101,192,0.1))"
                         : status.tone === "red"
-                          ? "linear-gradient(135deg, #F44336, #C62828)"
-                          : "rgba(255,255,255,0.1)",
+                          ? "linear-gradient(135deg, rgba(244,67,54,0.2), rgba(198,40,40,0.1))"
+                          : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${
+                    status.tone === "gold"
+                      ? "rgba(255,215,0,0.3)"
+                      : status.tone === "blue"
+                        ? "rgba(41,121,255,0.3)"
+                        : status.tone === "red"
+                          ? "rgba(244,67,54,0.3)"
+                          : "rgba(255,255,255,0.08)"
+                  }`,
                 }}
               >
+                <StatusIcon size={14} />
                 {status.label}
               </Badge>
               <h1
@@ -518,15 +549,15 @@ export const TournamentDetails = () => {
                 </p>
               )}
             </div>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  background: "rgba(255,255,255,0.05)",
                   padding: "8px 16px",
                   borderRadius: "100px",
+                  background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
@@ -534,6 +565,26 @@ export const TournamentDetails = () => {
                 <span style={{ fontWeight: "600" }}>{participantCount}</span>
                 <span style={{ color: "rgba(255,255,255,0.5)" }}>participants</span>
               </div>
+              {isRegistered && participantStatus && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    borderRadius: "100px",
+                    background: `rgba(${participantStatus.color === "#4CAF50" ? "76,175,80" : participantStatus.color === "#FFC107" ? "255,193,7" : "255,107,107"}, 0.12)`,
+                    border: `1px solid ${participantStatus.color}44`,
+                  }}
+                >
+                  <participantStatus.icon size={14} color={participantStatus.color} />
+                  <span
+                    style={{ fontSize: "12px", fontWeight: "600", color: participantStatus.color }}
+                  >
+                    {participantStatus.label}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -541,7 +592,7 @@ export const TournamentDetails = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
               gap: "28px",
             }}
           >
@@ -588,6 +639,7 @@ export const TournamentDetails = () => {
                       padding: "28px",
                       borderRadius: "16px",
                       width: "100%",
+                      animation: "fadeInUp 0.5s ease",
                     }}
                   >
                     <div
@@ -613,40 +665,50 @@ export const TournamentDetails = () => {
                     <p style={{ color: "rgba(255,255,255,0.85)", margin: "0 0 6px 0" }}>
                       You are now registered for <strong>{tournament.name}</strong>.
                     </p>
-                    <p
+                    <div
                       style={{
-                        color: "rgba(255,255,255,0.5)",
-                        margin: "0 0 12px 0",
-                        fontSize: "14px",
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: "20px",
+                        flexWrap: "wrap",
+                        margin: "16px 0",
                       }}
                     >
-                      Status:{" "}
-                      <strong>
-                        {participant?.registrationStatus === "PENDING"
-                          ? "⏳ Pending Approval"
-                          : "✅ Approved"}
-                      </strong>
-                    </p>
-                    {participant?.group && (
-                      <p
-                        style={{
-                          color: "rgba(255,255,255,0.5)",
-                          margin: "0 0 12px 0",
-                          fontSize: "14px",
-                        }}
-                      >
-                        Group: <strong>Group {participant.group}</strong>
-                      </p>
-                    )}
-                    <p
-                      style={{
-                        color: "rgba(255,255,255,0.5)",
-                        margin: "0 0 28px 0",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Seed: <strong>#{participant?.seed || "—"}</strong>
-                    </p>
+                      <div>
+                        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
+                          Status
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: isApproved ? "#4CAF50" : "#FFC107",
+                          }}
+                        >
+                          {isApproved ? "✅ Approved" : "⏳ Pending"}
+                        </div>
+                      </div>
+                      {participant?.group && (
+                        <div>
+                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
+                            Group
+                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: "600", color: "#64B5F6" }}>
+                            Group {participant.group}
+                          </div>
+                        </div>
+                      )}
+                      {participant?.seed && (
+                        <div>
+                          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>
+                            Seed
+                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: "600", color: "#FFD700" }}>
+                            #{participant.seed}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <Button
                       onClick={() => setRegisterSuccess(false)}
                       variant="primary"
@@ -655,14 +717,17 @@ export const TournamentDetails = () => {
                         border: "1px solid rgba(255,255,255,0.15)",
                       }}
                     >
-                      View Tournament
+                      Continue
                     </Button>
                   </div>
                 ) : (
                   <>
-                    <h2 style={{ margin: 0, fontSize: "22px", fontWeight: "700" }}>
-                      Registration Status
-                    </h2>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Trophy size={20} color="#FFD700" />
+                      <h2 style={{ margin: 0, fontSize: "22px", fontWeight: "700" }}>
+                        Registration Status
+                      </h2>
+                    </div>
 
                     {registerError && (
                       <div
@@ -694,6 +759,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "12px",
                           padding: "20px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -704,10 +770,18 @@ export const TournamentDetails = () => {
                             padding: "10px 24px",
                             background: isApproved
                               ? "rgba(76, 175, 80, 0.15)"
-                              : "rgba(255, 193, 7, 0.15)",
-                            color: isApproved ? "#4CAF50" : "#FFC107",
+                              : isPending
+                                ? "rgba(255, 193, 7, 0.15)"
+                                : "rgba(255, 107, 107, 0.15)",
+                            color: isApproved ? "#4CAF50" : isPending ? "#FFC107" : "#FF6B6B",
                             borderRadius: "100px",
-                            border: `1px solid ${isApproved ? "rgba(76, 175, 80, 0.3)" : "rgba(255, 193, 7, 0.3)"}`,
+                            border: `1px solid ${
+                              isApproved
+                                ? "rgba(76, 175, 80, 0.3)"
+                                : isPending
+                                  ? "rgba(255, 193, 7, 0.3)"
+                                  : "rgba(255, 107, 107, 0.3)"
+                            }`,
                             fontWeight: "600",
                             fontSize: "16px",
                           }}
@@ -739,6 +813,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -769,6 +844,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -788,20 +864,29 @@ export const TournamentDetails = () => {
                           Registration not yet open
                         </div>
                         {registrationCountdown && (
-                          <span
+                          <div
                             style={{
-                              color: "rgba(255,255,255,0.6)",
-                              fontSize: "18px",
-                              fontWeight: "700",
-                              fontVariantNumeric: "tabular-nums",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                              padding: "8px 20px",
                               background: "rgba(0,0,0,0.3)",
-                              padding: "4px 16px",
-                              borderRadius: "8px",
-                              letterSpacing: "1px",
+                              borderRadius: "10px",
                             }}
                           >
-                            {registrationCountdown}
-                          </span>
+                            <Timer size={18} color="#64B5F6" />
+                            <span
+                              style={{
+                                color: "#64B5F6",
+                                fontSize: "20px",
+                                fontWeight: "700",
+                                fontVariantNumeric: "tabular-nums",
+                                letterSpacing: "1px",
+                              }}
+                            >
+                              {registrationCountdown}
+                            </span>
+                          </div>
                         )}
                         <span style={{ color: "rgba(255,255,255,0.5)" }}>
                           Opens: {formatEAT(tournament.registrationStart)}
@@ -818,6 +903,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -848,6 +934,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -882,6 +969,7 @@ export const TournamentDetails = () => {
                           alignItems: "center",
                           gap: "20px",
                           padding: "8px 0",
+                          width: "100%",
                         }}
                       >
                         <div
@@ -912,6 +1000,27 @@ export const TournamentDetails = () => {
                           Registration Open
                         </div>
 
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            fontSize: "14px",
+                            color: "rgba(255,255,255,0.5)",
+                          }}
+                        >
+                          <Users size={16} />
+                          <span>
+                            <strong style={{ color: "white" }}>{availableSlots}</strong> slot
+                            {availableSlots !== 1 ? "s" : ""} remaining
+                          </span>
+                          <span style={{ opacity: 0.3 }}>•</span>
+                          <span>
+                            <strong style={{ color: "white" }}>{participantCount}</strong>{" "}
+                            registered
+                          </span>
+                        </div>
+
                         <Button
                           onClick={handleRegister}
                           disabled={registering}
@@ -936,12 +1045,9 @@ export const TournamentDetails = () => {
                             e.currentTarget.style.boxShadow = "0 4px 20px rgba(41, 121, 255, 0.3)";
                           }}
                         >
-                          {registering ? "Registering..." : "REGISTER FOR TOURNAMENT"}
+                          {registering ? "Registering..." : "REGISTER NOW"}
                           {!registering && <ArrowRight size={20} />}
                         </Button>
-                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>
-                          {availableSlots} slot{availableSlots !== 1 ? "s" : ""} remaining
-                        </span>
                       </div>
                     )}
                   </>
@@ -949,13 +1055,23 @@ export const TournamentDetails = () => {
               </div>
             </Card>
 
-            {/* Schedule Card */}
-            <Card
+            {/* Schedule Card - Using div instead of Card to handle hover events */}
+            <div
               style={{
                 padding: "24px",
                 background: "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.06)",
                 borderRadius: "20px",
+                transition: "all 0.3s ease",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(41,121,255,0.2)";
+                e.currentTarget.style.transform = "translateY(-4px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <div
@@ -967,111 +1083,71 @@ export const TournamentDetails = () => {
                   color: "white",
                 }}
               >
-                <Calendar size={22} color="#64B5F6" />
+                <div
+                  style={{
+                    padding: "8px",
+                    borderRadius: "10px",
+                    background: "rgba(100,181,246,0.1)",
+                  }}
+                >
+                  <Calendar size={22} color="#64B5F6" />
+                </div>
                 <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Schedule</h3>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Registration Opens
-                  </span>
-                  <span style={{ fontWeight: "500", textAlign: "right", fontSize: "14px" }}>
-                    {formatEAT(tournament.registrationStart)}
-                  </span>
+                <div className="schedule-item">
+                  <span className="schedule-label">Registration Opens</span>
+                  <span className="schedule-value">{formatEAT(tournament.registrationStart)}</span>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Registration Closes
-                  </span>
-                  <span style={{ fontWeight: "500", textAlign: "right", fontSize: "14px" }}>
-                    {formatEAT(tournament.registrationEnd)}
-                  </span>
+                <div className="schedule-item">
+                  <span className="schedule-label">Registration Closes</span>
+                  <span className="schedule-value">{formatEAT(tournament.registrationEnd)}</span>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Tournament Starts
-                  </span>
-                  <span
-                    style={{
-                      fontWeight: "600",
-                      textAlign: "right",
-                      fontSize: "14px",
-                      color: "#FFD700",
-                    }}
-                  >
+                <div className="schedule-item highlight">
+                  <span className="schedule-label">Tournament Starts</span>
+                  <span className="schedule-value gold">
                     {formatEAT(tournament.tournamentStart)}
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Tournament Ends
-                  </span>
-                  <span
-                    style={{
-                      fontWeight: "500",
-                      textAlign: "right",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {formatEAT(tournament.tournamentEnd)}
-                  </span>
+                <div className="schedule-item">
+                  <span className="schedule-label">Tournament Ends</span>
+                  <span className="schedule-value">{formatEAT(tournament.tournamentEnd)}</span>
                 </div>
 
                 {tournamentCountdown && !hasTournamentStarted && (
                   <div
                     style={{
                       marginTop: "12px",
-                      padding: "10px",
+                      padding: "14px",
                       borderRadius: "10px",
                       background: "rgba(255,215,0,0.05)",
                       border: "1px solid rgba(255,215,0,0.1)",
                       textAlign: "center",
                     }}
                   >
-                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "rgba(255,255,255,0.4)",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                      }}
+                    >
+                      <Timer size={14} style={{ display: "inline", marginRight: "6px" }} />
                       Starts in
                     </span>
                     <span
                       style={{
                         display: "block",
-                        fontSize: "20px",
+                        fontSize: "24px",
                         fontWeight: "700",
                         color: "#FFD700",
                         fontVariantNumeric: "tabular-nums",
+                        marginTop: "2px",
                       }}
                     >
                       {tournamentCountdown}
@@ -1079,15 +1155,25 @@ export const TournamentDetails = () => {
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
 
-            {/* Format Card */}
-            <Card
+            {/* Format Card - Using div instead of Card to handle hover events */}
+            <div
               style={{
                 padding: "24px",
                 background: "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.06)",
                 borderRadius: "20px",
+                transition: "all 0.3s ease",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,215,0,0.2)";
+                e.currentTarget.style.transform = "translateY(-4px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               <div
@@ -1099,86 +1185,83 @@ export const TournamentDetails = () => {
                   color: "white",
                 }}
               >
-                <Trophy size={22} color="#FFD700" />
+                <div
+                  style={{
+                    padding: "8px",
+                    borderRadius: "10px",
+                    background: "rgba(255,215,0,0.1)",
+                  }}
+                >
+                  <Trophy size={22} color="#FFD700" />
+                </div>
                 <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
                   Format & Structure
                 </h3>
               </div>
+
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>Capacity</span>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>
-                    {participantCount} / {maxParticipants}
-                  </span>
+                <div className="format-item">
+                  <span className="format-label">Capacity</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="format-value">
+                      {participantCount} / {maxParticipants}
+                    </span>
+                    <div
+                      style={{
+                        width: "60px",
+                        height: "4px",
+                        background: "rgba(255,255,255,0.06)",
+                        borderRadius: "2px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(participantCount / maxParticipants) * 100}%`,
+                          height: "100%",
+                          background:
+                            participantCount / maxParticipants > 0.8
+                              ? "linear-gradient(90deg, #FF6B6B, #FF9800)"
+                              : "linear-gradient(90deg, #4CAF50, #64B5F6)",
+                          borderRadius: "2px",
+                          transition: "width 0.5s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>Groups</span>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>
-                    {tournament.numberOfGroups || 4} Groups
-                  </span>
+
+                <div className="format-item">
+                  <span className="format-label">Groups</span>
+                  <span className="format-value">{tournament.numberOfGroups || 4} Groups</span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Group Size
-                  </span>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>
+
+                <div className="format-item">
+                  <span className="format-label">Group Size</span>
+                  <span className="format-value">
                     {tournament.participantsPerGroup ||
-                      maxParticipants / (tournament.numberOfGroups || 4)}{" "}
+                      Math.round(maxParticipants / (tournament.numberOfGroups || 4))}{" "}
                     per group
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: "10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-                    Qualifiers
-                  </span>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>
+
+                <div className="format-item">
+                  <span className="format-label">Qualifiers</span>
+                  <span className="format-value highlight-gold">
                     Top {tournament.qualifiersPerGroup || 2} advance
                   </span>
                 </div>
-                <div
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>Playoffs</span>
-                  <span style={{ fontWeight: "500", fontSize: "14px" }}>
+
+                <div className="format-item">
+                  <span className="format-label">Playoffs</span>
+                  <span className="format-value">
                     {tournament.playoffFormat
                       ? tournament.playoffFormat.replace(/_/g, " ")
                       : "SINGLE ELIMINATION"}
                   </span>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </main>
@@ -1186,8 +1269,102 @@ export const TournamentDetails = () => {
       <style>{`
         @keyframes pulse {
           0% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
+          50% { opacity: 0.4; transform: scale(0.9); }
           100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .schedule-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-bottom: 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .schedule-item:last-of-type {
+          border-bottom: none;
+        }
+
+        .schedule-item.highlight {
+          background: rgba(255, 215, 0, 0.03);
+          padding: 8px 12px;
+          border-radius: 8px;
+          border-bottom: none;
+          margin: 0 -12px;
+        }
+
+        .schedule-label {
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 14px;
+        }
+
+        .schedule-value {
+          font-weight: 500;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .schedule-value.gold {
+          color: #FFD700;
+          font-weight: 600;
+        }
+
+        .format-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-bottom: 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .format-item:last-of-type {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+
+        .format-label {
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 14px;
+        }
+
+        .format-value {
+          font-weight: 500;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .format-value.highlight-gold {
+          color: #FFD700;
+          font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+          .schedule-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+          }
+
+          .format-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+          }
+
+          .schedule-item.highlight {
+            margin: 0;
+          }
         }
       `}</style>
     </>

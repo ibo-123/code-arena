@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Trophy, Users, LogIn, UserPlus } from "lucide-react";
-import { useAuth } from "../../contexts/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 export const PublicNavbar = () => {
   const { user, isAuthenticated, logout } = useAuth();

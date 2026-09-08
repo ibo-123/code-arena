@@ -1,8 +1,9 @@
 // ============================================================
-// AUTH TYPES
+// USER TYPES
 // ============================================================
 export interface User {
   _id: string;
+  id?: string; // For backward compatibility
   username: string;
   email: string;
   name: string;
@@ -43,6 +44,7 @@ export type TournamentStage = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | '
 export interface Tournament {
   _id: string;
   name: string;
+  slug?: string;
   description: string;
   status: TournamentStatus;
   currentStage?: TournamentStage | string;
@@ -57,7 +59,13 @@ export interface Tournament {
   registrationEnd?: string;
   tournamentStart?: string;
   tournamentEnd?: string;
-  createdBy: { _id: string; name: string; username: string };
+  startDate?: string;
+  endDate?: string;
+  createdBy: {
+    _id: string;
+    name: string;
+    username: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -116,40 +124,22 @@ export interface Contest {
 }
 
 // ============================================================
-// VIDEO SUBMISSION TYPES
+// LEADERBOARD TYPES
 // ============================================================
-export type VideoStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_SUBMITTED';
-
-export interface VideoSubmission {
-  _id: string;
-  contestId: string;
-  tournamentId: string;
+export interface LeaderboardEntry {
+  rank: number;
   participantId: string;
-  videoUrl: string;
-  note?: string;
-  status: VideoStatus;
-  reviewedBy?: User;
-  reviewedAt?: Date;
-  rejectionReason?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ============================================================
-// INVITATION TYPES
-// ============================================================
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
-
-export interface Invitation {
-  _id: string;
-  contestId: string;
-  tournamentId: string;
-  participantId: string;
-  status: InvitationStatus;
-  invitedBy: User;
-  respondedAt?: Date;
-  createdAt: string;
-  updatedAt: string;
+  username: string;
+  name?: string;
+  codeforcesUsername?: string;
+  group?: string;
+  solved: number;
+  score: number;
+  penalty: number;
+  validContests?: number;
+  isEliminated?: boolean;
+  hasAdvanced?: boolean;
+  isChampion?: boolean;
 }
 
 // ============================================================
@@ -187,6 +177,93 @@ export interface Bracket {
   semiFinal: BracketMatch[];
   final?: BracketMatch;
   champion?: Participant;
+}
+
+// ============================================================
+// RESULT TYPES
+// ============================================================
+export interface ProblemResult {
+  problemIndex: string;
+  problemName: string;
+  points: number;
+  solved: boolean;
+  wrongAttempts: number;
+  bestSubmissionTime?: number;
+}
+
+export interface Result {
+  _id: string;
+  contestId: string;
+  tournamentId: string;
+  participantId: string;
+  participant?: {
+    _id: string;
+    user?: {
+      username?: string;
+      name?: string;
+      codeforcesUsername?: string;
+    };
+    group?: string;
+  };
+  codeforcesHandle: string;
+  rank: number;
+  points: number;
+  score: number;
+  penalty: number;
+  solvedCount: number;
+  solved: number;
+  problemResults: ProblemResult[];
+  syncedAt: Date;
+}
+
+// ============================================================
+// VIDEO SUBMISSION TYPES
+// ============================================================
+export type VideoStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_SUBMITTED';
+
+export interface VideoSubmission {
+  _id: string;
+  contestId: string;
+  tournamentId: string;
+  participantId: string;
+  videoUrl: string;
+  note?: string;
+  status: VideoStatus;
+  reviewedBy?: User;
+  reviewedAt?: Date;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// INVITATION TYPES
+// ============================================================
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+export interface Invitation {
+  _id: string;
+  contestId: string;
+  tournamentId: string;
+  participantId: string;
+  status: InvitationStatus;
+  invitedBy: User;
+  respondedAt?: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// AUDIT LOG TYPES
+// ============================================================
+export interface AuditLog {
+  _id: string;
+  action: string;
+  description: string;
+  admin: User;
+  tournament?: string;
+  details: unknown;
+  createdAt: Date;
 }
 
 // ============================================================

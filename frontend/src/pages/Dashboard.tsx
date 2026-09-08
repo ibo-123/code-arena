@@ -68,8 +68,8 @@ export const Dashboard = () => {
   const isRegistration = tournament?.status === "REGISTRATION";
   const currentStage = tournament?.currentStage || tournament?.status || "Registration";
 
-  const isRegistered =
-    participant?.registrationStatus === "APPROVED" || participant?.registrationStatus === "PENDING";
+  // const isRegistered =
+  //   participant?.registrationStatus === "APPROVED" || participant?.registrationStatus === "PENDING";
   const isApproved = participant?.registrationStatus === "APPROVED";
   const isPending = participant?.registrationStatus === "PENDING";
   const isRejected = participant?.registrationStatus === "REJECTED";

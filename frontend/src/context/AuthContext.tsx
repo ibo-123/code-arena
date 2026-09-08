@@ -1,3 +1,4 @@
+// frontend/src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { User, LoginCredentials, RegisterData } from "../types";
@@ -145,3 +146,5 @@ export const useAuth = (): AuthContextType => {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 };
+
+export default AuthContext;

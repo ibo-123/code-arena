@@ -1,32 +1,34 @@
+// frontend/src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
+import { AdminProvider } from "./context/AdminContext";
 
 // Layouts
 import { PublicLayout } from "./layouts/PublicLayout";
 import { ParticipantLayout } from "./layouts/ParticipantLayout";
-import { AdminLayout } from "./layouts/AdminLayout";
+import  AdminLayout from "./layouts/AdminLayout";
 
 // Public Pages
 import { Home } from "./pages/public/Home";
-import { Tournaments } from "./pages/public/Tournaments";
+import Tournaments from "./pages/public/Tournaments";
 import { TournamentDetails } from "./pages/public/TournamentDetails";
 import { Bracket } from "./pages/public/Bracket";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
 
 // Participant Pages
-import { Dashboard } from "./pages/participant/Dashboard";
-import { MyTournaments } from "./pages/participant/MyTournaments";
-import { ParticipantTournament } from "./pages/participant/ParticipantTournament";
+import ParticipantDashboard from "./pages/participant/Dashboard";
+import MyTournaments from "./pages/participant/MyTournaments";
+import ParticipantTournament from "./pages/participant/ParticipantTournament";
 import { ContestDetails } from "./pages/participant/ContestDetails";
-import { Standings } from "./pages/participant/Standings";
-import { Invitations } from "./pages/participant/Invitations";
-import { Profile } from "./pages/participant/Profile";
+import Standings from "./pages/participant/Standings";
+import Invitations from "./pages/participant/Invitations";
+import Profile from "./pages/participant/Profile";
 
 // Admin Pages
-import { AdminDashboard } from "./pages/admin/AdminDashboard";
-import { AdminTournaments } from "./pages/admin/AdminTournaments";
-import { AdminTournamentDetail } from "./pages/admin/AdminTournamentDetail";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminTournaments from "./pages/admin/AdminTournaments";
+import AdminTournamentDetail from "./pages/admin/AdminTournamentDetail";
 import { AdminParticipants } from "./pages/admin/AdminParticipants";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { AdminContests } from "./pages/admin/AdminContests";
@@ -45,9 +47,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* =============================================
-              PUBLIC ROUTES
-          ============================================== */}
+          {/* PUBLIC ROUTES */}
           <Route element={<PublicLayout />}>
             <Route path="/" element={<Home />} />
             <Route path="/tournaments" element={<Tournaments />} />
@@ -57,12 +57,10 @@ function App() {
             <Route path="/register" element={<Register />} />
           </Route>
 
-          {/* =============================================
-              PARTICIPANT ROUTES
-          ============================================== */}
+          {/* PARTICIPANT ROUTES */}
           <Route element={<ProtectedRoute />}>
             <Route element={<ParticipantLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={<ParticipantDashboard />} />
               <Route path="/dashboard/tournaments" element={<MyTournaments />} />
               <Route path="/dashboard/tournaments/:id" element={<ParticipantTournament />} />
               <Route
@@ -75,11 +73,15 @@ function App() {
             </Route>
           </Route>
 
-          {/* =============================================
-              ADMIN ROUTES
-          ============================================== */}
+          {/* ADMIN ROUTES - AdminProvider wraps all admin routes */}
           <Route element={<AdminRoute />}>
-            <Route element={<AdminLayout />}>
+            <Route
+              element={
+                <AdminProvider>
+                  <AdminLayout />
+                </AdminProvider>
+              }
+            >
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/tournaments" element={<AdminTournaments />} />
               <Route path="/admin/tournaments/:id" element={<AdminTournamentDetail />} />
@@ -94,7 +96,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
