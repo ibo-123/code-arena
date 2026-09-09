@@ -29,11 +29,11 @@ router.post('/tournaments/:tournamentId/advance', tournamentController.advanceTo
 // ============================================
 router.post('/tournaments/:tournamentId/contests/validate/:contestId', contestController.validateCodeforcesContest);
 router.post('/tournaments/:tournamentId/contests', contestController.publishContest);
-router.get('/tournaments/:tournamentId/contests', contestController.getContests);
-router.post('/tournaments/:tournamentId/contests/:contestId/sync', contestController.syncResults);
-router.get('/tournaments/:tournamentId/contests/:contestId/leaderboard', contestController.getLeaderboard);
+// router.get('/tournaments/:tournamentId/contests', contestController.getContests);
+// router.post('/tournaments/:tournamentId/contests/:contestId/sync', contestController.syncResults);
+// router.get('/tournaments/:tournamentId/contests/:contestId/leaderboard', contestController.getLeaderboard);
 // Reconcile contests with matches when contests published before matches were created
-router.post('/tournaments/:tournamentId/contests/reconcile', contestController.reconcileContestsMatches);
+// router.post('/tournaments/:tournamentId/contests/reconcile', contestController.reconcileContestsMatches);
 
 // ============================================
 // PARTICIPANT MANAGEMENT (Added manual assignment)
