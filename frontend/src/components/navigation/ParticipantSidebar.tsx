@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Trophy, Users, Calendar, Mail, User, LogOut } from "lucide-react";
+import { LayoutDashboard, Trophy, Users, Mail, User, LogOut } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 export const ParticipantSidebar = () => {

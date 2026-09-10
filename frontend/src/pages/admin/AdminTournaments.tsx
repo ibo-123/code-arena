@@ -1,7 +1,7 @@
 // frontend/src/pages/admin/AdminTournaments.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Trophy, Edit, Trash2, Calendar, Users } from "lucide-react";
+import { Plus, Edit, Calendar, Users } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import { LoadingState, ErrorState, StatusBadge } from "../../components/common";
 import type { Tournament } from "../../types";

@@ -89,6 +89,7 @@ const joinTournament = async (req, res) => {
       currentStage: "REGISTRATION",
     });
 
+    // admin: null is allowed after schema fix
     await AuditLog.create({
       action: 'PARTICIPANT_REGISTERED',
       description: `Participant ${userId} registered for tournament ${tournament.name}`,
@@ -149,7 +150,6 @@ const approveParticipant = async (req, res) => {
       });
     }
 
-    // Assign group automatically
     const totalGroups = Math.max(1, Number(tournament.numberOfGroups || 4));
     const groupNames = Array.from({ length: totalGroups }, (_, index) =>
       String.fromCharCode(65 + index)
@@ -183,7 +183,7 @@ const approveParticipant = async (req, res) => {
       1,
       Number(
         tournament.participantsPerGroup ||
-          Math.ceil((tournament.maxParticipants || totalGroups) / totalGroups)
+        Math.ceil((tournament.maxParticipants || totalGroups) / totalGroups)
       )
     );
 
@@ -213,8 +213,8 @@ const approveParticipant = async (req, res) => {
 
     await AuditLog.create({
       action: 'PARTICIPANT_APPROVED',
-      description: `Participant ${participant.user.username} approved for tournament ${tournament.name}`,
-      admin: req.user._id,
+      description: `Participant ${participant.user?.username || participant.user} approved for tournament ${tournament.name}`,
+      admin: req.user.userId || req.user._id,
       tournament: tournamentId,
     });
 
@@ -264,9 +264,10 @@ const rejectParticipant = async (req, res) => {
 
     await AuditLog.create({
       action: 'PARTICIPANT_REJECTED',
-      description: `Participant ${participant.user.username} rejected from tournament ${tournament?.name || tournamentId}`,
-      admin: req.user._id,
+      description: `Participant ${participant.user?.username || participant.user} rejected from tournament ${tournament?.name || tournamentId}${reason ? ` — Reason: ${reason}` : ''}`,
+      admin: req.user.userId || req.user._id,
       tournament: tournamentId,
+      details: reason ? { reason } : {},
     });
 
     return res.json({
@@ -388,7 +389,7 @@ const getGroups = async (req, res) => {
       .sort({ seed: 1 });
 
     const groups = {};
-    
+
     participants.forEach((participant) => {
       if (participant.group) {
         if (!groups[participant.group]) {
@@ -427,7 +428,7 @@ const updateParticipant = async (req, res) => {
     const participant = await Participant.findOne({
       _id: participantId,
       tournamentId,
-    });
+    }).populate('user', 'username name');
 
     if (!participant) {
       return res.status(404).json({
@@ -436,15 +437,38 @@ const updateParticipant = async (req, res) => {
       });
     }
 
+    // Validate group belongs to tournament's group set
     if (group !== undefined && group !== null && group !== '') {
-      participant.group = String(group).toUpperCase();
+      const tournament = await Tournament.findById(tournamentId);
+      const totalGroups = Math.max(1, Number(tournament?.numberOfGroups || 4));
+      const validGroups = Array.from({ length: totalGroups }, (_, i) =>
+        String.fromCharCode(65 + i)
+      );
+      const normalizedGroup = String(group).toUpperCase();
+      if (!validGroups.includes(normalizedGroup)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid group. Valid groups: ${validGroups.join(', ')}`,
+        });
+      }
+      participant.group = normalizedGroup;
     }
+
     if (seed !== undefined && seed !== null) {
-      participant.seed = Number(seed);
+      const seedNum = Number(seed);
+      if (!Number.isFinite(seedNum) || seedNum < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Seed must be a positive number",
+        });
+      }
+      participant.seed = seedNum;
     }
+
     if (status !== undefined) {
       participant.status = status;
     }
+
     if (currentStage !== undefined) {
       participant.currentStage = currentStage;
     }
@@ -453,9 +477,10 @@ const updateParticipant = async (req, res) => {
 
     await AuditLog.create({
       action: "PARTICIPANT_UPDATED",
-      description: `Updated participant ${participant.user}`,
-      admin: req.user._id,
+      description: `Updated participant ${participant.user?.username || participant.user}`,
+      admin: req.user.userId || req.user._id,
       tournament: tournamentId,
+      details: { group, seed, status, currentStage },
     });
 
     return res.json({
@@ -471,6 +496,41 @@ const updateParticipant = async (req, res) => {
   }
 };
 
+const getMyTournaments = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user._id;
+
+    const participants = await Participant.find({
+      user: userId,
+      registrationStatus: { $in: ['APPROVED', 'PENDING'] }
+    }).populate('tournamentId', 'name description status currentStage registrationEnd tournamentStart tournamentEnd');
+
+    if (!participants || participants.length === 0) {
+      return res.json({
+        success: true,
+        tournaments: []
+      });
+    }
+
+    const tournaments = participants.map(p => ({
+      ...p.toObject(),
+      tournament: p.tournamentId
+    }));
+
+    return res.json({
+      success: true,
+      count: tournaments.length,
+      tournaments
+    });
+  } catch (error) {
+    console.error("getMyTournaments error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   joinTournament,
   approveParticipant,
@@ -479,4 +539,5 @@ module.exports = {
   getMyStatus,
   getGroups,
   updateParticipant,
+  getMyTournaments,
 };

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Trophy, Users, LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 export const PublicNavbar = () => {

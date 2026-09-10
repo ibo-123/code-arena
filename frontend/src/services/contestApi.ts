@@ -1,9 +1,14 @@
 import {apiClient} from './api';
-import type { Contest, LeaderboardEntry, Result } from '../types';
+import type { Contest, LeaderboardEntry, Result, VideoSubmission } from '../types';
 
 export const contestApi = {
   async list(tournamentId: string): Promise<{ contests: Contest[] }> {
     const response = await apiClient.get(`/tournaments/${tournamentId}/contests`);
+    return response.data;
+  },
+
+  async getMyContests(tournamentId: string): Promise<{ contests: Contest[] }> {
+    const response = await apiClient.get(`/tournaments/${tournamentId}/my-contests`);
     return response.data;
   },
 
@@ -40,6 +45,42 @@ export const contestApi = {
     }
   ): Promise<{ contest: Contest }> {
     const response = await apiClient.post(`/admin/tournaments/${tournamentId}/contests`, data);
+    return response.data;
+  },
+
+  // Video submission endpoints
+  async submitVideo(contestId: string, videoUrl: string, note?: string): Promise<{ submission: VideoSubmission }> {
+    const response = await apiClient.post(`/contests/${contestId}/video-submission`, { videoUrl, note });
+    return response.data;
+  },
+
+  async getMyVideoSubmission(contestId: string): Promise<{ submission: VideoSubmission | null }> {
+    const response = await apiClient.get(`/contests/${contestId}/video-submission`);
+    return response.data;
+  },
+
+  // Admin endpoints
+  async getVideoSubmissions(contestId: string): Promise<{ submissions: VideoSubmission[] }> {
+    const response = await apiClient.get(`/admin/contests/${contestId}/video-submissions`);
+    return response.data;
+  },
+
+  async approveVideo(submissionId: string): Promise<{ submission: VideoSubmission }> {
+    const response = await apiClient.patch(`/admin/video-submissions/${submissionId}/approve`);
+    return response.data;
+  },
+
+  async rejectVideo(submissionId: string, reason?: string): Promise<{ submission: VideoSubmission }> {
+    const response = await apiClient.patch(`/admin/video-submissions/${submissionId}/reject`, { reason });
+    return response.data;
+  },
+
+  async addPenalty(contestId: string, participantId: string, problemIndex: string, penalty: number): Promise<{ result: Result }> {
+    const response = await apiClient.post(`/admin/contests/${contestId}/participants/${participantId}/penalty`, {
+      problemIndex,
+      penalty,
+      type: 'set',
+    });
     return response.data;
   },
 

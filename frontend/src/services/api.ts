@@ -34,3 +34,4 @@ export * from './authApi';
 export * from './tournamentApi';
 export * from './contestApi';
 export * from './adminApi';
+export * from './invitationApi';

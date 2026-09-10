@@ -5,13 +5,13 @@
  */
 
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
 
 /**
  * Middleware: Authenticate using JWT
- * Attaches full User object to req.user
+ * Decodes JWT and attaches decoded payload to req.user
+ * Controllers can fetch fresh user data if needed via User.findById(req.user.userId)
  */
-const authenticate = async (req, res, next) => {
+const authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -19,18 +19,17 @@ const authenticate = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const user = await User.findById(decoded.userId || decoded.id || decoded._id);
 
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'User not found' });
-    }
+    // Attach decoded JWT payload to req.user
+    // userId/id/_id are all present from token generation
+    req.user = {
+      userId: decoded.userId || decoded.id || decoded._id,
+      _id: decoded.userId || decoded.id || decoded._id,
+      id: decoded.userId || decoded.id || decoded._id,
+      role: decoded.role || 'USER',
+      ...decoded
+    };
 
-    // Attach user with all necessary properties
-    req.user = user.toObject();
-    req.user._id = user._id;
-    req.user.id = user._id;
-    req.user.userId = user._id;
-    
     next();
   } catch (error) {
     console.error('Authentication error:', error.message);

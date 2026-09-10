@@ -136,8 +136,10 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    
+    // req.user is populated by authenticate middleware from JWT payload
+    // Fetch fresh user data from database to ensure latest info
+    const user = await User.findById(req.user.userId || req.user._id);
+
     if (!user) {
       return res.status(404).json({
         success: false,

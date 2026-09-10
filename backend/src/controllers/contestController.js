@@ -8,11 +8,41 @@ const Result = require('../models/Result');
 const AuditLog = require('../models/AuditLog');
 const Match = require('../models/Match');
 const VideoSubmission = require('../models/VideoSubmission');
+const Invitation = require('../models/Invitation');
 
 const codeforcesService = require('../services/codeforcesService');
 
 // ============================================================
-// VALIDATE CODEFORCES CONTEST
+// SHARED HELPERS
+// ============================================================
+
+const getAuthUserId = (req) => req.user?.userId || req.user?.id || req.user?._id || null;
+
+const VALID_STAGES = ['QUALIFICATION', 'GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'];
+
+const isValidInvitationUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return /(^|\.)codeforces\.com$/i.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const normalizeGroup = (group) => {
+  if (group === undefined || group === null || group === '') return undefined;
+  const raw = String(group).trim().toUpperCase();
+  if (/^\d+$/.test(raw)) return raw;           // "1", "2", ...
+  if (/^[A-Z]$/.test(raw)) return raw;          // "A", "B", ...
+  const match = raw.match(/^GROUP\s+([A-Z0-9]+)$/);
+  return match ? match[1] : raw;
+};
+
+// ============================================================
+// VALIDATE CODEFORCES CONTEST (LEGACY — used by non-V1 flows)
 // ============================================================
 
 exports.validateCodeforcesContest = async (req, res) => {
@@ -72,7 +102,8 @@ exports.validateCodeforcesContest = async (req, res) => {
 };
 
 // ============================================================
-// PUBLISH CONTEST
+// PUBLISH CONTEST (LEGACY — Codeforces API-based)
+// Kept for backward compatibility. V1 uses publishContestV1.
 // ============================================================
 
 exports.publishContest = async (req, res) => {
@@ -132,17 +163,22 @@ exports.publishContest = async (req, res) => {
 
     const contest = new Contest({
       tournamentId,
+      name: validation.contest.name,
+      invitationUrl: codeforcesService.formatContestUrl(validation.contest.id),
       codeforcesContestId: validation.contest.id,
       codeforcesContestName: validation.contest.name,
       codeforcesUrl: codeforcesService.formatContestUrl(validation.contest.id),
       type: validation.contest.type,
       phase: validation.contest.phase,
       startTime: new Date(validation.contest.startTimeSeconds * 1000),
+      endTime: new Date(
+        (validation.contest.startTimeSeconds + (validation.contest.durationSeconds || 0)) * 1000
+      ),
       durationSeconds: validation.contest.durationSeconds,
       stage,
       group: stage === 'GROUP_STAGE' ? group : undefined,
       matchNumber: stage !== 'GROUP_STAGE' ? matchNumber : undefined,
-      status: 'UPCOMING',
+      status: 'PUBLISHED',
       published: true,
       publishedAt: new Date(),
     });
@@ -166,10 +202,10 @@ exports.publishContest = async (req, res) => {
       }
     }
 
-    const auditLog = new AuditLog({
+    await AuditLog.create({
       action: 'CONTEST_PUBLISHED',
       description: `Published contest ${validation.contest.name} (${validation.contest.id})`,
-      admin: req.user?._id,
+      admin: getAuthUserId(req),
       tournament: tournamentId,
       details: {
         contestId: validation.contest.id,
@@ -178,8 +214,6 @@ exports.publishContest = async (req, res) => {
         matchNumber,
       },
     });
-
-    await auditLog.save();
 
     return res.status(201).json({
       success: true,
@@ -198,7 +232,7 @@ exports.publishContest = async (req, res) => {
 };
 
 // ============================================================
-// GET CONTESTS
+// GET CONTESTS (public / legacy)
 // ============================================================
 
 exports.getContests = async (req, res) => {
@@ -212,27 +246,28 @@ exports.getContests = async (req, res) => {
       });
     }
 
-    const contests = await Contest.find({
-      tournamentId,
-    })
+    const contests = await Contest.find({ tournamentId })
       .sort({ startTime: 1 })
       .lean();
 
-    // Update status for each contest based on current time
     const now = new Date();
-    const updatedContests = contests.map(contest => {
-      const start = new Date(contest.startTime);
-      const end = new Date(start.getTime() + contest.durationSeconds * 1000);
-      
+    const updatedContests = contests.map((contest) => {
+      const start = contest.startTime ? new Date(contest.startTime) : null;
+      const end = contest.endTime
+        ? new Date(contest.endTime)
+        : start && contest.durationSeconds
+          ? new Date(start.getTime() + contest.durationSeconds * 1000)
+          : null;
+
       let status = contest.status;
-      if (now < start) {
+      if (start && now < start) {
         status = 'UPCOMING';
-      } else if (now >= start && now < end) {
+      } else if (start && end && now >= start && now < end) {
         status = 'LIVE';
-      } else {
+      } else if (end && now >= end) {
         status = 'FINISHED';
       }
-      
+
       return {
         ...contest,
         status,
@@ -241,7 +276,7 @@ exports.getContests = async (req, res) => {
         isFinished: status === 'FINISHED',
         startTime: start,
         endTime: end,
-        timeRemaining: status === 'LIVE' ? Math.max(0, end - now) : null,
+        timeRemaining: status === 'LIVE' && end ? Math.max(0, end - now) : null,
       };
     });
 
@@ -294,21 +329,23 @@ exports.getContest = async (req, res) => {
       });
     }
 
-    // Calculate contest status
     const now = new Date();
-    const start = new Date(contest.startTime);
-    const end = new Date(start.getTime() + contest.durationSeconds * 1000);
-    
+    const start = contest.startTime ? new Date(contest.startTime) : null;
+    const end = contest.endTime
+      ? new Date(contest.endTime)
+      : start && contest.durationSeconds
+        ? new Date(start.getTime() + contest.durationSeconds * 1000)
+        : null;
+
     let status = contest.status;
-    if (now < start) {
+    if (start && now < start) {
       status = 'UPCOMING';
-    } else if (now >= start && now < end) {
+    } else if (start && end && now >= start && now < end) {
       status = 'LIVE';
-    } else {
+    } else if (end && now >= end) {
       status = 'FINISHED';
     }
 
-    // Check if user has submitted a video
     let userSubmission = null;
     if (req.user) {
       const userId = req.user.userId || req.user._id;
@@ -316,7 +353,7 @@ exports.getContest = async (req, res) => {
         tournamentId,
         user: userId,
       });
-      
+
       if (participant) {
         userSubmission = await VideoSubmission.findOne({
           contestId,
@@ -335,7 +372,7 @@ exports.getContest = async (req, res) => {
         isFinished: status === 'FINISHED',
         startTime: start,
         endTime: end,
-        timeRemaining: status === 'LIVE' ? Math.max(0, end - now) : null,
+        timeRemaining: status === 'LIVE' && end ? Math.max(0, end - now) : null,
         userSubmission: userSubmission || null,
       },
     });
@@ -351,7 +388,7 @@ exports.getContest = async (req, res) => {
 };
 
 // ============================================================
-// GET RESULTS
+// GET RESULTS (legacy — reads from Result collection)
 // ============================================================
 
 exports.getResults = async (req, res) => {
@@ -380,10 +417,13 @@ exports.getResults = async (req, res) => {
       });
     }
 
-    // Check if contest has ended
     const now = new Date();
-    const endTime = new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000);
-    const isFinished = now >= endTime;
+    const endTime = contest.endTime
+      ? new Date(contest.endTime)
+      : contest.startTime && contest.durationSeconds
+        ? new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000)
+        : null;
+    const isFinished = endTime ? now >= endTime : false;
 
     const results = await Result.find({
       contestId,
@@ -400,7 +440,6 @@ exports.getResults = async (req, res) => {
       .sort({ rank: 1 })
       .lean();
 
-    // For each result, check if video is approved
     const resultsWithVideoStatus = await Promise.all(
       results.map(async (r) => {
         const videoSubmission = await VideoSubmission.findOne({
@@ -415,24 +454,16 @@ exports.getResults = async (req, res) => {
           solved: r.solvedCount,
           videoStatus: videoSubmission?.status || 'NOT_SUBMITTED',
           isEligible: videoSubmission?.status === 'APPROVED',
-          // Results only count if contest is finished AND video is approved
           isCounted: isFinished && videoSubmission?.status === 'APPROVED',
         };
       })
     );
 
-    const normalized = resultsWithVideoStatus.map((r) => ({
-      ...r,
-      participant: r.participantId,
-      score: r.points,
-      solved: r.solvedCount,
-    }));
-
     return res.json({
       success: true,
-      count: normalized.length,
+      count: resultsWithVideoStatus.length,
       contestStatus: isFinished ? 'FINISHED' : 'ONGOING',
-      results: normalized,
+      results: resultsWithVideoStatus,
     });
   } catch (error) {
     console.error('[getResults] ERROR:', error);
@@ -446,7 +477,7 @@ exports.getResults = async (req, res) => {
 };
 
 // ============================================================
-// SYNC RESULTS
+// SYNC RESULTS (legacy — Codeforces API-based)
 // ============================================================
 
 exports.syncResults = async (req, res) => {
@@ -481,12 +512,6 @@ exports.syncResults = async (req, res) => {
       });
     }
 
-    console.log('[syncResults] Contest found:', {
-      id: contest._id.toString(),
-      codeforcesContestId: contest.codeforcesContestId,
-      name: contest.codeforcesContestName,
-    });
-
     if (!contest.codeforcesContestId) {
       return res.status(400).json({
         success: false,
@@ -494,13 +519,10 @@ exports.syncResults = async (req, res) => {
       });
     }
 
-    // Find tournament participants
     const allParticipants = await Participant.find({
       tournamentId,
       registrationStatus: 'APPROVED',
     }).populate('user');
-
-    console.log('[syncResults] Participants found:', allParticipants.length);
 
     const participants = allParticipants.filter(
       (participant) =>
@@ -516,15 +538,9 @@ exports.syncResults = async (req, res) => {
       });
     }
 
-    // Prepare handles
     const handles = participants
       .map((participant) => participant.user.codeforcesUsername.trim())
       .filter(Boolean);
-
-    console.log('[syncResults] Codeforces handles:', handles);
-
-    // Fetch Codeforces standings
-    console.log('[syncResults] Fetching Codeforces standings...', contest.codeforcesContestId);
 
     let standings;
 
@@ -543,36 +559,21 @@ exports.syncResults = async (req, res) => {
       });
     }
 
-    if (!standings) {
-      return res.status(502).json({
-        success: false,
-        message: 'Codeforces returned an empty standings response',
-      });
-    }
-
-    if (!Array.isArray(standings.rows)) {
-      console.error('[syncResults] Invalid standings:', standings);
-
+    if (!standings || !Array.isArray(standings.rows)) {
       return res.status(502).json({
         success: false,
         message: 'Invalid standings response from Codeforces',
       });
     }
 
-    console.log('[syncResults] Standings rows:', standings.rows.length);
-
-    // Create participant handle map
     const handleMap = new Map();
-
     participants.forEach((participant) => {
       const handle = participant.user?.codeforcesUsername;
-
       if (handle) {
         handleMap.set(handle.trim().toUpperCase(), participant);
       }
     });
 
-    // Process standings
     let matched = 0;
     let unmatched = 0;
     let updated = 0;
@@ -582,13 +583,9 @@ exports.syncResults = async (req, res) => {
 
     for (const row of standings.rows) {
       const member = row.party?.members?.[0];
-
-      if (!member || !member.handle) {
-        continue;
-      }
+      if (!member || !member.handle) continue;
 
       const handle = member.handle.trim().toUpperCase();
-
       const participant = handleMap.get(handle);
 
       if (!participant) {
@@ -601,30 +598,28 @@ exports.syncResults = async (req, res) => {
 
       const problemResults = Array.isArray(row.problemResults)
         ? row.problemResults.map((problemResult, index) => {
-            const problem = standings.problems?.[index];
+          const problem = standings.problems?.[index];
+          const problemIndex = problem?.index || String.fromCharCode(65 + index);
+          const problemName = problem?.name || `Problem ${String.fromCharCode(65 + index)}`;
 
-            const problemIndex = problem?.index || String.fromCharCode(65 + index);
-            const problemName = problem?.name || `Problem ${String.fromCharCode(65 + index)}`;
-
-            return {
-              problemIndex,
-              problemName,
-              points: problemResult.points || 0,
-              solved: problemResult.points > 0,
-              wrongAttempts: problemResult.rejectedAttemptCount || 0,
-              bestSubmissionTime: problemResult.bestSubmissionTimeSeconds || undefined,
-            };
-          })
+          return {
+            problemIndex,
+            problemName,
+            points: problemResult.points || 0,
+            solved: problemResult.points > 0,
+            wrongAttempts: problemResult.rejectedAttemptCount || 0,
+            bestSubmissionTime: problemResult.bestSubmissionTimeSeconds || undefined,
+          };
+        })
         : [];
 
       const solvedCount = problemResults.filter((problem) => problem.solved).length;
 
-      // Calculate penalty properly
       let totalPenalty = 0;
       for (const pr of problemResults) {
         if (pr.solved && pr.bestSubmissionTime) {
           totalPenalty += pr.bestSubmissionTime;
-          totalPenalty += (pr.wrongAttempts || 0) * 20; // Standard CF penalty
+          totalPenalty += (pr.wrongAttempts || 0) * 20;
         }
       }
 
@@ -658,36 +653,21 @@ exports.syncResults = async (req, res) => {
       }
     }
 
-    // Update contest sync information
     contest.lastSyncedAt = new Date();
     contest.syncedCount = Number(contest.syncedCount || 0) + 1;
     await contest.save();
 
-    // Audit log
     try {
-      const auditLog = new AuditLog({
+      await AuditLog.create({
         action: 'RESULTS_SYNCED',
-        description: `Synced results for contest ${contest.codeforcesContestName}`,
-        admin: req.user?._id,
+        description: `Synced results for contest ${contest.codeforcesContestName || contest.name}`,
+        admin: getAuthUserId(req),
         tournament: tournamentId,
-        details: {
-          matched,
-          unmatched,
-          updated,
-        },
+        details: { matched, unmatched, updated },
       });
-
-      await auditLog.save();
     } catch (auditError) {
       console.error('[syncResults] Audit log ERROR:', auditError);
     }
-
-    console.log('[syncResults] Sync completed:', {
-      total: participants.length,
-      matched,
-      unmatched,
-      updated,
-    });
 
     return res.json({
       success: true,
@@ -713,7 +693,7 @@ exports.syncResults = async (req, res) => {
 };
 
 // ============================================================
-// GET LEADERBOARD
+// GET LEADERBOARD (legacy)
 // ============================================================
 
 exports.getLeaderboard = async (req, res) => {
@@ -742,10 +722,13 @@ exports.getLeaderboard = async (req, res) => {
       });
     }
 
-    // Check if contest has ended
     const now = new Date();
-    const endTime = new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000);
-    const isFinished = now >= endTime;
+    const endTime = contest.endTime
+      ? new Date(contest.endTime)
+      : contest.startTime && contest.durationSeconds
+        ? new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000)
+        : null;
+    const isFinished = endTime ? now >= endTime : false;
 
     const results = await Result.find({
       contestId,
@@ -762,7 +745,6 @@ exports.getLeaderboard = async (req, res) => {
       .sort({ rank: 1 })
       .lean();
 
-    // Get video submission status for each participant
     const leaderboard = await Promise.all(
       results.map(async (result, index) => {
         const videoSubmission = await VideoSubmission.findOne({
@@ -783,7 +765,6 @@ exports.getLeaderboard = async (req, res) => {
           penalty: result.penalty,
           videoStatus: videoSubmission?.status || 'NOT_SUBMITTED',
           isEligible,
-          // Results only count if contest is finished AND video is approved
           isCounted: isFinished && isEligible,
         };
       })
@@ -806,7 +787,7 @@ exports.getLeaderboard = async (req, res) => {
 };
 
 // ============================================================
-// RECONCILE CONTESTS -> MATCHES
+// RECONCILE CONTESTS -> MATCHES (legacy)
 // ============================================================
 
 exports.reconcileContestsMatches = async (req, res) => {
@@ -892,19 +873,14 @@ exports.addPenalty = async (req, res) => {
       });
     }
 
-    // Find or create the problem result
     let problemResult = result.problemResults.find(
-      pr => pr.problemIndex === problemIndex
+      (pr) => pr.problemIndex === problemIndex
     );
 
     if (!problemResult) {
-      // Create a new problem result if it doesn't exist
-      const contest = await Contest.findById(contestId);
-      const problemName = `Problem ${problemIndex}`;
-      
       problemResult = {
         problemIndex,
-        problemName,
+        problemName: `Problem ${problemIndex}`,
         points: 0,
         solved: false,
         wrongAttempts: 0,
@@ -913,19 +889,12 @@ exports.addPenalty = async (req, res) => {
       result.problemResults.push(problemResult);
     }
 
-    // Apply penalty
-    if (type === 'manual') {
-      // Manual penalty adds to wrong attempts
-      problemResult.wrongAttempts = (problemResult.wrongAttempts || 0) + penalty;
-    } else if (type === 'set') {
-      // Set exact penalty value
+    if (type === 'set') {
       problemResult.wrongAttempts = penalty;
     } else {
-      // Default: add penalty
       problemResult.wrongAttempts = (problemResult.wrongAttempts || 0) + penalty;
     }
 
-    // Recalculate total penalty
     let totalPenalty = 0;
     for (const pr of result.problemResults) {
       if (pr.solved && pr.bestSubmissionTime) {
@@ -940,7 +909,7 @@ exports.addPenalty = async (req, res) => {
     await AuditLog.create({
       action: 'PENALTY_ADDED',
       description: `Added ${penalty} penalty to problem ${problemIndex} for participant ${participantId}`,
-      admin: req.user._id,
+      admin: getAuthUserId(req),
       tournament: result.tournamentId,
       details: {
         contestId,
@@ -969,7 +938,7 @@ exports.addPenalty = async (req, res) => {
 };
 
 // ============================================================
-// UPDATE CONTEST STATUS (Helper)
+// UPDATE CONTEST STATUS (helper)
 // ============================================================
 
 exports.updateContestStatus = async (req, res) => {
@@ -993,15 +962,19 @@ exports.updateContestStatus = async (req, res) => {
     }
 
     const now = new Date();
-    const start = new Date(contest.startTime);
-    const end = new Date(start.getTime() + contest.durationSeconds * 1000);
+    const start = contest.startTime ? new Date(contest.startTime) : null;
+    const end = contest.endTime
+      ? new Date(contest.endTime)
+      : start && contest.durationSeconds
+        ? new Date(start.getTime() + contest.durationSeconds * 1000)
+        : null;
 
     let newStatus = contest.status;
-    if (now < start) {
+    if (start && now < start) {
       newStatus = 'UPCOMING';
-    } else if (now >= start && now < end) {
+    } else if (start && end && now >= start && now < end) {
       newStatus = 'LIVE';
-    } else {
+    } else if (end && now >= end) {
       newStatus = 'FINISHED';
     }
 
@@ -1017,7 +990,7 @@ exports.updateContestStatus = async (req, res) => {
         status: newStatus,
         startTime: start,
         endTime: end,
-        timeRemaining: newStatus === 'LIVE' ? Math.max(0, end - now) : null,
+        timeRemaining: newStatus === 'LIVE' && end ? Math.max(0, end - now) : null,
       },
     });
   } catch (error) {
@@ -1032,7 +1005,7 @@ exports.updateContestStatus = async (req, res) => {
 };
 
 // ============================================================
-// BULK SYNC CONTESTS
+// BULK SYNC CONTESTS (legacy — Codeforces API-based)
 // ============================================================
 
 exports.bulkSyncContests = async (req, res) => {
@@ -1056,11 +1029,22 @@ exports.bulkSyncContests = async (req, res) => {
 
     for (const contest of contests) {
       try {
-        // Check if contest has ended
+        if (!contest.codeforcesContestId) {
+          errors.push({
+            contestId: contest._id,
+            error: 'No Codeforces contest ID on this contest',
+          });
+          continue;
+        }
+
         const now = new Date();
-        const endTime = new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000);
-        
-        if (now < endTime) {
+        const endTime = contest.endTime
+          ? new Date(contest.endTime)
+          : contest.startTime && contest.durationSeconds
+            ? new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000)
+            : null;
+
+        if (endTime && now < endTime) {
           errors.push({
             contestId: contest._id,
             error: 'Contest has not ended yet',
@@ -1068,15 +1052,14 @@ exports.bulkSyncContests = async (req, res) => {
           continue;
         }
 
-        // Sync results for this contest
         const participants = await Participant.find({
           tournamentId,
           registrationStatus: 'APPROVED',
         }).populate('user');
 
         const handles = participants
-          .filter(p => p.user?.codeforcesUsername)
-          .map(p => p.user.codeforcesUsername.trim())
+          .filter((p) => p.user?.codeforcesUsername)
+          .map((p) => p.user.codeforcesUsername.trim())
           .filter(Boolean);
 
         if (handles.length === 0) {
@@ -1123,16 +1106,16 @@ exports.bulkSyncContests = async (req, res) => {
 
           const problemResults = Array.isArray(row.problemResults)
             ? row.problemResults.map((pr, index) => ({
-                problemIndex: standings.problems?.[index]?.index || String.fromCharCode(65 + index),
-                problemName: standings.problems?.[index]?.name || `Problem ${String.fromCharCode(65 + index)}`,
-                points: pr.points || 0,
-                solved: pr.points > 0,
-                wrongAttempts: pr.rejectedAttemptCount || 0,
-                bestSubmissionTime: pr.bestSubmissionTimeSeconds || undefined,
-              }))
+              problemIndex: standings.problems?.[index]?.index || String.fromCharCode(65 + index),
+              problemName: standings.problems?.[index]?.name || `Problem ${String.fromCharCode(65 + index)}`,
+              points: pr.points || 0,
+              solved: pr.points > 0,
+              wrongAttempts: pr.rejectedAttemptCount || 0,
+              bestSubmissionTime: pr.bestSubmissionTimeSeconds || undefined,
+            }))
             : [];
 
-          const solvedCount = problemResults.filter(p => p.solved).length;
+          const solvedCount = problemResults.filter((p) => p.solved).length;
 
           let totalPenalty = 0;
           for (const pr of problemResults) {
@@ -1159,10 +1142,7 @@ exports.bulkSyncContests = async (req, res) => {
               problemResults,
               syncedAt: new Date(),
             },
-            {
-              upsert: true,
-              new: true,
-            }
+            { upsert: true, new: true }
           );
 
           updated++;
@@ -1174,7 +1154,7 @@ exports.bulkSyncContests = async (req, res) => {
 
         results.push({
           contestId: contest._id,
-          name: contest.codeforcesContestName,
+          name: contest.codeforcesContestName || contest.name,
           matched,
           updated,
         });
@@ -1207,7 +1187,7 @@ exports.bulkSyncContests = async (req, res) => {
 };
 
 // ============================================================
-// DELETE CONTEST
+// DELETE CONTEST (legacy — full delete incl. results)
 // ============================================================
 
 exports.deleteContest = async (req, res) => {
@@ -1240,34 +1220,18 @@ exports.deleteContest = async (req, res) => {
       });
     }
 
-    // Delete associated results
-    await Result.deleteMany({
-      contestId,
-    });
+    await Result.deleteMany({ contestId });
+    await VideoSubmission.deleteMany({ contestId });
+    await Match.updateMany({ contest: contestId }, { $unset: { contest: '' } });
 
-    // Delete associated video submissions
-    await VideoSubmission.deleteMany({
-      contestId,
-    });
-
-    // Remove contest reference from matches
-    await Match.updateMany(
-      { contest: contestId },
-      { $unset: { contest: '' } }
-    );
-
-    // Delete the contest
     await contest.deleteOne();
 
     await AuditLog.create({
       action: 'CONTEST_DELETED',
-      description: `Deleted contest ${contest.codeforcesContestName}`,
-      admin: req.user._id,
+      description: `Deleted contest ${contest.codeforcesContestName || contest.name}`,
+      admin: getAuthUserId(req),
       tournament: tournamentId,
-      details: {
-        contestId,
-        name: contest.codeforcesContestName,
-      },
+      details: { contestId, name: contest.codeforcesContestName || contest.name },
     });
 
     return res.json({
@@ -1286,7 +1250,7 @@ exports.deleteContest = async (req, res) => {
 };
 
 // ============================================================
-// GET CONTEST PARTICIPANTS
+// GET CONTEST PARTICIPANTS (legacy — used by other flows)
 // ============================================================
 
 exports.getContestParticipants = async (req, res) => {
@@ -1315,18 +1279,15 @@ exports.getContestParticipants = async (req, res) => {
       });
     }
 
-    // Find participants for this contest
     let participants = [];
 
     if (contest.stage === 'GROUP_STAGE' && contest.group) {
-      // Group stage: participants in the specific group
       participants = await Participant.find({
         tournamentId,
         group: contest.group,
         registrationStatus: 'APPROVED',
       }).populate('user', 'name username codeforcesUsername');
     } else if (contest.matchNumber) {
-      // Knockout stage: participants in the match
       const match = await Match.findOne({
         tournament: tournamentId,
         matchNumber: contest.matchNumber,
@@ -1342,7 +1303,6 @@ exports.getContestParticipants = async (req, res) => {
         participants = match.participants || [];
       }
     } else {
-      // All approved participants
       participants = await Participant.find({
         tournamentId,
         registrationStatus: 'APPROVED',
@@ -1366,10 +1326,608 @@ exports.getContestParticipants = async (req, res) => {
 };
 
 // ============================================================
+// GET PARTICIPANT CONTESTS (V1 — group-aware, published only)
+// ============================================================
+
+exports.getParticipantContests = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const userId = getAuthUserId(req);
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid tournament ID',
+      });
+    }
+
+    const participant = await Participant.findOne({
+      tournamentId,
+      user: userId,
+      registrationStatus: 'APPROVED',
+    });
+
+    if (!participant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not an approved participant in this tournament',
+      });
+    }
+
+    const contests = await Contest.find({
+      tournamentId,
+      published: true,
+    })
+      .sort({ startTime: 1 })
+      .lean();
+
+    const now = new Date();
+    const groupValue = participant.group ? String(participant.group).trim().toUpperCase() : null;
+
+    const visible = contests
+      .filter((c) => {
+        // Group stage → only the participant's group
+        if (c.stage === 'GROUP_STAGE') {
+          if (!groupValue || !c.group) return false;
+          return String(c.group).trim().toUpperCase() === groupValue;
+        }
+        // QUALIFICATION + knockouts → all approved participants
+        return true;
+      })
+      .map((c) => {
+        const start = c.startTime ? new Date(c.startTime) : null;
+        const end = c.endTime
+          ? new Date(c.endTime)
+          : start && c.durationSeconds
+            ? new Date(start.getTime() + c.durationSeconds * 1000)
+            : null;
+
+        let status = c.status || 'PUBLISHED';
+        if (start && now < start) status = 'UPCOMING';
+        else if (start && end && now >= start && now < end) status = 'LIVE';
+        else if (end && now >= end) status = 'FINISHED';
+
+        return {
+          _id: c._id,
+          name: c.name,
+          invitationUrl: c.invitationUrl,
+          description: c.description || '',
+          stage: c.stage,
+          group: c.group || null,
+          startTime: start,
+          endTime: end,
+          durationSeconds: c.durationSeconds || null,
+          status,
+          isUpcoming: status === 'UPCOMING',
+          isLive: status === 'LIVE',
+          isFinished: status === 'FINISHED',
+        };
+      });
+
+    return res.json({
+      success: true,
+      count: visible.length,
+      participant: {
+        group: participant.group || null,
+        seed: participant.seed || null,
+      },
+      contests: visible,
+    });
+  } catch (error) {
+    console.error('[getParticipantContests] ERROR:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get contests',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// ============================================================
+// V1 — MANUAL CONTEST INVITATION MANAGEMENT
+// (No Codeforces API calls)
+// ============================================================
+
+/**
+ * POST /admin/tournaments/:tournamentId/contests
+ * Create a manual contest invitation (V1).
+ */
+exports.createContest = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const {
+      name,
+      invitationUrl,
+      stage,
+      group,
+      startTime,
+      endTime,
+      durationMinutes,
+      description,
+      matchNumber,
+    } = req.body;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    const errors = [];
+    if (!name || !String(name).trim()) errors.push('name is required');
+    if (!invitationUrl || !String(invitationUrl).trim()) errors.push('invitationUrl is required');
+    if (!stage) errors.push('stage is required');
+    if (!startTime) errors.push('startTime is required');
+
+    if (errors.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.map((e) => ({ field: e.split(' ')[0], message: e })),
+      });
+    }
+
+    if (!isValidInvitationUrl(invitationUrl)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid invitation URL. Must be a valid Codeforces URL (https://codeforces.com/...).',
+      });
+    }
+
+    const normalizedStage = String(stage).toUpperCase();
+    if (!VALID_STAGES.includes(normalizedStage)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid stage. Must be one of: ${VALID_STAGES.join(', ')}`,
+      });
+    }
+
+    if (normalizedStage === 'GROUP_STAGE' && (!group || !String(group).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'group is required for GROUP_STAGE contests',
+      });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const parsedStart = new Date(startTime);
+    if (isNaN(parsedStart.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid startTime' });
+    }
+
+    let parsedEnd = null;
+    let durationSeconds = null;
+
+    if (endTime) {
+      parsedEnd = new Date(endTime);
+      if (isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid endTime' });
+      }
+      if (parsedEnd <= parsedStart) {
+        return res.status(400).json({ success: false, message: 'endTime must be after startTime' });
+      }
+      durationSeconds = Math.floor((parsedEnd - parsedStart) / 1000);
+    } else if (durationMinutes !== undefined && durationMinutes !== null) {
+      const minutes = Number(durationMinutes);
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        return res.status(400).json({ success: false, message: 'durationMinutes must be a positive number' });
+      }
+      durationSeconds = Math.floor(minutes * 60);
+      parsedEnd = new Date(parsedStart.getTime() + durationSeconds * 1000);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either endTime or durationMinutes is required',
+      });
+    }
+
+    const normalizedGroup = normalizedStage === 'GROUP_STAGE' ? normalizeGroup(group) : undefined;
+
+    const contest = await Contest.create({
+      tournamentId,
+      name: String(name).trim(),
+      invitationUrl: String(invitationUrl).trim(),
+      description: description ? String(description).trim() : '',
+      stage: normalizedStage,
+      group: normalizedGroup,
+      matchNumber: matchNumber !== undefined && matchNumber !== null ? Number(matchNumber) : undefined,
+      startTime: parsedStart,
+      endTime: parsedEnd,
+      durationSeconds,
+      status: 'DRAFT',
+      published: false,
+    });
+
+    await AuditLog.create({
+      action: 'CONTEST_CREATED',
+      description: `Created contest "${contest.name}" (${normalizedStage}${normalizedGroup ? ` — Group ${normalizedGroup}` : ''})`,
+      admin: getAuthUserId(req),
+      tournament: tournamentId,
+      details: {
+        contestId: contest._id,
+        stage: normalizedStage,
+        group: normalizedGroup,
+        invitationUrl: contest.invitationUrl,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Contest created successfully',
+      contest,
+    });
+  } catch (error) {
+    console.error('[createContest] ERROR:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create contest',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * GET /admin/tournaments/:tournamentId/contests
+ * List contests for admin (includes drafts).
+ */
+exports.getAdminContests = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+
+    if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid tournament ID' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const contests = await Contest.find({ tournamentId })
+      .sort({ startTime: 1 })
+      .lean();
+
+    const now = new Date();
+    const normalized = contests.map((c) => {
+      const start = c.startTime ? new Date(c.startTime) : null;
+      const end = c.endTime
+        ? new Date(c.endTime)
+        : start && c.durationSeconds
+          ? new Date(start.getTime() + c.durationSeconds * 1000)
+          : null;
+
+      let computedStatus = c.status || 'DRAFT';
+      if (c.published) {
+        if (start && now < start) computedStatus = 'UPCOMING';
+        else if (start && end && now >= start && now < end) computedStatus = 'LIVE';
+        else if (end && now >= end) computedStatus = 'FINISHED';
+        else computedStatus = 'PUBLISHED';
+      }
+
+      return {
+        ...c,
+        status: computedStatus,
+        startTime: start,
+        endTime: end,
+      };
+    });
+
+    return res.json({
+      success: true,
+      count: normalized.length,
+      contests: normalized,
+    });
+  } catch (error) {
+    console.error('[getAdminContests] ERROR:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get contests',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * GET /admin/tournaments/:tournamentId/contests/:contestId
+ */
+exports.getContestDetails = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(tournamentId) || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId }).lean();
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    return res.json({ success: true, contest });
+  } catch (error) {
+    console.error('[getContestDetails] ERROR:', error);
+    return res.status(500).json({ success: false, message: 'Failed to get contest' });
+  }
+};
+
+/**
+ * PATCH /admin/tournaments/:tournamentId/contests/:contestId
+ */
+exports.updateContest = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(tournamentId) || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    const {
+      name,
+      invitationUrl,
+      stage,
+      group,
+      startTime,
+      endTime,
+      durationMinutes,
+      description,
+      matchNumber,
+    } = req.body;
+
+    if (invitationUrl !== undefined) {
+      if (!isValidInvitationUrl(invitationUrl)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid invitation URL. Must be a valid Codeforces URL.',
+        });
+      }
+      contest.invitationUrl = String(invitationUrl).trim();
+    }
+
+    if (name !== undefined) {
+      if (!String(name).trim()) {
+        return res.status(400).json({ success: false, message: 'name cannot be empty' });
+      }
+      contest.name = String(name).trim();
+    }
+
+    if (description !== undefined) {
+      contest.description = String(description || '').trim();
+    }
+
+    if (stage !== undefined) {
+      const normalized = String(stage).toUpperCase();
+      if (!VALID_STAGES.includes(normalized)) {
+        return res.status(400).json({ success: false, message: 'Invalid stage' });
+      }
+      contest.stage = normalized;
+    }
+
+    if (group !== undefined) {
+      contest.group = group ? normalizeGroup(group) : undefined;
+    }
+
+    if (startTime !== undefined) {
+      const parsed = new Date(startTime);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid startTime' });
+      }
+      contest.startTime = parsed;
+    }
+
+    if (endTime !== undefined && endTime !== null && endTime !== '') {
+      const parsed = new Date(endTime);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid endTime' });
+      }
+      if (contest.startTime && parsed <= contest.startTime) {
+        return res.status(400).json({ success: false, message: 'endTime must be after startTime' });
+      }
+      contest.endTime = parsed;
+      contest.durationSeconds = Math.floor((parsed - contest.startTime) / 1000);
+    } else if (durationMinutes !== undefined && durationMinutes !== null) {
+      const minutes = Number(durationMinutes);
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid durationMinutes' });
+      }
+      contest.durationSeconds = Math.floor(minutes * 60);
+      if (contest.startTime) {
+        contest.endTime = new Date(contest.startTime.getTime() + contest.durationSeconds * 1000);
+      }
+    }
+
+    if (matchNumber !== undefined) {
+      contest.matchNumber = matchNumber === null ? undefined : Number(matchNumber);
+    }
+
+    if (contest.stage === 'GROUP_STAGE' && !contest.group) {
+      return res.status(400).json({ success: false, message: 'group is required for GROUP_STAGE contests' });
+    }
+
+    await contest.save();
+
+    await AuditLog.create({
+      action: 'CONTEST_UPDATED',
+      description: `Updated contest "${contest.name}"`,
+      admin: getAuthUserId(req),
+      tournament: tournamentId,
+      details: { contestId: contest._id },
+    });
+
+    return res.json({ success: true, message: 'Contest updated', contest });
+  } catch (error) {
+    console.error('[updateContest] ERROR:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update contest' });
+  }
+};
+
+/**
+ * POST /admin/tournaments/:tournamentId/contests/:contestId/publish
+ * DRAFT → PUBLISHED. No Codeforces API call.
+ */
+exports.publishContestV1 = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(tournamentId) || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    if (contest.published) {
+      return res.status(409).json({ success: false, message: 'Contest is already published' });
+    }
+
+    if (!contest.name || !contest.invitationUrl || !contest.stage || !contest.startTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contest is missing required fields (name, invitationUrl, stage, startTime)',
+      });
+    }
+    if (contest.stage === 'GROUP_STAGE' && !contest.group) {
+      return res.status(400).json({ success: false, message: 'group is required for GROUP_STAGE contests' });
+    }
+    if (!isValidInvitationUrl(contest.invitationUrl)) {
+      return res.status(400).json({ success: false, message: 'Invitation URL is invalid' });
+    }
+
+    contest.published = true;
+    contest.publishedAt = new Date();
+    contest.status = 'PUBLISHED';
+    await contest.save();
+
+    await AuditLog.create({
+      action: 'CONTEST_PUBLISHED',
+      description: `Published contest "${contest.name}"`,
+      admin: getAuthUserId(req),
+      tournament: tournamentId,
+      details: { contestId: contest._id, stage: contest.stage, group: contest.group },
+    });
+
+    return res.json({ success: true, message: 'Contest published', contest });
+  } catch (error) {
+    console.error('[publishContestV1] ERROR:', error);
+    return res.status(500).json({ success: false, message: 'Failed to publish contest' });
+  }
+};
+
+/**
+ * DELETE /admin/tournaments/:tournamentId/contests/:contestId
+ * V1 — only allow deleting drafts.
+ */
+exports.deleteContestV1 = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(tournamentId) || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    if (contest.published) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete a published contest. Unpublish it first or archive it.',
+      });
+    }
+
+    await contest.deleteOne();
+
+    await AuditLog.create({
+      action: 'CONTEST_DELETED',
+      description: `Deleted draft contest "${contest.name}"`,
+      admin: getAuthUserId(req),
+      tournament: tournamentId,
+      details: { contestId },
+    });
+
+    return res.json({ success: true, message: 'Contest deleted' });
+  } catch (error) {
+    console.error('[deleteContestV1] ERROR:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete contest' });
+  }
+};
+
+/**
+ * GET /admin/tournaments/:tournamentId/contests/:contestId/participants
+ * Returns eligible participants for the contest (for admin preview).
+ */
+exports.getContestEligibleParticipants = async (req, res) => {
+  try {
+    const { tournamentId, contestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(tournamentId) || !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    const contest = await Contest.findOne({ _id: contestId, tournamentId });
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    const filter = {
+      tournamentId,
+      registrationStatus: 'APPROVED',
+    };
+
+    if (contest.stage === 'GROUP_STAGE' && contest.group) {
+      const g = String(contest.group).trim();
+      filter.$or = [
+        { group: g },
+        { group: g.toUpperCase() },
+        { group: g.toLowerCase() },
+      ];
+    }
+
+    const participants = await Participant.find(filter)
+      .populate('user', 'name username codeforcesUsername')
+      .sort({ seed: 1, createdAt: 1 });
+
+    return res.json({
+      success: true,
+      count: participants.length,
+      participants,
+      scope: contest.stage === 'GROUP_STAGE' ? `Group ${contest.group}` : 'All eligible participants',
+    });
+  } catch (error) {
+    console.error('[getContestEligibleParticipants] ERROR:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch participants' });
+  }
+};
+
+// ============================================================
 // MODULE EXPORTS
 // ============================================================
 
 module.exports = {
+  // V1 — manual invitation management (no Codeforces API)
+  createContest: exports.createContest,
+  getAdminContests: exports.getAdminContests,
+  getContestDetails: exports.getContestDetails,
+  updateContest: exports.updateContest,
+  publishContestV1: exports.publishContestV1,
+  deleteContestV1: exports.deleteContestV1,
+  getContestEligibleParticipants: exports.getContestEligibleParticipants,
+
+  // Participant-facing (group-aware, published only)
+  getParticipantContests: exports.getParticipantContests,
+
+  // Legacy — kept for backward compatibility
   validateCodeforcesContest: exports.validateCodeforcesContest,
   publishContest: exports.publishContest,
   getContests: exports.getContests,

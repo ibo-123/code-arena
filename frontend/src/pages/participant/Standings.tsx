@@ -10,7 +10,6 @@ export const Standings = () => {
   const [standings, setStandings] = useState<StandingsEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tournamentId, setTournamentId] = useState<string>("");
 
   useEffect(() => {
     const load = async () => {
@@ -18,7 +17,6 @@ export const Standings = () => {
         const { tournaments } = await tournamentApi.list();
         const t = tournaments.find((t) => t.status !== "COMPLETED") || tournaments[0];
         if (t) {
-          setTournamentId(t._id);
           const { leaderboard } = await tournamentApi.leaderboard(t._id);
           setStandings(
             leaderboard.map((entry) => ({

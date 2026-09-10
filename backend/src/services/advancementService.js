@@ -11,13 +11,13 @@ const generateGroupLabels = (count) => {
   return letters.slice(0, count).split('');
 };
 
-// Helper: create matches for a round from pairs
-const createMatches = (tournamentId, round, pairs) =>
+// Helper: create matches for a stage from pairs
+const createMatches = (tournamentId, stage, pairs) =>
   Promise.all(
     pairs.map((participants, index) =>
       Match.create({
         tournament: tournamentId,
-        round,
+        stage,
         matchNumber: index + 1,
         participants,
       })

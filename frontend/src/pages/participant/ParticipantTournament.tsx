@@ -1,15 +1,12 @@
 // frontend/src/pages/participant/ParticipantTournament.tsx
 import { useEffect, useState } from "react";
 import { useParams, Link, Outlet, useLocation } from "react-router-dom";
-import { Trophy, Users, Medal, Star, Clock, ChevronRight } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
 import { tournamentApi } from "../../services/tournamentApi";
 import { LoadingState, ErrorState, StatusBadge } from "../../components/common";
 import type { Tournament, Participant } from "../../types";
 
 export const ParticipantTournament = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const location = useLocation();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [participant, setParticipant] = useState<Participant | null>(null);
@@ -30,7 +27,7 @@ export const ParticipantTournament = () => {
         const { tournament: t } = await tournamentApi.get(id);
         setTournament(t);
         const { participants } = await tournamentApi.participants(id);
-        const p = participants.find((p) => p.user._id === user?._id);
+        const p = participants.find((p) => p.user._id === participant?._id);
         setParticipant(p || null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
@@ -39,13 +36,11 @@ export const ParticipantTournament = () => {
       }
     };
     load();
-  }, [id, user]);
+  }, [id]);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
   if (!tournament) return <div>Tournament not found</div>;
-
-  const isApproved = participant?.registrationStatus === "APPROVED";
 
   return (
     <div className="participant-tournament">

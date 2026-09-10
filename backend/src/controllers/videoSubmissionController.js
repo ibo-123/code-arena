@@ -25,7 +25,6 @@ const submitVideo = async (req, res) => {
       });
     }
 
-    // Check if contest has ended
     const now = new Date();
     const endTime = new Date(new Date(contest.startTime).getTime() + contest.durationSeconds * 1000);
     if (now < endTime) {
@@ -89,10 +88,7 @@ const getMyVideoSubmission = async (req, res) => {
     const { contestId } = req.params;
     const userId = req.user.userId || req.user._id;
 
-    const participant = await Participant.findOne({
-      user: userId,
-    });
-
+    const participant = await Participant.findOne({ user: userId });
     if (!participant) {
       return res.status(404).json({
         success: false,
@@ -112,16 +108,10 @@ const getMyVideoSubmission = async (req, res) => {
       });
     }
 
-    return res.json({
-      success: true,
-      submission,
-    });
+    return res.json({ success: true, submission });
   } catch (error) {
     console.error("getMyVideoSubmission error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -136,14 +126,15 @@ const getVideoSubmissions = async (req, res) => {
     }
 
     const submissions = await VideoSubmission.find(filter)
-      .populate("participantId", "group seed")
       .populate({
         path: "participantId",
+        select: "group seed user",
         populate: {
           path: "user",
           select: "name username codeforcesUsername",
         },
       })
+      .populate("reviewedBy", "name username")
       .sort({ createdAt: -1 });
 
     return res.json({
@@ -182,15 +173,16 @@ const approveVideo = async (req, res) => {
     }
 
     submission.status = "APPROVED";
-    submission.reviewedBy = req.user._id;
+    submission.reviewedBy = req.user.userId || req.user._id;
     submission.reviewedAt = new Date();
     await submission.save();
 
     await AuditLog.create({
       action: "VIDEO_APPROVED",
       description: `Video submission ${submissionId} approved`,
-      admin: req.user._id,
+      admin: req.user.userId || req.user._id,
       tournament: submission.tournamentId,
+      details: { contestId: submission.contestId, participantId: submission.participantId?._id || submission.participantId },
     });
 
     return res.json({
@@ -200,10 +192,7 @@ const approveVideo = async (req, res) => {
     });
   } catch (error) {
     console.error("approveVideo error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -213,7 +202,6 @@ const rejectVideo = async (req, res) => {
     const { reason } = req.body;
 
     const submission = await VideoSubmission.findById(submissionId);
-
     if (!submission) {
       return res.status(404).json({
         success: false,
@@ -229,16 +217,17 @@ const rejectVideo = async (req, res) => {
     }
 
     submission.status = "REJECTED";
-    submission.reviewedBy = req.user._id;
+    submission.reviewedBy = req.user.userId || req.user._id;
     submission.reviewedAt = new Date();
     submission.rejectionReason = reason || "No reason provided";
     await submission.save();
 
     await AuditLog.create({
       action: "VIDEO_REJECTED",
-      description: `Video submission ${submissionId} rejected`,
-      admin: req.user._id,
+      description: `Video submission ${submissionId} rejected${reason ? ` — ${reason}` : ''}`,
+      admin: req.user.userId || req.user._id,
       tournament: submission.tournamentId,
+      details: { reason: submission.rejectionReason, contestId: submission.contestId },
     });
 
     return res.json({
@@ -248,10 +237,7 @@ const rejectVideo = async (req, res) => {
     });
   } catch (error) {
     console.error("rejectVideo error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 

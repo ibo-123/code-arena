@@ -1,6 +1,6 @@
 // frontend/src/pages/public/Tournaments.tsx
 import { useEffect, useState } from "react";
-import { Trophy, Search, Filter, Calendar, Users, ChevronDown, X } from "lucide-react";
+import { Search, Filter, ChevronDown, X, Trophy } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import { TournamentCard } from "../../components/tournament/TournamentCard";
 import { LoadingState, ErrorState, StatusBadge } from "../../components/common";

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const participantController = require('../controllers/participantController');
 const standingsController = require('../controllers/standingsController');
+const contestController = require('../controllers/contestController');
 const { authenticate, authorize } = require('../middleware/auth');
 
 // Public routes (but require authentication)
@@ -22,6 +23,20 @@ router.get(
   '/:tournamentId/status',
   authenticate,
   standingsController.getMyParticipantStatus
+);
+
+// Participant's active tournaments
+router.get(
+  '/my-tournaments',
+  authenticate,
+  participantController.getMyTournaments
+);
+
+// Participant's contests for a tournament
+router.get(
+  '/:tournamentId/my-contests',
+  authenticate,
+  contestController.getParticipantContests
 );
 
 // Admin routes for participant management
