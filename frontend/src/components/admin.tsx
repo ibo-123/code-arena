@@ -1,7 +1,7 @@
 // frontend/src/components/admin.tsx
 import { useEffect, useState, type FormEvent } from "react";
 import { adminApi } from "../services/api";
-import type {  Tournament } from "../types";
+import type { Contest, Tournament } from "../types";
 import { Badge, Card, EmptyState, ErrorState, LoadingState } from "./ui";
 import {
   Plus,
@@ -116,21 +116,20 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
   };
 
   // Legacy sync — no longer applicable for V1 contests.
-  // Kept for backward compatibility only; you can remove this entirely.
-  // const sync = async (contest: Contest) => {
-  //   setBusy(true);
-  //   setError("");
-  //   try {
-  //     // Use legacy admin sync (still exists in adminApi)
-  //     const result = await adminApi.syncContestResults(tournament._id, contest._id);
-  //     setNotice(result.message || "Synchronized successfully.");
-  //     refreshContests();
-  //   } catch (err) {
-  //     setError(err instanceof Error ? err.message : "Unable to synchronize results");
-  //   } finally {
-  //     setBusy(false);
-  //   }
-  // };
+  // Kept for backward compatibility only.
+  const sync = async (contest: Contest) => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await adminApi.syncContestResults(tournament._id, contest._id);
+      setNotice(result.message || "Synchronized successfully.");
+      refreshContests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to synchronize results");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const publishContest = async (contestId: string) => {
     setBusy(true);
@@ -156,7 +155,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Stats Overview — unchanged */}
+      {/* Stats Overview */}
       <div
         style={{
           display: "grid",
@@ -196,7 +195,13 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               <stat.icon size={20} color={stat.color} />
             </div>
             <div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "white" }}>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "white",
+                }}
+              >
                 {stat.value}
               </div>
               <div
@@ -231,7 +236,13 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
             marginBottom: showForm ? "20px" : "0",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <Plus size={20} color="#2979FF" />
             <small
               style={{
@@ -316,7 +327,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               />
             )}
 
-            {/* NEW: Invitation URL (replaces codeforcesUrl) */}
+            {/* Invitation URL (V1 — replaces codeforcesUrl) */}
             <input
               required
               name="invitationUrl"
@@ -403,7 +414,13 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
             marginBottom: "16px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <Filter size={18} color="rgba(255,255,255,0.4)" />
             <small
               style={{
@@ -435,7 +452,9 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
           >
             <RefreshCw
               size={14}
-              style={{ animation: loading ? "spin 1s linear infinite" : "none" }}
+              style={{
+                animation: loading ? "spin 1s linear infinite" : "none",
+              }}
             />
             Refresh
           </button>
@@ -446,9 +465,19 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
         ) : (
           <div style={{ overflowX: "auto" }}>
             {contests.length ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                }}
+              >
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <tr
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
                     <th style={thStyle}>Contest</th>
                     <th style={thStyle}>Round</th>
                     <th style={thStyle}>Status</th>
@@ -538,6 +567,32 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                             Publish
                           </button>
                         )}
+                        {contest.status !== "DRAFT" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => sync(contest)}
+                            style={{
+                              padding: "6px 16px",
+                              borderRadius: "8px",
+                              background: "rgba(41,121,255,0.15)",
+                              border: "1px solid rgba(41,121,255,0.2)",
+                              color: "#2979FF",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              cursor: busy ? "not-allowed" : "pointer",
+                              transition: "all 0.3s ease",
+                            }}
+                          >
+                            <RefreshCw
+                              size={14}
+                              style={{
+                                marginRight: "6px",
+                                animation: busy ? "spin 1s linear infinite" : "none",
+                              }}
+                            />
+                            Sync
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -560,7 +615,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
   );
 };
 
-// Styles — unchanged
+// Styles
 const inputStyle: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: "8px",
@@ -593,4 +648,223 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: "middle",
 };
 
-// ... AdminLogs component unchanged (keep as-is)
+// Admin Logs Panel component
+// Renamed from `AdminLogs` to avoid conflict with the page component of the same name
+export const AdminLogsPanel = ({ tournamentId }: { tournamentId: string }) => {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    adminApi
+      .logs({ tournamentId })
+      .then(({ logs: rows }) => {
+        if (isMounted) setLogs(rows || []);
+      })
+      .catch((err: Error) => {
+        if (isMounted) setError(err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [tournamentId]);
+
+  const actionTypes = ["all", ...new Set(logs.map((log) => log.action))];
+
+  const filteredLogs = logs.filter((log) => {
+    const matchesAction = filter === "all" || log.action === filter;
+    const matchesSearch =
+      log.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.admin?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.action?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesAction && matchesSearch;
+  });
+
+  if (loading) return <LoadingState label="Loading system logs..." />;
+  if (error) return <ErrorState error={error} />;
+  if (!logs.length) return <EmptyState label="No recorded admin actions yet." />;
+
+  return (
+    <Card
+      style={{
+        padding: "0",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: "16px",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          padding: "16px 20px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <Clock size={18} color="rgba(255,255,255,0.4)" />
+          <small
+            style={{
+              fontSize: "11px",
+              color: "rgba(255,255,255,0.4)",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            System Logs ({filteredLogs.length})
+          </small>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: "8px",
+              padding: "6px 12px",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "white",
+                fontSize: "13px",
+                outline: "none",
+                width: "120px",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: "8px",
+              padding: "4px 8px",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "white",
+                fontSize: "12px",
+                outline: "none",
+                cursor: "pointer",
+                padding: "4px 4px",
+              }}
+            >
+              {actionTypes.map((action) => (
+                <option key={action} value={action} style={{ background: "#1a1f35" }}>
+                  {action === "all" ? "All Actions" : action}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "14px",
+          }}
+        >
+          <thead>
+            <tr
+              style={{
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.02)",
+              }}
+            >
+              <th style={thStyle}>Timestamp</th>
+              <th style={thStyle}>Action</th>
+              <th style={thStyle}>Admin</th>
+              <th style={thStyle}>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLogs.map((log, index) => (
+              <tr
+                key={log._id || index}
+                style={{
+                  borderBottom: "1px solid rgba(255,255,255,0.03)",
+                  transition: "background 0.2s ease",
+                }}
+              >
+                <td
+                  style={{
+                    ...tdStyle,
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: "13px",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formatDate(log.createdAt)}
+                </td>
+                <td style={tdStyle}>
+                  <Badge tone="muted">{log.action}</Badge>
+                </td>
+                <td
+                  style={{
+                    ...tdStyle,
+                    color: "white",
+                    fontWeight: "500",
+                  }}
+                >
+                  {log.admin?.username || log.admin?.name || "—"}
+                </td>
+                <td
+                  style={{
+                    ...tdStyle,
+                    color: "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  {log.description || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+};

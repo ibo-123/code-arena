@@ -1,5 +1,6 @@
+// frontend/src/pages/admin/AdminLogs.tsx
 import { useEffect, useState } from "react";
-import { AdminLogs as AdminLogsComponent } from "../../components/admin";
+import { AdminLogsPanel } from "../../components/admin";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
@@ -25,8 +26,7 @@ export const AdminLogs = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const startLoading = () => setLoading(true);
-    startLoading();
+    setLoading(true);
     fetchTournament()
       .catch((err) => {
         if (isMounted) setError(err.message);
@@ -218,7 +218,8 @@ export const AdminLogs = () => {
         ))}
       </div>
 
-      <AdminLogsComponent tournamentId={tournament._id} />
+      {/* Audit logs panel — renamed import */}
+      <AdminLogsPanel tournamentId={tournament._id} />
 
       <style>{`
         @keyframes spin {

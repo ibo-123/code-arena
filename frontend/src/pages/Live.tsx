@@ -1,3 +1,4 @@
+// frontend/src/pages/Live.tsx
 import { useEffect, useState } from "react";
 import {
   ExternalLink,
@@ -19,8 +20,21 @@ import { contestApi } from "../services/contestApi";
 import { tournamentApi } from "../services/tournamentApi";
 import type { Contest, LeaderboardEntry, Tournament } from "../types";
 
-// ... rest of the file remains the same as previously provided
-// (The Live.tsx file was already correct with the import)
+/**
+ * Safely formats a contest's duration. Falls back through:
+ * 1. `durationSeconds` (preferred)
+ * 2. `durationMinutes`
+ * 3. "—" if neither is available
+ */
+const getDurationLabel = (contest: Contest): string => {
+  if (typeof contest.durationSeconds === "number") {
+    return `${Math.floor(contest.durationSeconds / 60)} mins`;
+  }
+  if (typeof contest.durationMinutes === "number") {
+    return `${contest.durationMinutes} mins`;
+  }
+  return "—";
+};
 
 export const Live = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -601,10 +615,13 @@ export const Live = () => {
                         color: "rgba(255,255,255,0.5)",
                       }}
                     >
+                      <span>⏱️ Duration: {getDurationLabel(currentContest)}</span>
                       <span>
-                        ⏱️ Duration: {Math.floor(currentContest.durationSeconds / 60)} mins
+                        📅{" "}
+                        {currentContest.startTime
+                          ? new Date(currentContest.startTime).toLocaleString()
+                          : "TBD"}
                       </span>
-                      <span>📅 {new Date(currentContest.startTime).toLocaleString()}</span>
                       {currentContest.codeforcesContestId && (
                         <span>🏷️ CF #{currentContest.codeforcesContestId}</span>
                       )}
