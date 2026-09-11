@@ -29,7 +29,7 @@ export interface RegisterData {
 // ============================================================
 // TOURNAMENT TYPES
 // ============================================================
-export type TournamentStatus = 
+export type TournamentStatus =
   | 'DRAFT'
   | 'REGISTRATION'
   | 'GROUP_STAGE'
@@ -96,31 +96,51 @@ export interface Participant {
 // ============================================================
 // CONTEST TYPES
 // ============================================================
-export type ContestStatus = 'UPCOMING' | 'PUBLISHED' | 'LIVE' | 'FINISHED' | 'CANCELLED';
+export type ContestStatus =
+  | 'DRAFT'
+  | 'UPCOMING'
+  | 'PUBLISHED'
+  | 'LIVE'
+  | 'FINISHED'
+  | 'CANCELLED';
 
 export interface Contest {
   _id: string;
   tournamentId: string;
-  codeforcesContestId: number;
-  codeforcesContestName: string;
+
+  // ----- V1 fields (manual invitation — no Codeforces API) -----
   name?: string;
-  codeforcesUrl: string;
-  type: string;
-  phase: string;
+  invitationUrl?: string;
+  description?: string;
+  published: boolean;
+  publishedAt?: Date;
+  endTime?: Date;
+
+  // ----- Legacy Codeforces fields (optional) -----
+  codeforcesContestId?: number;
+  codeforcesContestName?: string;
+  codeforcesUrl?: string;
+  type?: string;
+  phase?: string;
+  lastSyncedAt?: Date;
+  syncedCount?: number;
+
+  // ----- Scheduling -----
   startTime: Date;
-  durationSeconds: number;
+  durationSeconds?: number;
   durationMinutes?: number;
-  stage: TournamentStage;
+
+  // ----- Assignment -----
+  stage: TournamentStage | string;
   round?: string;
   group?: string;
   matchNumber?: number;
-  status: ContestStatus;
-  published: boolean;
-  publishedAt?: Date;
-  lastSyncedAt?: Date;
-  syncedCount: number;
-  createdAt: string;
-  updatedAt: string;
+
+  // ----- Status -----
+  status?: ContestStatus;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ============================================================

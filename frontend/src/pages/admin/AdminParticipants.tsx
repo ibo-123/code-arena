@@ -12,11 +12,18 @@ import {
   Star,
   CheckCircle,
   Clock,
+  Edit3,
+  Save,
+  X,
 } from "lucide-react";
-import { tournamentApi } from "../../services/tournamentApi";
+import { adminApi } from "../../services/adminApi";
+import { useAdmin } from "../../context/AdminContext";
 import type { Participant } from "../../types";
 
 export const AdminParticipants = () => {
+  const { selectedTournament } = useAdmin();
+  const tournamentId = selectedTournament?._id;
+
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,13 +34,24 @@ export const AdminParticipants = () => {
   const [sortField, setSortField] = useState<string>("seed");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ group: string; seed: number }>({
+    group: "",
+    seed: 1,
+  });
+  const [saving, setSaving] = useState(false);
+
   const fetchParticipants = async () => {
+    if (!tournamentId) {
+      setParticipants([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const { tournaments } = await tournamentApi.list();
-      const t = tournaments[0];
-      if (!t) return { participants: [] };
-      const { participants: items } = await tournamentApi.participants(t._id);
-      setParticipants(items);
+      setError("");
+      const { participants: items } = await adminApi.getParticipants(tournamentId);
+      setParticipants(items || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load participants");
     }
@@ -41,19 +59,15 @@ export const AdminParticipants = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const startLoading = () => setLoading(true);
-    startLoading();
-    fetchParticipants()
-      .catch((err) => {
-        if (isMounted) setError(err.message);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+    setLoading(true);
+    fetchParticipants().finally(() => {
+      if (isMounted) setLoading(false);
+    });
     return () => {
       isMounted = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -67,6 +81,34 @@ export const AdminParticipants = () => {
     } else {
       setSortField(field);
       setSortDirection("asc");
+    }
+  };
+
+  const handleEditStart = (p: Participant) => {
+    setEditingId(p._id);
+    setEditValues({ group: p.group || "", seed: p.seed || 1 });
+  };
+
+  const handleEditCancel = () => {
+    setEditingId(null);
+    setEditValues({ group: "", seed: 1 });
+  };
+
+  const handleEditSave = async (participantId: string) => {
+    if (!tournamentId) return;
+    setSaving(true);
+    setError("");
+    try {
+      await adminApi.updateParticipant(tournamentId, participantId, {
+        group: editValues.group ? editValues.group.toUpperCase() : undefined,
+        seed: editValues.seed,
+      });
+      await fetchParticipants();
+      setEditingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update participant");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -132,11 +174,20 @@ export const AdminParticipants = () => {
     return <CheckCircle size={14} />;
   };
 
+  if (!selectedTournament) {
+    return (
+      <div style={{ padding: "40px 0" }}>
+        <EmptyState label="No tournament selected. Pick one from the sidebar." />
+      </div>
+    );
+  }
+
   if (loading) return <LoadingState label="Loading participants directory..." />;
-  if (error) return <ErrorState error={error} />;
+  if (error && !participants.length) return <ErrorState error={error} />;
 
   return (
     <div style={{ padding: "24px 0" }}>
+      {/* Header */}
       <header
         style={{
           display: "flex",
@@ -167,28 +218,15 @@ export const AdminParticipants = () => {
           >
             Tournament Participants
           </h1>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "rgba(255,255,255,0.5)",
-              marginTop: "4px",
-            }}
-          >
-            {totalParticipants} registered participants · {activeCount} active
+          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", marginTop: "4px" }}>
+            {selectedTournament.name} · {totalParticipants} registered · {activeCount} active
           </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <Badge tone={championCount > 0 ? "gold" : "blue"}>
             {championCount > 0 ? `🏆 ${championCount} Champion` : `${groupCount} Groups`}
           </Badge>
-
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -203,20 +241,34 @@ export const AdminParticipants = () => {
               display: "flex",
               alignItems: "center",
               gap: "6px",
-              transition: "all 0.3s ease",
             }}
           >
             <RefreshCw
               size={16}
-              style={{
-                animation: refreshing ? "spin 1s linear infinite" : "none",
-              }}
+              style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }}
             />
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </header>
 
+      {error && participants.length > 0 && (
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "10px",
+            background: "rgba(244,67,54,0.1)",
+            border: "1px solid rgba(244,67,54,0.2)",
+            color: "#FF6B6B",
+            fontSize: "13px",
+            marginBottom: "16px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Stats */}
       <div
         style={{
           display: "grid",
@@ -226,30 +278,15 @@ export const AdminParticipants = () => {
         }}
       >
         {[
-          {
-            label: "Total",
-            value: totalParticipants,
-            icon: Users,
-            color: "#2979FF",
-          },
-          {
-            label: "Active",
-            value: activeCount,
-            icon: CheckCircle,
-            color: "#4CAF50",
-          },
+          { label: "Total", value: totalParticipants, icon: Users, color: "#2979FF" },
+          { label: "Active", value: activeCount, icon: CheckCircle, color: "#4CAF50" },
           {
             label: "Eliminated",
             value: totalParticipants - activeCount,
             icon: Clock,
             color: "#FF6B6B",
           },
-          {
-            label: "Champions",
-            value: championCount,
-            icon: Crown,
-            color: "#FFD700",
-          },
+          { label: "Champions", value: championCount, icon: Crown, color: "#FFD700" },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -277,13 +314,7 @@ export const AdminParticipants = () => {
               <stat.icon size={18} color={stat.color} />
             </div>
             <div>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  color: "white",
-                }}
-              >
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "white" }}>
                 {stat.value}
               </div>
               <div
@@ -301,6 +332,7 @@ export const AdminParticipants = () => {
         ))}
       </div>
 
+      {/* Filters */}
       <Card
         style={{
           padding: "16px 20px",
@@ -310,14 +342,7 @@ export const AdminParticipants = () => {
           borderRadius: "12px",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "12px",
-            alignItems: "center",
-          }}
-        >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
           <div
             style={{
               display: "flex",
@@ -370,7 +395,7 @@ export const AdminParticipants = () => {
                 fontSize: "13px",
                 outline: "none",
                 cursor: "pointer",
-                padding: "4px 4px",
+                padding: "4px",
               }}
             >
               <option value="all">All Statuses</option>
@@ -406,7 +431,7 @@ export const AdminParticipants = () => {
                 fontSize: "13px",
                 outline: "none",
                 cursor: "pointer",
-                padding: "4px 4px",
+                padding: "4px",
               }}
             >
               <option value="all">All Groups</option>
@@ -420,21 +445,16 @@ export const AdminParticipants = () => {
             </select>
           </div>
 
-          <div
-            style={{
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.3)",
-              marginLeft: "auto",
-            }}
-          >
+          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginLeft: "auto" }}>
             {filteredParticipants.length} participants
           </div>
         </div>
       </Card>
 
+      {/* Table */}
       <Card
         style={{
-          padding: "0",
+          padding: 0,
           background: "rgba(255,255,255,0.03)",
           border: "1px solid rgba(255,255,255,0.06)",
           borderRadius: "16px",
@@ -442,13 +462,7 @@ export const AdminParticipants = () => {
         }}
       >
         <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "14px",
-            }}
-          >
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
             <thead>
               <tr
                 style={{
@@ -463,25 +477,21 @@ export const AdminParticipants = () => {
                   { key: "seed", label: "Seed" },
                   { key: "currentStage", label: "Round" },
                   { key: "status", label: "Status" },
+                  { key: "_actions", label: "Actions" },
                 ].map((col) => (
                   <th
                     key={col.key}
-                    onClick={() => handleSort(col.key)}
+                    onClick={() => col.key !== "_actions" && handleSort(col.key)}
                     style={{
                       ...thStyle,
-                      cursor: "pointer",
+                      cursor: col.key === "_actions" ? "default" : "pointer",
                       userSelect: "none",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                       {col.label}
-                      {sortField === col.key &&
+                      {col.key !== "_actions" &&
+                        sortField === col.key &&
                         (sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
                     </div>
                   </th>
@@ -494,13 +504,13 @@ export const AdminParticipants = () => {
                   const isChampion = p.status === "CHAMPION";
                   const isEliminated = p.status === "ELIMINATED";
                   const isTopSeed = p.seed && p.seed <= 3;
+                  const isEditing = editingId === p._id;
 
                   return (
                     <tr
                       key={p._id}
                       style={{
                         borderBottom: "1px solid rgba(255,255,255,0.03)",
-                        transition: "background 0.2s ease",
                         background: isChampion
                           ? "rgba(255,215,0,0.03)"
                           : isEliminated
@@ -508,14 +518,9 @@ export const AdminParticipants = () => {
                             : "transparent",
                       }}
                     >
+                      {/* Participant */}
                       <td style={tdStyle}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                           <div
                             style={{
                               width: "32px",
@@ -559,10 +564,7 @@ export const AdminParticipants = () => {
                                 <Crown
                                   size={14}
                                   color="#FFD700"
-                                  style={{
-                                    marginLeft: "6px",
-                                    display: "inline",
-                                  }}
+                                  style={{ marginLeft: "6px", display: "inline" }}
                                 />
                               )}
                             </div>
@@ -579,31 +581,45 @@ export const AdminParticipants = () => {
                           </div>
                         </div>
                       </td>
+
+                      {/* Codeforces */}
                       <td
                         style={{
                           ...tdStyle,
                           color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <Code2 size={14} color="rgba(255,255,255,0.2)" />
                           {p.user?.codeforcesUsername || "—"}
                         </div>
                       </td>
+
+                      {/* Group (editable) */}
                       <td
                         style={{
                           ...tdStyle,
                           color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                         }}
                       >
-                        {p.group ? `Group ${p.group}` : "—"}
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editValues.group}
+                            onChange={(e) =>
+                              setEditValues({ ...editValues, group: e.target.value })
+                            }
+                            placeholder="A"
+                            style={inlineInputStyle}
+                          />
+                        ) : p.group ? (
+                          `Group ${p.group}`
+                        ) : (
+                          "—"
+                        )}
                       </td>
+
+                      {/* Seed (editable) */}
                       <td
                         style={{
                           ...tdStyle,
@@ -615,15 +631,31 @@ export const AdminParticipants = () => {
                               : "rgba(255,255,255,0.7)",
                         }}
                       >
-                        #{p.seed || "—"}
-                        {isTopSeed && !isEliminated && (
-                          <Star
-                            size={12}
-                            color="#FFD700"
-                            style={{ marginLeft: "4px", display: "inline" }}
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            value={editValues.seed}
+                            onChange={(e) =>
+                              setEditValues({ ...editValues, seed: Number(e.target.value) })
+                            }
+                            style={inlineInputStyle}
                           />
+                        ) : (
+                          <>
+                            #{p.seed || "—"}
+                            {isTopSeed && !isEliminated && (
+                              <Star
+                                size={12}
+                                color="#FFD700"
+                                style={{ marginLeft: "4px", display: "inline" }}
+                              />
+                            )}
+                          </>
                         )}
                       </td>
+
+                      {/* Round */}
                       <td
                         style={{
                           ...tdStyle,
@@ -632,18 +664,84 @@ export const AdminParticipants = () => {
                       >
                         {p.currentStage || "Group Stage"}
                       </td>
+
+                      {/* Status */}
                       <td style={tdStyle}>
                         <Badge tone={getStatusTone(p.status)}>
                           {getStatusIcon(p.status)}
                           {p.status || "ACTIVE"}
                         </Badge>
                       </td>
+
+                      {/* Actions */}
+                      <td style={tdStyle}>
+                        {isEditing ? (
+                          <div style={{ display: "flex", gap: "4px" }}>
+                            <button
+                              onClick={() => handleEditSave(p._id)}
+                              disabled={saving}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                background: "rgba(76,175,80,0.2)",
+                                border: "1px solid rgba(76,175,80,0.4)",
+                                color: "#4CAF50",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: saving ? "not-allowed" : "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                              }}
+                            >
+                              <Save size={12} />
+                              {saving ? "..." : "Save"}
+                            </button>
+                            <button
+                              onClick={handleEditCancel}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                color: "rgba(255,255,255,0.6)",
+                                fontSize: "11px",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleEditStart(p)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              background: "rgba(41,121,255,0.15)",
+                              border: "1px solid rgba(41,121,255,0.25)",
+                              color: "#64B5F6",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <Edit3 size={12} />
+                            Edit
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <div style={{ padding: "40px" }}>
                       <EmptyState
                         label={
@@ -666,21 +764,12 @@ export const AdminParticipants = () => {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
       `}</style>
     </div>
   );
 };
 
+// ---------- Styles ----------
 const thStyle: React.CSSProperties = {
   padding: "12px 16px",
   textAlign: "left",
@@ -696,6 +785,18 @@ const tdStyle: React.CSSProperties = {
   padding: "12px 16px",
   color: "rgba(255,255,255,0.8)",
   verticalAlign: "middle",
+};
+
+const inlineInputStyle: React.CSSProperties = {
+  width: "70px",
+  padding: "4px 8px",
+  borderRadius: "6px",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(41,121,255,0.4)",
+  color: "white",
+  fontSize: "13px",
+  outline: "none",
+  boxSizing: "border-box",
 };
 
 export default AdminParticipants;

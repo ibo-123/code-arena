@@ -6,7 +6,7 @@ import { AdminProvider } from "./context/AdminContext";
 // Layouts
 import { PublicLayout } from "./layouts/PublicLayout";
 import { ParticipantLayout } from "./layouts/ParticipantLayout";
-import  AdminLayout from "./layouts/AdminLayout";
+import AdminLayout from "./layouts/AdminLayout";
 
 // Public Pages
 import { Home } from "./pages/public/Home";
@@ -29,6 +29,8 @@ import Profile from "./pages/participant/Profile";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTournaments from "./pages/admin/AdminTournaments";
 import AdminTournamentDetail from "./pages/admin/AdminTournamentDetail";
+import CreateTournament from "./pages/admin/CreateTournament";
+import EditTournament from "./pages/admin/EditTournament";
 import { AdminParticipants } from "./pages/admin/AdminParticipants";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { AdminContests } from "./pages/admin/AdminContests";
@@ -36,6 +38,8 @@ import { AdminInvitations } from "./pages/admin/AdminInvitations";
 import { AdminVideos } from "./pages/admin/AdminVideos";
 import { AdminStandings } from "./pages/admin/AdminStandings";
 import { AdminBracket } from "./pages/admin/AdminBracket";
+import { AdminMatches } from "./pages/admin/AdminMatches";
+import { AdminLogs } from "./pages/admin/AdminLogs";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
 // Route Guards
@@ -47,7 +51,9 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* PUBLIC ROUTES */}
+          {/* ============================================================
+              PUBLIC ROUTES
+          ============================================================ */}
           <Route element={<PublicLayout />}>
             <Route path="/" element={<Home />} />
             <Route path="/tournaments" element={<Tournaments />} />
@@ -57,7 +63,9 @@ function App() {
             <Route path="/register" element={<Register />} />
           </Route>
 
-          {/* PARTICIPANT ROUTES */}
+          {/* ============================================================
+              PARTICIPANT ROUTES
+          ============================================================ */}
           <Route element={<ProtectedRoute />}>
             <Route element={<ParticipantLayout />}>
               <Route path="/dashboard" element={<ParticipantDashboard />} />
@@ -73,7 +81,9 @@ function App() {
             </Route>
           </Route>
 
-          {/* ADMIN ROUTES - AdminProvider wraps all admin routes */}
+          {/* ============================================================
+              ADMIN ROUTES — wrapped in AdminProvider + AdminLayout
+          ============================================================ */}
           <Route element={<AdminRoute />}>
             <Route
               element={
@@ -82,9 +92,28 @@ function App() {
                 </AdminProvider>
               }
             >
+              {/* Dashboard */}
               <Route path="/admin" element={<AdminDashboard />} />
+
+              {/* Tournament list + CRUD */}
               <Route path="/admin/tournaments" element={<AdminTournaments />} />
+              <Route path="/admin/tournaments/create" element={<CreateTournament />} />
               <Route path="/admin/tournaments/:id" element={<AdminTournamentDetail />} />
+              <Route path="/admin/tournaments/:id/edit" element={<EditTournament />} />
+
+              {/* Top-level Admin pages (sidebar links) */}
+              <Route path="/admin/contests" element={<AdminContests />} />
+              <Route path="/admin/participants" element={<AdminParticipants />} />
+              <Route path="/admin/groups" element={<AdminGroups />} />
+              <Route path="/admin/standings" element={<AdminStandings />} />
+              <Route path="/admin/bracket" element={<AdminBracket />} />
+              <Route path="/admin/matches" element={<AdminMatches />} />
+              <Route path="/admin/videos" element={<AdminVideos />} />
+              <Route path="/admin/invitations" element={<AdminInvitations />} />
+              <Route path="/admin/logs" element={<AdminLogs />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
+
+              {/* Tournament-scoped detail tabs (kept for AdminTournamentDetail) */}
               <Route path="/admin/tournaments/:id/participants" element={<AdminParticipants />} />
               <Route path="/admin/tournaments/:id/groups" element={<AdminGroups />} />
               <Route path="/admin/tournaments/:id/contests" element={<AdminContests />} />
@@ -92,10 +121,11 @@ function App() {
               <Route path="/admin/tournaments/:id/videos" element={<AdminVideos />} />
               <Route path="/admin/tournaments/:id/standings" element={<AdminStandings />} />
               <Route path="/admin/tournaments/:id/bracket" element={<AdminBracket />} />
-              <Route path="/admin/settings" element={<AdminSettings />} />
+              <Route path="/admin/tournaments/:id/matches" element={<AdminMatches />} />
             </Route>
           </Route>
 
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

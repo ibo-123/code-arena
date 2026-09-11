@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
-import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
+import { Badge, EmptyState, ErrorState, LoadingState } from "../../components/ui";
 import { RefreshCw, Star } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import type { Participant } from "../../types";
-
+import { useAdmin } from "../../context/AdminContext";
+import {
+  PageHeader,
+  Button,
+  AdminCard,
+  AdminEmptyState,
+  globalStyles,
+} from "../../components/admin/AdminUI";
+import { tokens } from "../../styles/designTokens";
 export const AdminGroups = () => {
+  const { selectedTournament } = useAdmin();
   const [groups, setGroups] = useState<Record<string, Participant[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -12,11 +21,10 @@ export const AdminGroups = () => {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
   const fetchGroups = async () => {
+    if (!selectedTournament) return;
     try {
-      const { tournaments } = await tournamentApi.list();
-      const t = tournaments[0];
-      if (!t) return { groups: {} };
-      const { groups: map } = await tournamentApi.groups(t._id);
+      setError("");
+      const { groups: map } = await tournamentApi.groups(selectedTournament._id);
       setGroups(map);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load groups");
@@ -24,20 +32,13 @@ export const AdminGroups = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    const startLoading = () => setLoading(true);
-    startLoading();
-    fetchGroups()
-      .catch((err) => {
-        if (isMounted) setError(err.message);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    if (!selectedTournament) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetchGroups().finally(() => setLoading(false));
+  }, [selectedTournament]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -48,7 +49,19 @@ export const AdminGroups = () => {
   if (loading) return <LoadingState label="Loading group seeding..." />;
   if (error) return <ErrorState error={error} />;
 
-  // ✅ FIX: Dynamically get group keys from the data
+  if (!selectedTournament) {
+    return (
+      <div style={{ padding: "24px 0" }}>
+        <PageHeader eyebrow="Group Stage Allocation" title="Groups & Seeding" />
+        <AdminEmptyState
+          icon={<Star size={32} color={tokens.colors.text.muted} />}
+          title="No tournament selected"
+          description="Please select a tournament from the sidebar to view groups."
+        />
+      </div>
+    );
+  }
+
   const groupKeys = Object.keys(groups).length ? Object.keys(groups).sort() : [];
   const allParticipants = Object.values(groups).flat();
   const totalParticipants = allParticipants.length;
@@ -65,178 +78,63 @@ export const AdminGroups = () => {
     return { key, count: players.length, active, avgSeed };
   });
 
-  // If no groups exist yet, show a message
   if (groupKeys.length === 0) {
     return (
       <div style={{ padding: "24px 0" }}>
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: "32px",
-            flexWrap: "wrap",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <small
-              style={{
-                fontSize: "11px",
-                color: "rgba(255,255,255,0.4)",
-                textTransform: "uppercase",
-                letterSpacing: "2px",
-              }}
-            >
-              Group Stage Allocation
-            </small>
-            <h1
-              style={{
-                fontSize: "clamp(24px, 2.5vw, 36px)",
-                fontWeight: "700",
-                margin: "4px 0 0 0",
-              }}
-            >
-              Groups & Seeding
-            </h1>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "13px",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                animation: refreshing ? "spin 1s linear infinite" : "none",
-              }}
-            />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
-        </header>
-        <EmptyState label="No groups have been created yet. Start the tournament to generate groups." />
+        <PageHeader
+          eyebrow="Group Stage Allocation"
+          title="Groups & Seeding"
+          actions={
+            <Button onClick={handleRefresh} loading={refreshing} icon={<RefreshCw size={16} />}>
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+          }
+        />
+        <AdminEmptyState
+          icon={<Star size={32} color={tokens.colors.text.muted} />}
+          title="No groups created yet"
+          description="Start the tournament to generate groups automatically."
+        />
       </div>
     );
   }
 
   return (
     <div style={{ padding: "24px 0" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "32px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div>
-          <small
-            style={{
-              fontSize: "11px",
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-            }}
-          >
-            Group Stage Allocation
-          </small>
-          <h1
-            style={{
-              fontSize: "clamp(24px, 2.5vw, 36px)",
-              fontWeight: "700",
-              margin: "4px 0 0 0",
-            }}
-          >
-            Groups & Seeding
-          </h1>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "rgba(255,255,255,0.5)",
-              marginTop: "4px",
-            }}
-          >
-            {totalParticipants} participants across {activeGroupsCount} groups
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Group Stage Allocation"
+        title="Groups & Seeding"
+        subtitle={`${totalParticipants} participants across ${activeGroupsCount} groups`}
+        actions={
+          <>
+            <Badge tone="green">{activeGroupsCount} Groups</Badge>
+            <Button onClick={handleRefresh} loading={refreshing} icon={<RefreshCw size={16} />}>
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+          </>
+        }
+      />
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <Badge tone="green">{activeGroupsCount} Groups</Badge>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "13px",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                animation: refreshing ? "spin 1s linear infinite" : "none",
-              }}
-            />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-      </header>
-
+      {/* Group Stats */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "12px",
-          marginBottom: "24px",
+          marginBottom: tokens.spacing.lg,
         }}
       >
         {groupStats.map(({ key, count, active, avgSeed }) => (
-          <div
+          <AdminCard
             key={key}
-            style={{
-              padding: "14px 18px",
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: "10px",
-              border: "1px solid rgba(255,255,255,0.06)",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              ...(selectedGroup === key
-                ? {
-                    borderColor: "#4CAF50",
-                    background: "rgba(76, 175, 80, 0.05)",
-                  }
-                : {}),
-            }}
+            padding="14px 18px"
             onClick={() => setSelectedGroup(selectedGroup === key ? null : key)}
+            style={{
+              cursor: "pointer",
+              borderColor:
+                selectedGroup === key ? "rgba(76, 175, 80, 0.3)" : tokens.colors.border.subtle,
+              background: selectedGroup === key ? "rgba(76, 175, 80, 0.05)" : tokens.colors.bg.card,
+            }}
           >
             <div
               style={{
@@ -246,31 +144,19 @@ export const AdminGroups = () => {
                 marginBottom: "4px",
               }}
             >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "700",
-                  color: "white",
-                }}
-              >
-                Group {key}
-              </span>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "white" }}>Group {key}</span>
               <Badge tone={active === count ? "green" : "muted"}>
                 {active}/{count}
               </Badge>
             </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "rgba(255,255,255,0.4)",
-              }}
-            >
+            <div style={{ fontSize: "12px", color: tokens.colors.text.muted }}>
               {count} participants · Avg seed {avgSeed}
             </div>
-          </div>
+          </AdminCard>
         ))}
       </div>
 
+      {/* Group Cards */}
       <div
         style={{
           display: "grid",
@@ -286,40 +172,33 @@ export const AdminGroups = () => {
             .slice(0, 2);
 
           return (
-            <Card
+            <AdminCard
               key={groupKey}
+              padding="0"
               style={{
-                padding: "0",
-                background: "rgba(255,255,255,0.03)",
-                border: `1px solid ${selectedGroup === groupKey ? "rgba(76, 175, 80, 0.3)" : "rgba(255,255,255,0.06)"}`,
-                borderRadius: "16px",
                 overflow: "hidden",
+                borderColor:
+                  selectedGroup === groupKey
+                    ? "rgba(76, 175, 80, 0.3)"
+                    : tokens.colors.border.subtle,
+                transform: selectedGroup === groupKey ? "scale(1.02)" : "scale(1)",
+                boxShadow:
+                  selectedGroup === groupKey ? "0 8px 30px rgba(76, 175, 80, 0.1)" : "none",
                 transition: "all 0.3s ease",
-                ...(selectedGroup === groupKey
-                  ? {
-                      transform: "scale(1.02)",
-                      boxShadow: "0 8px 30px rgba(76, 175, 80, 0.1)",
-                    }
-                  : {}),
               }}
             >
+              {/* Group Header */}
               <div
                 style={{
                   padding: "16px 20px",
-                  background: "rgba(255,255,255,0.03)",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  background: "rgba(255,255,255,0.02)",
+                  borderBottom: `1px solid ${tokens.colors.border.subtle}`,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <div
                     style={{
                       width: "36px",
@@ -329,7 +208,7 @@ export const AdminGroups = () => {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontWeight: "700",
+                      fontWeight: 700,
                       fontSize: "14px",
                       color: "white",
                     }}
@@ -337,33 +216,17 @@ export const AdminGroups = () => {
                     {groupKey}
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "white",
-                      }}
-                    >
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "white" }}>
                       Group {groupKey}
                     </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "rgba(255,255,255,0.4)",
-                      }}
-                    >
+                    <div style={{ fontSize: "11px", color: tokens.colors.text.muted }}>
                       {players.length} participants · {isActive ? "Active" : "Completed"}
                     </div>
                   </div>
                 </div>
 
                 {topSeeds.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "4px",
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: "4px" }}>
                     {topSeeds.map((p) => (
                       <div
                         key={p._id}
@@ -377,8 +240,8 @@ export const AdminGroups = () => {
                           alignItems: "center",
                           justifyContent: "center",
                           fontSize: "10px",
-                          fontWeight: "700",
-                          color: "#FFD700",
+                          fontWeight: 700,
+                          color: tokens.colors.accent.gold,
                         }}
                       >
                         #{p.seed}
@@ -388,18 +251,10 @@ export const AdminGroups = () => {
                 )}
               </div>
 
-              <div
-                style={{
-                  padding: "12px 20px",
-                }}
-              >
+              {/* Participants */}
+              <div style={{ padding: "12px 20px" }}>
                 {players.length ? (
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: "6px",
-                    }}
-                  >
+                  <div style={{ display: "grid", gap: "6px" }}>
                     {players
                       .sort((a, b) => (a.seed || 999) - (b.seed || 999))
                       .map((p) => {
@@ -414,7 +269,7 @@ export const AdminGroups = () => {
                               justifyContent: "space-between",
                               alignItems: "center",
                               padding: "8px 12px",
-                              borderRadius: "8px",
+                              borderRadius: tokens.radius.sm,
                               background: isEliminated
                                 ? "rgba(255,255,255,0.02)"
                                 : isTopSeed
@@ -424,16 +279,9 @@ export const AdminGroups = () => {
                                 isTopSeed && !isEliminated
                                   ? "1px solid rgba(255,215,0,0.1)"
                                   : "1px solid transparent",
-                              transition: "all 0.2s ease",
                             }}
                           >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
-                              }}
-                            >
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                               <div
                                 style={{
                                   width: "24px",
@@ -448,12 +296,12 @@ export const AdminGroups = () => {
                                   alignItems: "center",
                                   justifyContent: "center",
                                   fontSize: "11px",
-                                  fontWeight: "700",
+                                  fontWeight: 700,
                                   color: isEliminated
-                                    ? "rgba(255,255,255,0.3)"
+                                    ? tokens.colors.text.faint
                                     : isTopSeed
-                                      ? "#FFD700"
-                                      : "rgba(255,255,255,0.5)",
+                                      ? tokens.colors.accent.gold
+                                      : tokens.colors.text.muted,
                                 }}
                               >
                                 #{p.seed || "—"}
@@ -462,31 +310,22 @@ export const AdminGroups = () => {
                                 <div
                                   style={{
                                     fontSize: "13px",
-                                    fontWeight: isTopSeed && !isEliminated ? "600" : "400",
-                                    color: isEliminated ? "rgba(255,255,255,0.3)" : "white",
+                                    fontWeight: isTopSeed && !isEliminated ? 600 : 400,
+                                    color: isEliminated ? tokens.colors.text.faint : "white",
                                   }}
                                 >
                                   {p.user?.name || p.user?.username || "Unknown"}
                                 </div>
-                                <div
-                                  style={{
-                                    fontSize: "11px",
-                                    color: "rgba(255,255,255,0.3)",
-                                  }}
-                                >
+                                <div style={{ fontSize: "11px", color: tokens.colors.text.muted }}>
                                   @{p.user?.username || "unknown"}
                                 </div>
                               </div>
                             </div>
 
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                              }}
-                            >
-                              {isTopSeed && !isEliminated && <Star size={14} color="#FFD700" />}
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              {isTopSeed && !isEliminated && (
+                                <Star size={14} color={tokens.colors.accent.gold} />
+                              )}
                               <Badge tone={isEliminated ? "muted" : "green"}>
                                 {p.status || "Active"}
                               </Badge>
@@ -499,17 +338,12 @@ export const AdminGroups = () => {
                   <EmptyState label={`Group ${groupKey} pending draw.`} />
                 )}
               </div>
-            </Card>
+            </AdminCard>
           );
         })}
       </div>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{globalStyles}</style>
     </div>
   );
 };

@@ -1,314 +1,657 @@
-import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, Play } from "lucide-react";
-import type { VideoSubmission } from "../../types";
+import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  RefreshCw,
+  ExternalLink,
+  AlertCircle,
+  X,
+  Filter,
+} from "lucide-react";
+import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
+import { contestApi } from "../../services/contestApi";
+import { adminApi, type AdminContest } from "../../services/adminApi";
+import { useAdmin } from "../../context/AdminContext";
+import type { VideoSubmission, VideoStatus } from "../../types";
 
-interface VideoWithDetails extends VideoSubmission {
-  participant?: {
-    user?: {
-      name: string;
-      username: string;
-      codeforcesUsername?: string;
-    };
-  };
-  contest?: {
-    codeforcesContestName: string;
-  };
+/**
+ * Extended view of a VideoSubmission when the backend populates
+ * `participantId` with a full Participant object (including nested `user`).
+ *
+ * NOTE: We do NOT `extend VideoSubmission` because TypeScript would complain
+ * that the parent's `participantId: string` conflicts with our object type.
+ */
+interface VideoWithDetails {
+  _id: string;
+  contestId: string;
+  tournamentId: string;
+  videoUrl: string;
+  note?: string;
+  status: VideoStatus;
+  createdAt: string;
+  updatedAt: string;
+  rejectionReason?: string;
+  participantId?:
+    | string
+    | {
+        _id?: string;
+        group?: string;
+        seed?: number;
+        user?: {
+          name?: string;
+          username?: string;
+          codeforcesUsername?: string;
+        };
+      };
 }
 
-export const AdminVideos: React.FC = () => {
+type FilterStatus = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
+
+/** Narrow a participantId that may be either a string or a populated object. */
+const getParticipantObject = (
+  value: VideoWithDetails["participantId"],
+): {
+  _id?: string;
+  group?: string;
+  seed?: number;
+  user?: { name?: string; username?: string; codeforcesUsername?: string };
+} | null => {
+  if (!value || typeof value === "string") return null;
+  return value;
+};
+
+export const AdminVideos = () => {
+  const { selectedTournament } = useAdmin();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [contests, setContests] = useState<AdminContest[]>([]);
+  const [selectedContestId, setSelectedContestId] = useState<string>("");
   const [videos, setVideos] = useState<VideoWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [filter, setFilter] = useState<FilterStatus>("PENDING");
   const [selectedVideo, setSelectedVideo] = useState<VideoWithDetails | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const token = localStorage.getItem("code-arena-token");
+  const tournamentId = selectedTournament?._id;
 
+  // Load contests
   useEffect(() => {
-    fetchVideos();
-  }, [filter]);
+    let mounted = true;
+    if (!tournamentId) {
+      setContests([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    adminApi
+      .getContests(tournamentId)
+      .then((res) => {
+        if (!mounted) return;
+        setContests(res.contests || []);
+        const fromQuery = searchParams.get("contestId");
+        const pick =
+          (fromQuery && res.contests?.find((c) => c._id === fromQuery)?._id) ||
+          res.contests?.[0]?._id ||
+          "";
+        setSelectedContestId(pick);
+      })
+      .catch((err) => {
+        if (mounted) setError(err instanceof Error ? err.message : "Failed to load contests");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId]);
 
-  const fetchVideos = async () => {
+  const loadVideos = useCallback(async () => {
+    if (!selectedContestId) {
+      setVideos([]);
+      return;
+    }
     try {
-      setLoading(true);
-      setError(null);
-
-      const query = filter === "all" ? "" : `?status=${filter.toUpperCase()}`;
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/videos${query}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!response.ok) throw new Error(`Failed to fetch videos: ${response.statusText}`);
-
-      const data = await response.json();
-      setVideos(data.submissions || []);
+      setLoadingVideos(true);
+      setError("");
+      const statusParam = filter === "ALL" ? undefined : filter;
+      const res = await contestApi.getVideoSubmissions(selectedContestId, statusParam);
+      setVideos((res.submissions || []) as unknown as VideoWithDetails[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load videos");
     } finally {
-      setLoading(false);
+      setLoadingVideos(false);
     }
+  }, [selectedContestId, filter]);
+
+  useEffect(() => {
+    loadVideos();
+  }, [loadVideos]);
+
+  const handleContestChange = (id: string) => {
+    setSelectedContestId(id);
+    if (id) {
+      searchParams.set("contestId", id);
+    } else {
+      searchParams.delete("contestId");
+    }
+    setSearchParams(searchParams);
   };
 
   const handleApprove = async (submissionId: string) => {
+    setSubmitting(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/videos/${submissionId}/approve`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to approve video");
-
+      await contestApi.approveVideo(submissionId);
+      setNotice("Video approved");
       setSelectedVideo(null);
-      setShowRejectForm(false);
-      fetchVideos();
+      await loadVideos();
+      setTimeout(() => setNotice(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve video");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleReject = async (submissionId: string) => {
+    setSubmitting(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/videos/${submissionId}/reject`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ reason: rejectReason || "No reason provided" }),
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to reject video");
-
+      await contestApi.rejectVideo(submissionId, rejectReason || "No reason provided");
+      setNotice("Video rejected");
       setSelectedVideo(null);
       setShowRejectForm(false);
       setRejectReason("");
-      fetchVideos();
+      await loadVideos();
+      setTimeout(() => setNotice(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reject video");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const baseClasses = "px-3 py-1 text-sm rounded-full font-medium flex items-center gap-1";
-    switch (status) {
-      case "APPROVED":
-        return (
-          <span className={`${baseClasses} bg-green-100 text-green-800`}>
-            <CheckCircle className="w-4 h-4" /> Approved
-          </span>
-        );
-      case "REJECTED":
-        return (
-          <span className={`${baseClasses} bg-red-100 text-red-800`}>
-            <XCircle className="w-4 h-4" /> Rejected
-          </span>
-        );
-      case "PENDING":
-        return (
-          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
-            <Clock className="w-4 h-4" /> Pending
-          </span>
-        );
-      default:
-        return <span className={baseClasses}>{status}</span>;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-600">Loading videos...</div>
-      </div>
-    );
+  if (!selectedTournament) {
+    return <ErrorState error="No tournament selected." />;
   }
 
+  if (loading) return <LoadingState label="Loading contests..." />;
+
+  const currentContest = contests.find((c) => c._id === selectedContestId);
+
+  const filterButtons: { value: FilterStatus; label: string }[] = [
+    { value: "ALL", label: "All" },
+    { value: "PENDING", label: "Pending" },
+    { value: "APPROVED", label: "Approved" },
+    { value: "REJECTED", label: "Rejected" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Video Reviews</h1>
-        <div className="flex gap-2">
-          {(["all", "pending", "approved", "rejected"] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          ))}
+    <div style={{ padding: "24px 0" }}>
+      {/* Header */}
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: "28px",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <small
+            style={{
+              fontSize: "11px",
+              color: "rgba(255,255,255,0.4)",
+              textTransform: "uppercase",
+              letterSpacing: "2px",
+            }}
+          >
+            Video Review
+          </small>
+          <h1
+            style={{
+              fontSize: "clamp(24px, 2.5vw, 36px)",
+              fontWeight: "700",
+              margin: "4px 0 0 0",
+            }}
+          >
+            Video Submissions
+          </h1>
+          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", marginTop: "4px" }}>
+            {currentContest?.name || currentContest?.stage?.replace("_", " ") || "Select a contest"}
+          </p>
         </div>
-      </div>
+        <button
+          onClick={loadVideos}
+          disabled={loadingVideos}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "10px",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: "13px",
+            cursor: loadingVideos ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <RefreshCw
+            size={16}
+            style={{ animation: loadingVideos ? "spin 1s linear infinite" : "none" }}
+          />
+          Refresh
+        </button>
+      </header>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: "10px",
+            background: "rgba(244,67,54,0.1)",
+            border: "1px solid rgba(244,67,54,0.2)",
+            color: "#FF6B6B",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <AlertCircle size={18} />
           {error}
         </div>
       )}
-
-      {videos.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <Play className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600">No videos found</p>
-        </div>
-      ) : (
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Participant
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Contest</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Submitted
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {videos.map((video) => (
-                <tr key={video._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-3">
-                    <div className="text-sm font-medium text-gray-900">
-                      {video.participant?.user?.name}
-                    </div>
-                    <div className="text-sm text-gray-500">{video.participant?.user?.username}</div>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-900">
-                    {video.contest?.codeforcesContestName || "Unknown"}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-500">
-                    {new Date(video.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-3">{getStatusBadge(video.status)}</td>
-                  <td className="px-6 py-3 text-center">
-                    <button
-                      onClick={() => setSelectedVideo(video)}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Review
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {notice && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: "10px",
+            background: "rgba(76,175,80,0.1)",
+            border: "1px solid rgba(76,175,80,0.2)",
+            color: "#4CAF50",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <CheckCircle size={18} />
+          {notice}
         </div>
       )}
 
+      {/* Contest + filter selector */}
+      <Card
+        style={{
+          padding: "16px 20px",
+          marginBottom: "20px",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Filter size={14} color="rgba(255,255,255,0.4)" />
+            <select
+              value={selectedContestId}
+              onChange={(e) => handleContestChange(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "white",
+                fontSize: "13px",
+                outline: "none",
+                minWidth: "200px",
+              }}
+            >
+              <option value="" style={{ background: "#1a1f35" }}>
+                Select a contest...
+              </option>
+              {contests.map((c) => (
+                <option key={c._id} value={c._id} style={{ background: "#1a1f35" }}>
+                  {c.name || c.stage?.replace("_", " ") || "Untitled Contest"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {filterButtons.map((fb) => (
+              <button
+                key={fb.value}
+                onClick={() => setFilter(fb.value)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  background:
+                    filter === fb.value ? "rgba(41,121,255,0.2)" : "rgba(255,255,255,0.04)",
+                  border:
+                    filter === fb.value
+                      ? "1px solid rgba(41,121,255,0.4)"
+                      : "1px solid rgba(255,255,255,0.06)",
+                  color: filter === fb.value ? "#64B5F6" : "rgba(255,255,255,0.6)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                }}
+              >
+                {fb.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginLeft: "auto", fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>
+            {videos.length} submission{videos.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+      </Card>
+
+      {/* List */}
+      {loadingVideos ? (
+        <LoadingState label="Loading video submissions..." />
+      ) : !selectedContestId ? (
+        <EmptyState label="Select a contest to view its video submissions." />
+      ) : videos.length === 0 ? (
+        <EmptyState label="No video submissions found for this filter." />
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "14px",
+          }}
+        >
+          {videos.map((v) => {
+            const participant = getParticipantObject(v.participantId);
+            const user = participant?.user;
+            return (
+              <Card
+                key={v._id}
+                style={{
+                  padding: "16px 18px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: "14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: "white",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {user?.name || user?.username || "Unknown"}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>
+                      @{user?.username || "unknown"}
+                      {participant?.group ? ` · Group ${participant.group}` : ""}
+                    </div>
+                  </div>
+                  <Badge
+                    tone={
+                      v.status === "APPROVED" ? "green" : v.status === "REJECTED" ? "red" : "gold"
+                    }
+                  >
+                    {v.status === "APPROVED" ? (
+                      <CheckCircle size={12} style={{ marginRight: 3 }} />
+                    ) : v.status === "REJECTED" ? (
+                      <XCircle size={12} style={{ marginRight: 3 }} />
+                    ) : (
+                      <Clock size={12} style={{ marginRight: 3 }} />
+                    )}
+                    {v.status}
+                  </Badge>
+                </div>
+
+                {v.note && (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "12px",
+                      color: "rgba(255,255,255,0.5)",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {v.note}
+                  </p>
+                )}
+
+                <a
+                  href={v.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "12px",
+                    color: "#64B5F6",
+                    textDecoration: "none",
+                  }}
+                >
+                  <ExternalLink size={12} /> Open Video
+                </a>
+
+                <button
+                  onClick={() => {
+                    setSelectedVideo(v);
+                    setShowRejectForm(false);
+                    setRejectReason("");
+                  }}
+                  style={{
+                    marginTop: "auto",
+                    padding: "8px 12px",
+                    borderRadius: "8px",
+                    background: "rgba(41,121,255,0.15)",
+                    border: "1px solid rgba(41,121,255,0.25)",
+                    color: "#64B5F6",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Review
+                </button>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Review modal */}
       {selectedVideo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-gray-900">Review Video Submission</h2>
-              <div className="mt-3 text-sm text-gray-600">
-                <p>
-                  <strong>Participant:</strong> {selectedVideo.participant?.user?.name} (
-                  {selectedVideo.participant?.user?.username})
-                </p>
-                <p>
-                  <strong>Contest:</strong> {selectedVideo.contest?.codeforcesContestName}
-                </p>
-                <p>
-                  <strong>Status:</strong> {selectedVideo.status}
-                </p>
-              </div>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "24px",
+          }}
+          onClick={() => setSelectedVideo(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "560px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              background: "#1a1f35",
+              borderRadius: "18px",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.6)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "20px 24px",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "18px", color: "white" }}>Review Submission</h2>
+              <button
+                onClick={() => setSelectedVideo(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(255,255,255,0.5)",
+                  cursor: "pointer",
+                  padding: 4,
+                }}
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Video URL</label>
+            <div style={{ padding: "20px 24px" }}>
+              {(() => {
+                const participant = getParticipantObject(selectedVideo.participantId);
+                const user = participant?.user;
+                return (
+                  <div
+                    style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}
+                  >
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      <strong>Participant:</strong> {user?.name || "Unknown"} (
+                      {user?.username || "—"})
+                    </p>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      <strong>Codeforces:</strong> {user?.codeforcesUsername || "—"}
+                    </p>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      <strong>Group:</strong> {participant?.group || "—"}
+                    </p>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      <strong>Status:</strong> {selectedVideo.status}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              <div style={{ marginTop: 16 }}>
+                <label style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                  Video URL
+                </label>
                 <a
                   href={selectedVideo.videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 break-all"
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    padding: "8px 10px",
+                    background: "rgba(41,121,255,0.06)",
+                    border: "1px solid rgba(41,121,255,0.15)",
+                    borderRadius: 8,
+                    color: "#64B5F6",
+                    fontSize: 12,
+                    textDecoration: "none",
+                    wordBreak: "break-all",
+                  }}
                 >
                   {selectedVideo.videoUrl}
                 </a>
               </div>
 
               {selectedVideo.note && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
                     Participant Note
                   </label>
-                  <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedVideo.note}</p>
-                </div>
-              )}
-
-              {selectedVideo.status === "REJECTED" && selectedVideo.rejectionReason && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rejection Reason
-                  </label>
-                  <p className="text-red-700 bg-red-50 p-3 rounded">
-                    {selectedVideo.rejectionReason}
+                  <p
+                    style={{
+                      marginTop: 4,
+                      padding: "10px 12px",
+                      background: "rgba(255,255,255,0.03)",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.7)",
+                    }}
+                  >
+                    {selectedVideo.note}
                   </p>
                 </div>
               )}
 
-              {!showRejectForm && selectedVideo.status === "PENDING" && (
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => handleApprove(selectedVideo._id)}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              {showRejectForm ? (
+                <div style={{ marginTop: 20 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      color: "rgba(255,255,255,0.5)",
+                      marginBottom: 6,
+                    }}
                   >
-                    <CheckCircle className="w-5 h-5" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => setShowRejectForm(true)}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <XCircle className="w-5 h-5" />
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => setSelectedVideo(null)}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
-                </div>
-              )}
-
-              {showRejectForm && (
-                <div className="space-y-3 pt-4 border-t border-gray-200">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Rejection Reason
-                    </label>
-                    <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Explain why this video is being rejected..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex gap-3">
+                    Rejection Reason
+                  </label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={3}
+                    placeholder="Explain why this video is being rejected..."
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      fontSize: 13,
+                      outline: "none",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
                       onClick={() => handleReject(selectedVideo._id)}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      disabled={submitting}
+                      style={{
+                        flex: 1,
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        background: "linear-gradient(135deg, #F44336, #C62828)",
+                        border: "none",
+                        color: "white",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: submitting ? "not-allowed" : "pointer",
+                        opacity: submitting ? 0.6 : 1,
+                      }}
                     >
                       Confirm Rejection
                     </button>
@@ -317,18 +660,82 @@ export const AdminVideos: React.FC = () => {
                         setShowRejectForm(false);
                         setRejectReason("");
                       }}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      style={{
+                        flex: 1,
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        color: "rgba(255,255,255,0.7)",
+                        fontWeight: 500,
+                        fontSize: 13,
+                        cursor: "pointer",
+                      }}
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
-              )}
-
-              {!showRejectForm && selectedVideo.status !== "PENDING" && (
+              ) : selectedVideo.status === "PENDING" ? (
+                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                  <button
+                    onClick={() => handleApprove(selectedVideo._id)}
+                    disabled={submitting}
+                    style={{
+                      flex: 1,
+                      padding: "10px 16px",
+                      borderRadius: 10,
+                      background: "linear-gradient(135deg, #4CAF50, #2E7D32)",
+                      border: "none",
+                      color: "white",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.6 : 1,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <CheckCircle size={16} /> Approve
+                  </button>
+                  <button
+                    onClick={() => setShowRejectForm(true)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 16px",
+                      borderRadius: 10,
+                      background: "linear-gradient(135deg, #F44336, #C62828)",
+                      border: "none",
+                      color: "white",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <XCircle size={16} /> Reject
+                  </button>
+                </div>
+              ) : (
                 <button
                   onClick={() => setSelectedVideo(null)}
-                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  style={{
+                    marginTop: 20,
+                    width: "100%",
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.7)",
+                    fontWeight: 500,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
                 >
                   Close
                 </button>
@@ -337,6 +744,15 @@ export const AdminVideos: React.FC = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
+
+export default AdminVideos;

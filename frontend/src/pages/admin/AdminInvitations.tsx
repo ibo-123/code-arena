@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Mail, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Mail, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { tokens } from "../../styles/designTokens";
+import {
+  PageHeader,
+  Button,
+  Alert,
+  AdminCard,
+  AdminEmptyState,
+  globalStyles
+} from "../../components/admin/AdminUI";
+
+import { Badge } from "../../components/ui";
+import { useAdmin } from "../../context/AdminContext";
 
 interface Invitation {
   _id: string;
@@ -21,28 +33,22 @@ interface Invitation {
 }
 
 export const AdminInvitations: React.FC = () => {
+  const { selectedTournament } = useAdmin();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "declined">("all");
-  const [tournamentId, setTournamentId] = useState("");
 
   const token = localStorage.getItem("code-arena-token");
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tid = params.get("tournamentId");
-    if (tid) {
-      setTournamentId(tid);
-      loadInvitations(tid);
-    }
-  }, []);
+  const tournamentId = selectedTournament?._id;
 
   useEffect(() => {
     if (tournamentId) {
       loadInvitations(tournamentId);
+    } else {
+      setLoading(false);
     }
-  }, [filter]);
+  }, [tournamentId, filter]);
 
   const loadInvitations = async (tId: string) => {
     try {
@@ -70,127 +76,217 @@ export const AdminInvitations: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-3 py-1 text-sm rounded-full font-medium flex items-center gap-1";
     switch (status) {
       case "ACCEPTED":
         return (
-          <span className={`${baseClasses} bg-green-100 text-green-800`}>
-            <CheckCircle className="w-4 h-4" /> Accepted
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <Badge tone="green">
+              <CheckCircle size={12} style={{ marginRight: 2 }} /> Accepted
+            </Badge>
           </span>
         );
       case "DECLINED":
         return (
-          <span className={`${baseClasses} bg-red-100 text-red-800`}>
-            <XCircle className="w-4 h-4" /> Declined
-          </span>
+          <Badge tone="red">
+            <XCircle size={12} style={{ marginRight: 2 }} /> Declined
+          </Badge>
         );
       case "PENDING":
         return (
-          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
-            <Clock className="w-4 h-4" /> Pending
-          </span>
+          <Badge tone="gold">
+            <Clock size={12} style={{ marginRight: 2 }} /> Pending
+          </Badge>
         );
       default:
-        return <span className={baseClasses}>{status}</span>;
+        return <Badge tone="muted">{status}</Badge>;
     }
   };
 
   if (!tournamentId) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
-        No tournament selected. Please select a tournament to view invitations.
+      <div style={{ padding: "24px 0" }}>
+        <PageHeader eyebrow="Invitations" title="Contest Invitations" />
+        <Alert
+          type="warning"
+          message="No tournament selected. Please select a tournament to view invitations."
+        />
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-gray-600">Loading invitations...</div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "400px",
+          color: tokens.colors.text.muted,
+        }}
+      >
+        <RefreshCw size={20} style={{ animation: "spin 1s linear infinite", marginRight: "8px" }} />
+        Loading invitations...
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Mail className="w-8 h-8 text-blue-500" />
-          Contest Invitations
-        </h1>
-        <div className="flex gap-2">
-          {(["all", "pending", "accepted", "declined"] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
+  const filterButtons: Array<"all" | "pending" | "accepted" | "declined"> = [
+    "all",
+    "pending",
+    "accepted",
+    "declined",
+  ];
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+  return (
+    <div style={{ padding: "24px 0" }}>
+      <PageHeader
+        eyebrow="Contest Invitations"
+        title="Invitation Management"
+        subtitle={`${selectedTournament.name} · ${invitations.length} invitation${invitations.length !== 1 ? "s" : ""}`}
+        actions={
+          <>
+            <div
+              style={{
+                display: "flex",
+                gap: "4px",
+                background: tokens.colors.bg.card,
+                padding: "4px",
+                borderRadius: tokens.radius.md,
+                border: `1px solid ${tokens.colors.border.subtle}`,
+              }}
+            >
+              {filterButtons.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: tokens.radius.sm,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    border: "none",
+                    background: filter === status ? tokens.gradients.brand : "transparent",
+                    color: filter === status ? "white" : tokens.colors.text.muted,
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+            <Button onClick={() => loadInvitations(tournamentId)} icon={<RefreshCw size={14} />}>
+              Refresh
+            </Button>
+          </>
+        }
+      />
+
+      {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
 
       {invitations.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <Mail className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600">No invitations found</p>
-        </div>
+        <AdminEmptyState
+          icon={<Mail size={32} color="rgba(100,181,246,0.5)" />}
+          title="No invitations found"
+          description={
+            filter === "all"
+              ? "Invitations will appear here once contests are published."
+              : `No ${filter} invitations match your current filter.`
+          }
+        />
       ) : (
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                  Participant
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Contest</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Stage</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Sent</th>
-                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">
-                  Status
-                </th>
+        <AdminCard padding="0" style={{ overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  borderBottom: `1px solid ${tokens.colors.border.subtle}`,
+                }}
+              >
+                {["Participant", "Contest", "Stage", "Sent", "Status"].map((header) => (
+                  <th
+                    key={header}
+                    style={{
+                      padding: "14px 20px",
+                      textAlign: header === "Status" ? "center" : "left",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: tokens.colors.text.muted,
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody>
               {invitations.map((invitation) => (
-                <tr key={invitation._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-3">
-                    <div className="text-sm font-medium text-gray-900">
-                      {invitation.participant?.user?.name}
+                <tr
+                  key={invitation._id}
+                  style={{
+                    borderBottom: `1px solid ${tokens.colors.border.subtle}`,
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <td style={{ padding: "14px 20px" }}>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: tokens.colors.text.primary,
+                      }}
+                    >
+                      {invitation.participant?.user?.name || "Unknown"}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      @{invitation.participant?.user?.username}
+                    <div style={{ fontSize: "12px", color: tokens.colors.text.muted }}>
+                      @{invitation.participant?.user?.username || "unknown"}
                     </div>
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-900">
+                  <td
+                    style={{
+                      padding: "14px 20px",
+                      fontSize: "13px",
+                      color: tokens.colors.text.secondary,
+                    }}
+                  >
                     {invitation.contest?.codeforcesContestName || "Unknown"}
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-700">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                      {invitation.contest?.stage}
-                    </span>
+                  <td style={{ padding: "14px 20px" }}>
+                    <Badge tone="blue">{invitation.contest?.stage || "—"}</Badge>
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-500">
+                  <td
+                    style={{
+                      padding: "14px 20px",
+                      fontSize: "13px",
+                      color: tokens.colors.text.muted,
+                    }}
+                  >
                     {new Date(invitation.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-3 text-center">{getStatusBadge(invitation.status)}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center" }}>
+                    {getStatusBadge(invitation.status)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </AdminCard>
       )}
+
+      <style>{globalStyles}</style>
     </div>
   );
 };
+
+export default AdminInvitations;
