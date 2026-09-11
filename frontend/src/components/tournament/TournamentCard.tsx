@@ -1,6 +1,6 @@
 // frontend/src/components/tournament/TournamentCard.tsx
 import { Link } from "react-router-dom";
-import { Trophy, Users, Calendar, ArrowUpRight, Zap, Target } from "lucide-react";
+import { Trophy, Users, Calendar, ArrowUpRight, Zap } from "lucide-react";
 import { StatusBadge } from "../common/StatusBadge";
 import type { Tournament } from "../../types";
 
