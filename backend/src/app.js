@@ -9,9 +9,10 @@ const adminRoutes = require('./routes/adminRoutes');
 const participantRoutes = require('./routes/participantRoutes');
 const videoRoutes = require('./routes/videoRoutes');
 const invitationRoutes = require('./routes/invitationRoutes');
-
+const dotenv = require('dotenv');
 const app = express();
 
+dotenv.config();
 // ============================================
 // CORS Configuration - FIXED for Express 5
 // ============================================
@@ -22,8 +23,8 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:8080',
   'http://127.0.0.1:3000',
-  process.env.CLIENT_URL,
-].filter(Boolean);
+  process.env.CLIENT_URL || 'https://code-arena-weld.vercel.app/',
+].filter(Boolean);  
 
 // CORS middleware - handle all requests
 app.use(cors({
