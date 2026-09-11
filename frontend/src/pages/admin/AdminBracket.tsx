@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
+import { Badge, EmptyState, LoadingState } from "../../components/ui";
 import { useAdmin } from "../../context/AdminContext";
 import {
   Trophy,
@@ -7,11 +7,7 @@ import {
   ArrowRight,
   Crown,
   Medal,
-  ChevronDown,
-  ChevronUp,
   RefreshCw,
-  CheckCircle,
-  AlertCircle,
 } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import type { Bracket, BracketMatch, Participant } from "../../types";

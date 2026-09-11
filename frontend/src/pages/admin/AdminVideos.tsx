@@ -14,7 +14,7 @@ import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../compone
 import { contestApi } from "../../services/contestApi";
 import { adminApi, type AdminContest } from "../../services/adminApi";
 import { useAdmin } from "../../context/AdminContext";
-import type { VideoSubmission, VideoStatus } from "../../types";
+import type {  VideoStatus } from "../../types";
 
 /**
  * Extended view of a VideoSubmission when the backend populates

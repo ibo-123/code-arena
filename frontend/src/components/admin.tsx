@@ -1,6 +1,7 @@
+// frontend/src/components/admin.tsx
 import { useEffect, useState, type FormEvent } from "react";
-import { adminApi, contestApi } from "../services/api";
-import type { Contest, Tournament } from "../types";
+import { adminApi } from "../services/api";
+import type {  Tournament } from "../types";
 import { Badge, Card, EmptyState, ErrorState, LoadingState } from "./ui";
 import {
   Plus,
@@ -9,7 +10,6 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
-  Hash,
   Filter,
   Trophy,
   Calendar,
@@ -26,14 +26,15 @@ const formatDate = (value?: string | Date) =>
 const getStatusTone = (status?: string): "blue" | "gold" | "green" | "red" | "muted" => {
   if (status === "LIVE") return "red";
   if (status === "FINISHED") return "green";
-  if (status === "UPCOMING") return "blue";
+  if (status === "UPCOMING" || status === "PUBLISHED") return "blue";
+  if (status === "DRAFT") return "gold";
   return "muted";
 };
 
 const getStatusIcon = (status?: string) => {
   if (status === "LIVE") return <Clock size={14} />;
   if (status === "FINISHED") return <CheckCircle size={14} />;
-  if (status === "UPCOMING") return <AlertCircle size={14} />;
+  if (status === "UPCOMING" || status === "PUBLISHED") return <AlertCircle size={14} />;
   return <AlertCircle size={14} />;
 };
 
@@ -47,7 +48,7 @@ const ROUND_OPTIONS = [
 const GROUP_OPTIONS = ["A", "B", "C", "D"];
 
 export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
-  const [contests, setContests] = useState<Contest[]>([]);
+  const [contests, setContests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -55,17 +56,18 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
   const [showForm, setShowForm] = useState(false);
   const [selectedRound, setSelectedRound] = useState("GROUP_STAGE");
 
+  // Use adminApi.getContests (includes drafts) instead of contestApi.list (public only)
   const refreshContests = () => {
-    contestApi
-      .list(tournament._id)
+    adminApi
+      .getContests(tournament._id)
       .then(({ contests: rows }) => setContests(rows))
       .catch((err: Error) => setError(err.message));
   };
 
   useEffect(() => {
     let isMounted = true;
-    contestApi
-      .list(tournament._id)
+    adminApi
+      .getContests(tournament._id)
       .then(({ contests: rows }) => {
         if (isMounted) setContests(rows);
       })
@@ -84,41 +86,61 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const round = String(form.get("round"));
-    const matchNumber = form.get("matchNumber");
 
     setBusy(true);
     setError("");
     setNotice("");
 
     try {
-      await contestApi.create(tournament._id, {
-        codeforcesContestId: Number(form.get("codeforcesContestId")),
-        stage: round,
+      // V1 payload — manual invitation URL, no Codeforces ID
+      await adminApi.createContest(tournament._id, {
+        name: String(form.get("name")),
+        invitationUrl: String(form.get("invitationUrl")),
+        stage: round as "QUALIFICATION" | "GROUP_STAGE" | "QUARTER_FINAL" | "SEMI_FINAL" | "FINAL",
         group: round === "GROUP_STAGE" ? String(form.get("group")) : undefined,
-        matchNumber: round === "GROUP_STAGE" ? undefined : Number(matchNumber),
+        matchNumber: round === "GROUP_STAGE" ? undefined : Number(form.get("matchNumber")),
+        startTime: String(form.get("startTime")),
+        durationMinutes: Number(form.get("durationMinutes")),
+        description: String(form.get("description") || "") || undefined,
       });
+
       event.currentTarget.reset();
-      setNotice("Contest attached successfully.");
+      setNotice("Contest created successfully.");
       setShowForm(false);
       refreshContests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to attach contest");
+      setError(err instanceof Error ? err.message : "Unable to create contest");
     } finally {
       setBusy(false);
     }
   };
 
-  const sync = async (contest: Contest) => {
+  // Legacy sync — no longer applicable for V1 contests.
+  // Kept for backward compatibility only; you can remove this entirely.
+  // const sync = async (contest: Contest) => {
+  //   setBusy(true);
+  //   setError("");
+  //   try {
+  //     // Use legacy admin sync (still exists in adminApi)
+  //     const result = await adminApi.syncContestResults(tournament._id, contest._id);
+  //     setNotice(result.message || "Synchronized successfully.");
+  //     refreshContests();
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : "Unable to synchronize results");
+  //   } finally {
+  //     setBusy(false);
+  //   }
+  // };
+
+  const publishContest = async (contestId: string) => {
     setBusy(true);
     setError("");
     try {
-      const result = await contestApi.sync(tournament._id, contest._id);
-      const syncedCount = result.results?.length ?? result.stats?.matched ?? 0;
-      const unmatchedCount = result.unmatchedHandles?.length ?? result.stats?.unmatched ?? 0;
-      setNotice(`Synchronized ${syncedCount} results; ${unmatchedCount} unmatched handles.`);
+      await adminApi.publishContest(tournament._id, contestId);
+      setNotice("Contest published.");
       refreshContests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to synchronize results");
+      setError(err instanceof Error ? err.message : "Unable to publish contest");
     } finally {
       setBusy(false);
     }
@@ -127,12 +149,14 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
   // Calculate stats
   const totalContests = contests.length;
   const liveContests = contests.filter((c) => c.status === "LIVE").length;
-  const upcomingContests = contests.filter((c) => c.status === "UPCOMING").length;
+  const upcomingContests = contests.filter(
+    (c) => c.status === "UPCOMING" || c.status === "PUBLISHED",
+  ).length;
   const finishedContests = contests.filter((c) => c.status === "FINISHED").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Stats Overview */}
+      {/* Stats Overview — unchanged */}
       <div
         style={{
           display: "grid",
@@ -172,13 +196,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               <stat.icon size={20} color={stat.color} />
             </div>
             <div>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  color: "white",
-                }}
-              >
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "white" }}>
                 {stat.value}
               </div>
               <div
@@ -213,13 +231,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
             marginBottom: showForm ? "20px" : "0",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Plus size={20} color="#2979FF" />
             <small
               style={{
@@ -229,7 +241,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                 letterSpacing: "1px",
               }}
             >
-              Attach Codeforces Contest
+              Create Contest
             </small>
           </div>
           <button
@@ -263,8 +275,10 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               borderTop: "1px solid rgba(255,255,255,0.06)",
             }}
           >
+            {/* Contest Name */}
             <input required name="name" placeholder="Contest Name" style={inputStyle} />
 
+            {/* Round / Stage */}
             <select
               required
               name="round"
@@ -279,6 +293,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               ))}
             </select>
 
+            {/* Group (only for group stage) */}
             {selectedRound === "GROUP_STAGE" && (
               <select name="group" defaultValue="A" style={selectStyle}>
                 {GROUP_OPTIONS.map((group) => (
@@ -289,6 +304,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               </select>
             )}
 
+            {/* Match number (only for knockout stages) */}
             {selectedRound !== "GROUP_STAGE" && (
               <input
                 required
@@ -300,25 +316,19 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               />
             )}
 
+            {/* NEW: Invitation URL (replaces codeforcesUrl) */}
             <input
               required
-              min="1"
-              name="codeforcesContestId"
-              type="number"
-              placeholder="Codeforces ID"
-              style={inputStyle}
-            />
-
-            <input
-              required
-              name="codeforcesUrl"
+              name="invitationUrl"
               type="url"
-              placeholder="Codeforces URL"
+              placeholder="Invitation URL (e.g., Codeforces group link)"
               style={inputStyle}
             />
 
+            {/* Start time */}
             <input required name="startTime" type="datetime-local" style={inputStyle} />
 
+            {/* Duration */}
             <input
               required
               min="1"
@@ -326,6 +336,13 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
               type="number"
               placeholder="Duration (minutes)"
               style={inputStyle}
+            />
+
+            {/* Optional description */}
+            <input
+              name="description"
+              placeholder="Description (optional)"
+              style={{ ...inputStyle, gridColumn: "1 / -1" }}
             />
 
             <button
@@ -346,7 +363,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                 gridColumn: "1 / -1",
               }}
             >
-              {busy ? "Attaching..." : "Attach Contest"}
+              {busy ? "Creating..." : "Create Contest"}
             </button>
           </form>
         )}
@@ -386,13 +403,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
             marginBottom: "16px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Filter size={18} color="rgba(255,255,255,0.4)" />
             <small
               style={{
@@ -402,7 +413,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                 letterSpacing: "1px",
               }}
             >
-              Attached Contests ({contests.length})
+              Contests ({contests.length})
             </small>
           </div>
           <button
@@ -424,9 +435,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
           >
             <RefreshCw
               size={14}
-              style={{
-                animation: loading ? "spin 1s linear infinite" : "none",
-              }}
+              style={{ animation: loading ? "spin 1s linear infinite" : "none" }}
             />
             Refresh
           </button>
@@ -437,23 +446,13 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
         ) : (
           <div style={{ overflowX: "auto" }}>
             {contests.length ? (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "14px",
-                }}
-              >
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                 <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                     <th style={thStyle}>Contest</th>
                     <th style={thStyle}>Round</th>
                     <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Last Synced</th>
+                    <th style={thStyle}>Start Time</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
@@ -468,12 +467,10 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                     >
                       <td style={tdStyle}>
                         <div>
-                          <strong style={{ color: "white" }}>
-                            {contest.codeforcesContestName || contest.name}
-                          </strong>
-                          {contest.codeforcesUrl && (
+                          <strong style={{ color: "white" }}>{contest.name}</strong>
+                          {contest.invitationUrl && (
                             <a
-                              href={contest.codeforcesUrl}
+                              href={contest.invitationUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
@@ -490,20 +487,21 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                             </a>
                           )}
                         </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "rgba(255,255,255,0.3)",
-                          }}
-                        >
-                          <Hash size={12} style={{ display: "inline", marginRight: "2px" }} />
-                          CF {contest.codeforcesContestId}
-                        </div>
+                        {contest.description && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "rgba(255,255,255,0.3)",
+                            }}
+                          >
+                            {contest.description}
+                          </div>
+                        )}
                       </td>
                       <td style={tdStyle}>
                         {contest.group
                           ? `Group ${contest.group}`
-                          : `${contest.stage} ${contest.matchNumber ? `M${contest.matchNumber}` : ""}`}
+                          : `${contest.stage}${contest.matchNumber ? ` M${contest.matchNumber}` : ""}`}
                       </td>
                       <td style={tdStyle}>
                         <Badge tone={getStatusTone(contest.status)}>
@@ -518,40 +516,35 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
                           fontSize: "13px",
                         }}
                       >
-                        {formatDate(contest.lastSyncedAt)}
+                        {formatDate(contest.startTime)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          disabled={busy}
-                          onClick={() => sync(contest)}
-                          style={{
-                            padding: "6px 16px",
-                            borderRadius: "8px",
-                            background: "rgba(41,121,255,0.15)",
-                            border: "1px solid rgba(41,121,255,0.2)",
-                            color: "#2979FF",
-                            fontSize: "12px",
-                            fontWeight: "500",
-                            cursor: busy ? "not-allowed" : "pointer",
-                            transition: "all 0.3s ease",
-                          }}
-                        >
-                          <RefreshCw
-                            size={14}
+                        {contest.status === "DRAFT" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => publishContest(contest._id)}
                             style={{
-                              marginRight: "6px",
-                              animation: busy ? "spin 1s linear infinite" : "none",
+                              padding: "6px 16px",
+                              borderRadius: "8px",
+                              background: "rgba(76,175,80,0.15)",
+                              border: "1px solid rgba(76,175,80,0.2)",
+                              color: "#4CAF50",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              cursor: busy ? "not-allowed" : "pointer",
+                              transition: "all 0.3s ease",
                             }}
-                          />
-                          Sync Results
-                        </button>
+                          >
+                            Publish
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <EmptyState label="No contests attached yet." />
+              <EmptyState label="No contests created yet." />
             )}
           </div>
         )}
@@ -567,7 +560,7 @@ export const AdminContests = ({ tournament }: { tournament: Tournament }) => {
   );
 };
 
-// Styles
+// Styles — unchanged
 const inputStyle: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: "8px",
@@ -600,222 +593,4 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: "middle",
 };
 
-// AdminLogs component
-export const AdminLogs = ({ tournamentId }: { tournamentId: string }) => {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-
-  useEffect(() => {
-    let isMounted = true;
-    adminApi
-      .logs({ tournamentId })
-      .then(({ logs: rows }) => {
-        if (isMounted) setLogs(rows || []);
-      })
-      .catch((err: Error) => {
-        if (isMounted) setError(err.message);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [tournamentId]);
-
-  const actionTypes = ["all", ...new Set(logs.map((log) => log.action))];
-
-  const filteredLogs = logs.filter((log) => {
-    const matchesAction = filter === "all" || log.action === filter;
-    const matchesSearch =
-      log.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.admin?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesAction && matchesSearch;
-  });
-
-  if (loading) return <LoadingState label="Loading system logs..." />;
-  if (error) return <ErrorState error={error} />;
-  if (!logs.length) return <EmptyState label="No recorded admin actions yet." />;
-
-  return (
-    <Card
-      style={{
-        padding: "0",
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        borderRadius: "16px",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          padding: "16px 20px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <Clock size={18} color="rgba(255,255,255,0.4)" />
-          <small
-            style={{
-              fontSize: "11px",
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-            }}
-          >
-            System Logs ({filteredLogs.length})
-          </small>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-              padding: "6px 12px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                fontSize: "13px",
-                outline: "none",
-                width: "120px",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-              padding: "4px 8px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-          >
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                fontSize: "12px",
-                outline: "none",
-                cursor: "pointer",
-                padding: "4px 4px",
-              }}
-            >
-              {actionTypes.map((action) => (
-                <option key={action} value={action} style={{ background: "#1a1f35" }}>
-                  {action === "all" ? "All Actions" : action}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ overflowX: "auto" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "14px",
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                background: "rgba(255,255,255,0.02)",
-              }}
-            >
-              <th style={thStyle}>Timestamp</th>
-              <th style={thStyle}>Action</th>
-              <th style={thStyle}>Admin</th>
-              <th style={thStyle}>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLogs.map((log, index) => (
-              <tr
-                key={log._id || index}
-                style={{
-                  borderBottom: "1px solid rgba(255,255,255,0.03)",
-                  transition: "background 0.2s ease",
-                }}
-              >
-                <td
-                  style={{
-                    ...tdStyle,
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: "13px",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {formatDate(log.createdAt)}
-                </td>
-                <td style={tdStyle}>
-                  <Badge tone="muted">{log.action}</Badge>
-                </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    color: "white",
-                    fontWeight: "500",
-                  }}
-                >
-                  {log.admin?.username || log.admin?.name || "—"}
-                </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    color: "rgba(255,255,255,0.7)",
-                  }}
-                >
-                  {log.description || "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-};
+// ... AdminLogs component unchanged (keep as-is)

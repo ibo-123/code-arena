@@ -13,12 +13,11 @@ import {
   AlertCircle,
   CheckCircle,
   Users,
-  Layers,
   X,
   Sparkles,
   Info,
 } from "lucide-react";
-import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
+import { Badge, Card, ErrorState, LoadingState } from "../../components/ui";
 import { adminApi, type AdminContest, type ContestPayload } from "../../services/adminApi";
 import { useAdmin } from "../../context/AdminContext";
 

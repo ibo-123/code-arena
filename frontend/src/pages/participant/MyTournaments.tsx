@@ -9,9 +9,6 @@ import {
   Swords,
   Zap,
   Target,
-  Clock,
-  CheckCircle2,
-  XCircle,
   Award,
   ArrowRight,
   Filter,
@@ -83,22 +80,6 @@ export const MyTournaments = () => {
     completed: tournaments.filter((t) => t.status === "COMPLETED").length,
   };
 
-  const getStatusIcon = (participant?: Participant) => {
-    if (!participant) return Clock;
-    const status = participant.registrationStatus || participant.status;
-    switch (status) {
-      case "APPROVED":
-      case "ADVANCED":
-      case "CHAMPION":
-        return CheckCircle2;
-      case "REJECTED":
-      case "ELIMINATED":
-        return XCircle;
-      default:
-        return Clock;
-    }
-  };
-
   return (
     <div className="my-tournaments">
       {/* Header */}
@@ -146,7 +127,6 @@ export const MyTournaments = () => {
             <div className="tournaments-list">
               {filteredTournaments.map((t) => {
                 const p = participants[t._id];
-                const StatusIcon = getStatusIcon(p);
                 const isActive = t.status !== "COMPLETED" && t.status !== "CANCELLED";
 
                 return (
