@@ -1,0 +1,155 @@
+/* ============================================
+   Public Layout
+   ============================================ */
+
+.public-layout {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background:
+                radial-gradient(ellipse at top, rgba(41, 121, 255, 0.06), transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(156, 39, 176, 0.05), transparent 50%),
+                #080a14;
+        color: var(--text-primary, #f4f4f5);
+        isolation: isolate;
+}
+
+/* ---- Ambient grid ----------------------------------------------------- */
+
+.public-layout__grid {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-image:
+                linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+        background-size: 60px 60px;
+        mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+        -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+
+/* ---- Skip link -------------------------------------------------------- */
+
+.public-skip-link {
+        position: absolute;
+        top: -100px;
+        left: 1rem;
+        z-index: 100;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+        background: #a855f7;
+        text-decoration: none;
+        transition: top 0.2s ease;
+}
+
+.public-skip-link:focus {
+        top: 1rem;
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+}
+
+/* ---- Main ------------------------------------------------------------- */
+
+.public-main {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        width: 100%;
+}
+
+/* ---- Footer ----------------------------------------------------------- */
+
+.public-footer {
+        position: relative;
+        z-index: 1;
+        margin-top: auto;
+        padding: 2rem 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(8, 10, 20, 0.6);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+}
+
+.public-footer__inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+        max-width: 1200px;
+        margin: 0 auto;
+}
+
+.public-footer__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--text-primary, #f4f4f5);
+}
+
+.public-footer__brand-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, #7c3aed, #a855f7);
+}
+
+.public-footer__nav {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+}
+
+.public-footer__nav a {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-muted, #a1a1aa);
+        text-decoration: none;
+        transition: color 0.15s ease;
+}
+
+.public-footer__nav a:hover {
+        color: #a855f7;
+}
+
+.public-footer__copy {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--text-muted, #a1a1aa);
+}
+
+/* ---- Responsive ------------------------------------------------------- */
+
+@media (max-width: 640px) {
+        .public-footer__inner {
+                flex-direction: column;
+                align-items: flex-start;
+                text-align: left;
+        }
+
+        .public-footer__nav {
+                gap: 1rem;
+        }
+}
+
+/* ---- Reduced motion --------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+
+        .public-skip-link,
+        .public-footer__nav a {
+                transition: none;
+        }
+}

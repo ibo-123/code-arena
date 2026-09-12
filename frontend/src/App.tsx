@@ -1,134 +1,212 @@
 // frontend/src/App.tsx
+import { lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { AdminProvider } from "./context/AdminContext";
 
-// Layouts
+// Layouts (eagerly loaded — they wrap everything)
 import { PublicLayout } from "./layouts/PublicLayout";
 import { ParticipantLayout } from "./layouts/ParticipantLayout";
 import AdminLayout from "./layouts/AdminLayout";
 
-// Public Pages
-import { Home } from "./pages/public/Home";
-import Tournaments from "./pages/public/Tournaments";
-import { TournamentDetails } from "./pages/public/TournamentDetails";
-import { Bracket } from "./pages/public/Bracket";
-import { Login } from "./pages/auth/Login";
-import { Register } from "./pages/auth/Register";
-
-// Participant Pages
-import ParticipantDashboard from "./pages/participant/Dashboard";
-import MyTournaments from "./pages/participant/MyTournaments";
-import ParticipantTournament from "./pages/participant/ParticipantTournament";
-import { ContestDetails } from "./pages/participant/ContestDetails";
-import Standings from "./pages/participant/Standings";
-import Invitations from "./pages/participant/Invitations";
-import Profile from "./pages/participant/Profile";
-
-// Admin Pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminTournaments from "./pages/admin/AdminTournaments";
-import AdminTournamentDetail from "./pages/admin/AdminTournamentDetail";
-import CreateTournament from "./pages/admin/CreateTournament";
-import EditTournament from "./pages/admin/EditTournament";
-import { AdminParticipants } from "./pages/admin/AdminParticipants";
-import { AdminGroups } from "./pages/admin/AdminGroups";
-import { AdminContests } from "./pages/admin/AdminContests";
-import { AdminInvitations } from "./pages/admin/AdminInvitations";
-import { AdminVideos } from "./pages/admin/AdminVideos";
-import { AdminStandings } from "./pages/admin/AdminStandings";
-import { AdminBracket } from "./pages/admin/AdminBracket";
-import { AdminMatches } from "./pages/admin/AdminMatches";
-import { AdminLogs } from "./pages/admin/AdminLogs";
-import { AdminSettings } from "./pages/admin/AdminSettings";
-
-// Route Guards
+// Route guards (small, eagerly loaded)
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
+
+// Shared fallbacks
+import { ErrorState } from "./components/common";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+
+// ============================================================
+// Lazy-loaded pages
+// ============================================================
+
+// Public
+const Home = lazy(() => import("./pages/public/Home"));
+const Tournaments = lazy(() => import("./pages/public/Tournaments"));
+const TournamentDetails = lazy(() =>
+  import("./pages/public/TournamentDetails").then((m) => ({
+    default: m.TournamentDetails,
+  })),
+);
+const Bracket = lazy(() => import("./pages/public/Bracket").then((m) => ({ default: m.Bracket })));
+const Login = lazy(() => import("./pages/auth/Login").then((m) => ({ default: m.Login })));
+const Register = lazy(() => import("./pages/auth/Register").then((m) => ({ default: m.Register })));
+
+// Participant — top-level
+const ParticipantDashboard = lazy(() => import("./pages/participant/Dashboard"));
+const MyTournaments = lazy(() => import("./pages/participant/MyTournaments"));
+const ParticipantTournament = lazy(() => import("./pages/participant/ParticipantTournament"));
+const ContestDetails = lazy(() =>
+  import("./pages/participant/ContestDetails").then((m) => ({
+    default: m.ContestDetails,
+  })),
+);
+const Standings = lazy(() => import("./pages/participant/Standings"));
+const Invitations = lazy(() => import("./pages/participant/Invitations"));
+const Profile = lazy(() => import("./pages/participant/Profile"));
+
+// Admin
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminTournaments = lazy(() => import("./pages/admin/AdminTournaments"));
+const AdminTournamentDetail = lazy(() => import("./pages/admin/AdminTournamentDetail"));
+const CreateTournament = lazy(() => import("./pages/admin/CreateTournament"));
+const EditTournament = lazy(() => import("./pages/admin/EditTournament"));
+const AdminParticipants = lazy(() =>
+  import("./pages/admin/AdminParticipants").then((m) => ({
+    default: m.AdminParticipants,
+  })),
+);
+const AdminGroups = lazy(() =>
+  import("./pages/admin/AdminGroups").then((m) => ({
+    default: m.AdminGroups,
+  })),
+);
+const AdminContests = lazy(() =>
+  import("./pages/admin/AdminContests").then((m) => ({
+    default: m.AdminContests,
+  })),
+);
+const AdminInvitations = lazy(() =>
+  import("./pages/admin/AdminInvitations").then((m) => ({
+    default: m.AdminInvitations,
+  })),
+);
+const AdminVideos = lazy(() =>
+  import("./pages/admin/AdminVideos").then((m) => ({
+    default: m.AdminVideos,
+  })),
+);
+const AdminStandings = lazy(() =>
+  import("./pages/admin/AdminStandings").then((m) => ({
+    default: m.AdminStandings,
+  })),
+);
+const AdminBracket = lazy(() =>
+  import("./pages/admin/AdminBracket").then((m) => ({
+    default: m.AdminBracket,
+  })),
+);
+const AdminMatches = lazy(() =>
+  import("./pages/admin/AdminMatches").then((m) => ({
+    default: m.AdminMatches,
+  })),
+);
+const AdminLogs = lazy(() =>
+  import("./pages/admin/AdminLogs").then((m) => ({ default: m.AdminLogs })),
+);
+const AdminSettings = lazy(() =>
+  import("./pages/admin/AdminSettings").then((m) => ({
+    default: m.AdminSettings,
+  })),
+);
+
+// ============================================================
+// Wrappers
+// ============================================================
+
+const AdminShell = () => (
+  <AdminProvider>
+    <AdminLayout />
+  </AdminProvider>
+);
+
+// ============================================================
+// App
+// ============================================================
 
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          {/* ============================================================
-              PUBLIC ROUTES
-          ============================================================ */}
-          <Route element={<PublicLayout />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/tournaments" element={<Tournaments />} />
-            <Route path="/tournaments/:id" element={<TournamentDetails />} />
-            <Route path="/tournaments/:id/bracket" element={<Bracket />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-          </Route>
+      <ErrorBoundary fallback={<ErrorState error="Something went wrong." />}>
+        <AuthProvider>
+          <ScrollToTop />
 
-          {/* ============================================================
-              PARTICIPANT ROUTES
-          ============================================================ */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<ParticipantLayout />}>
-              <Route path="/dashboard" element={<ParticipantDashboard />} />
-              <Route path="/dashboard/tournaments" element={<MyTournaments />} />
-              <Route path="/dashboard/tournaments/:id" element={<ParticipantTournament />} />
-              <Route
-                path="/dashboard/tournaments/:id/contests/:contestId"
-                element={<ContestDetails />}
-              />
-              <Route path="/dashboard/standings" element={<Standings />} />
-              <Route path="/dashboard/invitations" element={<Invitations />} />
-              <Route path="/dashboard/profile" element={<Profile />} />
+          <Routes>
+            {/* ==========================================================
+                PUBLIC
+            ========================================================== */}
+            <Route element={<PublicLayout />}>
+              <Route index element={<Home />} />
+              <Route path="tournaments" element={<Tournaments />} />
+              <Route path="tournaments/:id" element={<TournamentDetails />} />
+              <Route path="tournaments/:id/bracket" element={<Bracket />} />
+              <Route path="login" element={<Login />} />
+              <Route path="register" element={<Register />} />
             </Route>
-          </Route>
 
-          {/* ============================================================
-              ADMIN ROUTES — wrapped in AdminProvider + AdminLayout
-          ============================================================ */}
-          <Route element={<AdminRoute />}>
-            <Route
-              element={
-                <AdminProvider>
-                  <AdminLayout />
-                </AdminProvider>
-              }
-            >
-              {/* Dashboard */}
-              <Route path="/admin" element={<AdminDashboard />} />
+            {/* ==========================================================
+                PARTICIPANT
+            ========================================================== */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<ParticipantLayout />}>
+                <Route path="dashboard" element={<ParticipantDashboard />} />
+                <Route path="dashboard/tournaments" element={<MyTournaments />} />
 
-              {/* Tournament list + CRUD */}
-              <Route path="/admin/tournaments" element={<AdminTournaments />} />
-              <Route path="/admin/tournaments/create" element={<CreateTournament />} />
-              <Route path="/admin/tournaments/:id" element={<AdminTournamentDetail />} />
-              <Route path="/admin/tournaments/:id/edit" element={<EditTournament />} />
+                {/* Tournament detail + nested standings tab */}
+                <Route path="dashboard/tournaments/:id" element={<ParticipantTournament />}>
+                  <Route path="standings" element={<Standings />} />
+                </Route>
 
-              {/* Top-level Admin pages (sidebar links) */}
-              <Route path="/admin/contests" element={<AdminContests />} />
-              <Route path="/admin/participants" element={<AdminParticipants />} />
-              <Route path="/admin/groups" element={<AdminGroups />} />
-              <Route path="/admin/standings" element={<AdminStandings />} />
-              <Route path="/admin/bracket" element={<AdminBracket />} />
-              <Route path="/admin/matches" element={<AdminMatches />} />
-              <Route path="/admin/videos" element={<AdminVideos />} />
-              <Route path="/admin/invitations" element={<AdminInvitations />} />
-              <Route path="/admin/logs" element={<AdminLogs />} />
-              <Route path="/admin/settings" element={<AdminSettings />} />
+                {/* Contest detail under a specific tournament */}
+                <Route
+                  path="dashboard/tournaments/:id/contests/:contestId"
+                  element={<ContestDetails />}
+                />
 
-              {/* Tournament-scoped detail tabs (kept for AdminTournamentDetail) */}
-              <Route path="/admin/tournaments/:id/participants" element={<AdminParticipants />} />
-              <Route path="/admin/tournaments/:id/groups" element={<AdminGroups />} />
-              <Route path="/admin/tournaments/:id/contests" element={<AdminContests />} />
-              <Route path="/admin/tournaments/:id/invitations" element={<AdminInvitations />} />
-              <Route path="/admin/tournaments/:id/videos" element={<AdminVideos />} />
-              <Route path="/admin/tournaments/:id/standings" element={<AdminStandings />} />
-              <Route path="/admin/tournaments/:id/bracket" element={<AdminBracket />} />
-              <Route path="/admin/tournaments/:id/matches" element={<AdminMatches />} />
+                {/* Standalone participant pages */}
+                <Route path="dashboard/standings" element={<Standings />} />
+                <Route path="dashboard/invitations" element={<Invitations />} />
+                <Route path="dashboard/profile" element={<Profile />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+            {/* ==========================================================
+                ADMIN
+            ========================================================== */}
+            <Route element={<AdminRoute />}>
+              <Route element={<AdminShell />}>
+                {/* Dashboard */}
+                <Route path="admin" element={<AdminDashboard />} />
+
+                {/* Tournaments CRUD */}
+                <Route path="admin/tournaments" element={<AdminTournaments />} />
+                <Route path="admin/tournaments/create" element={<CreateTournament />} />
+                <Route path="admin/tournaments/:id" element={<AdminTournamentDetail />} />
+                <Route path="admin/tournaments/:id/edit" element={<EditTournament />} />
+
+                {/* Top-level admin pages */}
+                <Route path="admin/contests" element={<AdminContests />} />
+                <Route path="admin/participants" element={<AdminParticipants />} />
+                <Route path="admin/groups" element={<AdminGroups />} />
+                <Route path="admin/standings" element={<AdminStandings />} />
+                <Route path="admin/bracket" element={<AdminBracket />} />
+                <Route path="admin/matches" element={<AdminMatches />} />
+                <Route path="admin/videos" element={<AdminVideos />} />
+                <Route path="admin/invitations" element={<AdminInvitations />} />
+                <Route path="admin/logs" element={<AdminLogs />} />
+                <Route path="admin/settings" element={<AdminSettings />} />
+
+                {/* Tournament-scoped tabs */}
+                <Route path="admin/tournaments/:id/participants" element={<AdminParticipants />} />
+                <Route path="admin/tournaments/:id/groups" element={<AdminGroups />} />
+                <Route path="admin/tournaments/:id/contests" element={<AdminContests />} />
+                <Route path="admin/tournaments/:id/invitations" element={<AdminInvitations />} />
+                <Route path="admin/tournaments/:id/videos" element={<AdminVideos />} />
+                <Route path="admin/tournaments/:id/standings" element={<AdminStandings />} />
+                <Route path="admin/tournaments/:id/bracket" element={<AdminBracket />} />
+                <Route path="admin/tournaments/:id/matches" element={<AdminMatches />} />
+              </Route>
+            </Route>
+
+            {/* ==========================================================
+                FALLBACK
+            ========================================================== */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

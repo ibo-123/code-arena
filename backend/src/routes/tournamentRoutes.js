@@ -25,16 +25,48 @@ router.get(
   tournamentController.getTournaments
 );
 
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATED PARTICIPANT ROUTES
+|--------------------------------------------------------------------------
+| NOTE: this MUST be registered before "/:id" so that "my-tournaments"
+| isn't treated as a tournament id.
+*/
+
+/**
+ * GET /api/tournaments/my-tournaments
+ * Get tournaments the current user is registered in.
+ */
+router.get(
+  '/my-tournaments',
+  authenticate,
+  tournamentController.getMyTournaments
+);
+
+/*
+|--------------------------------------------------------------------------
+| SPECIFIC TOURNAMENT SUB-RESOURCES
+|--------------------------------------------------------------------------
+| These also must come BEFORE "/:id".
+*/
+
 /**
  * GET /api/tournaments/:tournamentId/participants
  * Get tournament participants
- *
- * IMPORTANT:
- * This must come BEFORE /:id.
  */
 router.get(
   '/:tournamentId/participants',
   tournamentController.getParticipants
+);
+
+/**
+ * GET /api/tournaments/:tournamentId/my-status
+ * Get the current user's participant record for a tournament.
+ */
+router.get(
+  '/:tournamentId/my-status',
+  authenticate,
+  tournamentController.getMyStatus
 );
 
 /**
@@ -65,23 +97,6 @@ router.get(
 );
 
 /**
- * GET /api/tournaments/:id
- * Get single tournament
- *
- * Keep this AFTER the more specific routes above.
- */
-router.get(
-  '/:id',
-  tournamentController.getTournament
-);
-
-/*
-|--------------------------------------------------------------------------
-| AUTHENTICATED PARTICIPANT ROUTES
-|--------------------------------------------------------------------------
-*/
-
-/**
  * POST /api/tournaments/:tournamentId/join
  * Join a tournament
  */
@@ -100,6 +115,21 @@ router.patch(
   authenticate,
   authorize('ADMIN'),
   tournamentController.updateTournament
+);
+
+/*
+|--------------------------------------------------------------------------
+| SINGLE TOURNAMENT — MUST BE LAST AMONG GET ROUTES
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /api/tournaments/:id
+ * Get single tournament
+ */
+router.get(
+  '/:id',
+  tournamentController.getTournament
 );
 
 /*
@@ -133,17 +163,6 @@ router.post(
 /**
  * POST /api/tournaments/:tournamentId/advance
  * Advance tournament to the next stage.
- *
- * Body:
- * {
- *   "stage": "group-stage"
- * }
- *
- * Supported:
- * group-stage
- * qf
- * sf
- * complete
  */
 router.post(
   '/:tournamentId/advance',

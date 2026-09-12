@@ -1,4 +1,3 @@
-
 // src/controllers/tournamentController.js
 
 const Tournament = require("../models/Tournament");
@@ -121,8 +120,6 @@ const createTournament = async (req, res) => {
 
     // ----------------------------------------------------------
     // DATE ORDER VALIDATION
-    //
-    // Only compare dates when both dates involved are valid.
     // ----------------------------------------------------------
     if (regStartValid && regEndValid) {
       if (regStart >= regEnd) {
@@ -164,38 +161,30 @@ const createTournament = async (req, res) => {
         tournamentStart,
         tournamentEnd,
       },
-
       parsed: {
         registrationStart: regStartValid
           ? regStart.toISOString()
           : "INVALID",
-
         registrationEnd: regEndValid
           ? regEnd.toISOString()
           : "INVALID",
-
         tournamentStart: tournStartValid
           ? tournStart.toISOString()
           : "INVALID",
-
         tournamentEnd: tournEndValid
           ? tournEnd.toISOString()
           : "INVALID",
       },
-
       timestamps: {
         registrationStart: regStartValid
           ? regStart.getTime()
           : null,
-
         registrationEnd: regEndValid
           ? regEnd.getTime()
           : null,
-
         tournamentStart: tournStartValid
           ? tournStart.getTime()
           : null,
-
         tournamentEnd: tournEndValid
           ? tournEnd.getTime()
           : null,
@@ -251,8 +240,8 @@ const createTournament = async (req, res) => {
 
     const participantsPerGroupNum =
       participantsPerGroup !== undefined &&
-      participantsPerGroup !== null &&
-      participantsPerGroup !== ""
+        participantsPerGroup !== null &&
+        participantsPerGroup !== ""
         ? Number(participantsPerGroup)
         : calculatedParticipantsPerGroup;
 
@@ -452,29 +441,29 @@ const validateTournamentPayload = (
       payload.registrationStart !== undefined
         ? new Date(payload.registrationStart)
         : existingTournament
-        ? new Date(existingTournament.registrationStart)
-        : null;
+          ? new Date(existingTournament.registrationStart)
+          : null;
 
     const regEnd =
       payload.registrationEnd !== undefined
         ? new Date(payload.registrationEnd)
         : existingTournament
-        ? new Date(existingTournament.registrationEnd)
-        : null;
+          ? new Date(existingTournament.registrationEnd)
+          : null;
 
     const tournStart =
       payload.tournamentStart !== undefined
         ? new Date(payload.tournamentStart)
         : existingTournament
-        ? new Date(existingTournament.tournamentStart)
-        : null;
+          ? new Date(existingTournament.tournamentStart)
+          : null;
 
     const tournEnd =
       payload.tournamentEnd !== undefined
         ? new Date(payload.tournamentEnd)
         : existingTournament
-        ? new Date(existingTournament.tournamentEnd)
-        : null;
+          ? new Date(existingTournament.tournamentEnd)
+          : null;
 
     const regStartValid =
       regStart && !isNaN(regStart.getTime());
@@ -570,15 +559,15 @@ const validateTournamentPayload = (
       payload.maxParticipants !== undefined
         ? Number(payload.maxParticipants)
         : Number(
-            existingTournament?.maxParticipants || 20
-          );
+          existingTournament?.maxParticipants || 20
+        );
 
     const numGroups =
       payload.numberOfGroups !== undefined
         ? Number(payload.numberOfGroups)
         : Number(
-            existingTournament?.numberOfGroups || 4
-          );
+          existingTournament?.numberOfGroups || 4
+        );
 
     if (
       maxPart > 0 &&
@@ -605,22 +594,22 @@ const validateTournamentPayload = (
       payload.qualifiersPerGroup !== undefined
         ? Number(payload.qualifiersPerGroup)
         : Number(
-            existingTournament?.qualifiersPerGroup || 2
-          );
+          existingTournament?.qualifiersPerGroup || 2
+        );
 
     const maxPart =
       payload.maxParticipants !== undefined
         ? Number(payload.maxParticipants)
         : Number(
-            existingTournament?.maxParticipants || 20
-          );
+          existingTournament?.maxParticipants || 20
+        );
 
     const numGroups =
       payload.numberOfGroups !== undefined
         ? Number(payload.numberOfGroups)
         : Number(
-            existingTournament?.numberOfGroups || 4
-          );
+          existingTournament?.numberOfGroups || 4
+        );
 
     const partPerGroup =
       numGroups > 0 ? maxPart / numGroups : 0;
@@ -908,6 +897,111 @@ const getTournament = async (req, res) => {
 };
 
 // ============================================================
+// GET MY TOURNAMENTS (current authenticated participant)
+// ============================================================
+const getMyTournaments = async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const rows = await Participant.find({
+      user: userId,
+    })
+      .populate("tournamentId")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Shape each row so the frontend gets:
+    //   { ...participant, tournament: <populated Tournament> }
+    const tournaments = rows
+      .filter((r) => r.tournamentId)
+      .map((r) => {
+        const { tournamentId, ...participant } = r;
+        return {
+          ...participant,
+          tournament: tournamentId,
+        };
+      });
+
+    return res.status(200).json({
+      success: true,
+      count: tournaments.length,
+      tournaments,
+    });
+  } catch (error) {
+    console.error(
+      "Get my tournaments error:",
+      error
+    );
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ============================================================
+// GET MY STATUS (current user's participant row for a tournament)
+// ============================================================
+const getMyStatus = async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const tournamentId =
+      req.params.tournamentId || req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const participant = await Participant.findOne({
+      tournamentId,
+      user: userId,
+    })
+      .populate("user", "name username email")
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      participant: participant || null,
+    });
+  } catch (error) {
+    console.error(
+      "Get my status error:",
+      error
+    );
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid tournament ID",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ============================================================
 // JOIN TOURNAMENT
 // ============================================================
 const joinTournament = async (req, res) => {
@@ -951,46 +1045,36 @@ const joinTournament = async (req, res) => {
     const registrationStart =
       tournament.registrationStart
         ? new Date(
-            tournament.registrationStart
-          )
+          tournament.registrationStart
+        )
         : null;
 
     const registrationEnd =
       tournament.registrationEnd
         ? new Date(
-            tournament.registrationEnd
-          )
+          tournament.registrationEnd
+        )
         : null;
 
     const tournamentStart =
       tournament.tournamentStart
         ? new Date(
-            tournament.tournamentStart
-          )
+          tournament.tournamentStart
+        )
         : null;
 
-    // ----------------------------------------------------------
-    // DEBUG
-    // ----------------------------------------------------------
     console.log("JOIN TOURNAMENT DEBUG:", {
       tournamentId,
       now: now.toISOString(),
-
       registrationStart:
         registrationStart?.toISOString(),
-
       registrationEnd:
         registrationEnd?.toISOString(),
-
       tournamentStart:
         tournamentStart?.toISOString(),
-
       status: tournament.status,
     });
 
-    // ----------------------------------------------------------
-    // REGISTRATION WINDOW
-    // ----------------------------------------------------------
     if (
       registrationStart &&
       now < registrationStart
@@ -1024,9 +1108,6 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    // ----------------------------------------------------------
-    // DUPLICATE CHECK
-    // ----------------------------------------------------------
     const existingParticipant =
       await Participant.findOne({
         tournamentId,
@@ -1041,9 +1122,6 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    // ----------------------------------------------------------
-    // MAX PARTICIPANTS
-    // ----------------------------------------------------------
     const participantCount =
       await Participant.countDocuments({
         tournamentId,
@@ -1121,11 +1199,11 @@ const joinTournament = async (req, res) => {
       1,
       Number(
         tournament.participantsPerGroup ||
-          Math.ceil(
-            (tournament.maxParticipants ||
-              totalGroups) /
-              totalGroups
-          )
+        Math.ceil(
+          (tournament.maxParticipants ||
+            totalGroups) /
+          totalGroups
+        )
       )
     );
 
@@ -1178,9 +1256,6 @@ const joinTournament = async (req, res) => {
         currentStage: "REGISTRATION",
       });
 
-    // ----------------------------------------------------------
-    // GROUP COUNT
-    // ----------------------------------------------------------
     const currentGroupCount =
       await Participant.distinct(
         "group",
@@ -1310,7 +1385,7 @@ const startTournament = async (req, res) => {
             1,
             Number(
               tournament.numberOfGroups ||
-                4
+              4
             )
           ),
         },
@@ -1326,8 +1401,8 @@ const startTournament = async (req, res) => {
           if (!participant.group) {
             participant.group =
               groupSequence[
-                index %
-                  groupSequence.length
+              index %
+              groupSequence.length
               ];
           }
 
@@ -1569,7 +1644,7 @@ const getLeaderboard = async (req, res) => {
 
               winRate:
                 participant.status ===
-                "CHAMPION"
+                  "CHAMPION"
                   ? 100
                   : null,
 
@@ -1579,9 +1654,6 @@ const getLeaderboard = async (req, res) => {
         )
       );
 
-    // ----------------------------------------------------------
-    // GROUP LEADERBOARD
-    // ----------------------------------------------------------
     const grouped = {};
 
     for (const entry of leaderboard) {
@@ -1643,9 +1715,6 @@ const getLeaderboard = async (req, res) => {
       );
     }
 
-    // ----------------------------------------------------------
-    // GLOBAL LEADERBOARD
-    // ----------------------------------------------------------
     leaderboard.sort((a, b) => {
       const scoreA = Number(
         a.score || 0
@@ -2080,6 +2149,8 @@ module.exports = {
   updateTournament,
   getTournaments,
   getTournament,
+  getMyTournaments,   // ← new
+  getMyStatus,        // ← new
   joinTournament,
   startTournament,
   getBracket,
