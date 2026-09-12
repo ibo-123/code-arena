@@ -34,10 +34,11 @@ const Bracket = lazy(() => import("./pages/public/Bracket").then((m) => ({ defau
 const Login = lazy(() => import("./pages/auth/Login").then((m) => ({ default: m.Login })));
 const Register = lazy(() => import("./pages/auth/Register").then((m) => ({ default: m.Register })));
 
-// Participant — top-level
+// Participant
 const ParticipantDashboard = lazy(() => import("./pages/participant/Dashboard"));
 const MyTournaments = lazy(() => import("./pages/participant/MyTournaments"));
 const ParticipantTournament = lazy(() => import("./pages/participant/ParticipantTournament"));
+const ParticipantContests = lazy(() => import("./pages/participant/ParticipantContests"));
 const ContestDetails = lazy(() =>
   import("./pages/participant/ContestDetails").then((m) => ({
     default: m.ContestDetails,
@@ -48,6 +49,7 @@ const Invitations = lazy(() => import("./pages/participant/Invitations"));
 const Profile = lazy(() => import("./pages/participant/Profile"));
 
 // Admin
+const AdminContestResults = lazy(() => import("./pages/admin/AdminContestResults"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminTournaments = lazy(() => import("./pages/admin/AdminTournaments"));
 const AdminTournamentDetail = lazy(() => import("./pages/admin/AdminTournamentDetail"));
@@ -144,8 +146,9 @@ function App() {
                 <Route path="dashboard" element={<ParticipantDashboard />} />
                 <Route path="dashboard/tournaments" element={<MyTournaments />} />
 
-                {/* Tournament detail + nested standings tab */}
+                {/* ---- Tournament detail + nested tabs ---- */}
                 <Route path="dashboard/tournaments/:id" element={<ParticipantTournament />}>
+                  <Route path="contests" element={<ParticipantContests />} />
                   <Route path="standings" element={<Standings />} />
                 </Route>
 
@@ -167,16 +170,13 @@ function App() {
             ========================================================== */}
             <Route element={<AdminRoute />}>
               <Route element={<AdminShell />}>
-                {/* Dashboard */}
                 <Route path="admin" element={<AdminDashboard />} />
 
-                {/* Tournaments CRUD */}
                 <Route path="admin/tournaments" element={<AdminTournaments />} />
                 <Route path="admin/tournaments/create" element={<CreateTournament />} />
                 <Route path="admin/tournaments/:id" element={<AdminTournamentDetail />} />
                 <Route path="admin/tournaments/:id/edit" element={<EditTournament />} />
-
-                {/* Top-level admin pages */}
+                <Route path="admin/contests/:contestId/results" element={<AdminContestResults />} />
                 <Route path="admin/contests" element={<AdminContests />} />
                 <Route path="admin/participants" element={<AdminParticipants />} />
                 <Route path="admin/groups" element={<AdminGroups />} />
@@ -188,7 +188,6 @@ function App() {
                 <Route path="admin/logs" element={<AdminLogs />} />
                 <Route path="admin/settings" element={<AdminSettings />} />
 
-                {/* Tournament-scoped tabs */}
                 <Route path="admin/tournaments/:id/participants" element={<AdminParticipants />} />
                 <Route path="admin/tournaments/:id/groups" element={<AdminGroups />} />
                 <Route path="admin/tournaments/:id/contests" element={<AdminContests />} />

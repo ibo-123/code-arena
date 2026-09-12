@@ -26,6 +26,8 @@ const allowedOrigins = [
  'https://code-arena-weld.vercel.app',
 ].filter(Boolean);  
 
+
+
 // CORS middleware - handle all requests
 app.use(cors({
   origin: function (origin, callback) {

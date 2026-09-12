@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // ---- CONFIG ----
 const BASE_URL = 'http://localhost:8080/api';
-const TOURNAMENT_ID = '6a9955f8277791aa8373a53b';
+const TOURNAMENT_ID = '6aa4f532bbbc419232cd6e27';
 const PASSWORD = 'Test123!';
 
 // Codeforces participants from Gym 709424 standings
@@ -29,18 +29,18 @@ const handles = [
   'tesnim-flow',
   'sume2',
   'MiftahMoh99',
-  'Muaabdusamed',
-  'hasuu',
-  'Ziyad93',
-  'Hudish',
-  'flenbarhussain41',
-  'Nesrin_mohammed',
-  'Lumiya',
-  'Widad022',
-  'ASK69',
-  'Muna_a',
-  'Rim16'
 ];
+  // 'Muaabdusamed',
+  // 'hasuu',
+  // 'Ziyad93',
+  // 'Hudish',
+  // 'flenbarhussain41',
+  // 'Nesrin_mohammed',
+  // 'Lumiya',
+  // 'Widad022',
+  // 'ASK69',
+  // 'Muna_a',
+  // 'Rim16'
 
 // Generate users using the Codeforces handle
 const users = handles.map((handle, i) => ({

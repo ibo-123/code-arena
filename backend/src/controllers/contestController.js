@@ -1913,7 +1913,117 @@ exports.getContestEligibleParticipants = async (req, res) => {
 // ============================================================
 // MODULE EXPORTS
 // ============================================================
+// ============================================================
+// PARTICIPANT — CONFIRM JOINED + PARTICIPATION STATUS
+// ============================================================
 
+/**
+ * POST /api/contests/:contestId/confirm-joined
+ * Participant confirms they've joined the contest on Codeforces.
+ */
+exports.confirmJoinedContest = async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: "Invalid contest ID" });
+    }
+
+    const contest = await Contest.findById(contestId).lean();
+    if (!contest) {
+      return res.status(404).json({ success: false, message: "Contest not found" });
+    }
+
+    const participant = await Participant.findOne({
+      user: userId,
+      tournamentId: contest.tournamentId,
+    });
+
+    if (!participant) {
+      return res.status(403).json({ success: false, message: "Not registered for this tournament" });
+    }
+    if (participant.registrationStatus !== "APPROVED") {
+      return res.status(403).json({
+        success: false,
+        message: "Your registration has not been approved yet",
+      });
+    }
+
+    if (!participant.seenContests) {
+      participant.seenContests = new Map();
+    }
+    participant.seenContests.set(String(contestId), new Date());
+    participant.markModified("seenContests");
+    await participant.save();
+
+    return res.json({
+      success: true,
+      message: "Confirmed. You can now submit your video.",
+      confirmedAt: participant.seenContests.get(String(contestId)),
+    });
+  } catch (error) {
+    console.error("[confirmJoinedContest] ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/**
+ * GET /api/contests/:contestId/my-participation
+ * Returns registration + confirmation + submission gate for the current user.
+ */
+exports.getMyParticipation = async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({ success: false, message: "Invalid contest ID" });
+    }
+
+    const contest = await Contest.findById(contestId).lean();
+    if (!contest) {
+      return res.status(404).json({ success: false, message: "Contest not found" });
+    }
+
+    const participant = await Participant.findOne({
+      user: userId,
+      tournamentId: contest.tournamentId,
+    }).lean();
+
+    if (!participant) {
+      return res.json({
+        success: true,
+        registrationStatus: "NONE",
+        confirmedJoined: false,
+        canSubmitVideo: false,
+      });
+    }
+
+    const confirmed =
+      participant.seenContests &&
+      (participant.seenContests[String(contestId)] ||
+        participant.seenContests.get?.(String(contestId)));
+
+    const approved = participant.registrationStatus === "APPROVED";
+
+    return res.json({
+      success: true,
+      registrationStatus: participant.registrationStatus,
+      confirmedJoined: Boolean(confirmed),
+      canSubmitVideo: approved && Boolean(confirmed),
+    });
+  } catch (error) {
+    console.error("[getMyParticipation] ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 module.exports = {
   // V1 — manual invitation management (no Codeforces API)
   createContest: exports.createContest,
@@ -1926,6 +2036,10 @@ module.exports = {
 
   // Participant-facing (group-aware, published only)
   getParticipantContests: exports.getParticipantContests,
+
+  // Participant — contest join confirmation
+  confirmJoinedContest: exports.confirmJoinedContest,
+  getMyParticipation: exports.getMyParticipation,
 
   // Legacy — kept for backward compatibility
   validateCodeforcesContest: exports.validateCodeforcesContest,

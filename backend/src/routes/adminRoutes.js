@@ -5,6 +5,7 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 
 // Controllers
+const resultsEntryController = require("../controllers/resultsEntryController");
 const tournamentController = require('../controllers/tournamentController');
 const contestController = require('../controllers/contestController');
 const participantController = require('../controllers/participantController');
@@ -57,7 +58,15 @@ router.post('/tournaments/:tournamentId/contests/:contestId/sync', contestContro
 router.get('/tournaments/:tournamentId/contests/:contestId/leaderboard', contestController.getLeaderboard);
 router.post('/tournaments/:tournamentId/contests/reconcile', contestController.reconcileContestsMatches);
 router.post('/tournaments/:tournamentId/contests/bulk-sync', contestController.bulkSyncContests);
+router.get(
+        "/contests/:contestId/results",
+        resultsEntryController.getContestResultsRoster
+);
 
+router.post(
+        "/contests/:contestId/results",
+        resultsEntryController.saveParticipantResult
+);
 // ============================================
 // PARTICIPANT MANAGEMENT
 // ============================================

@@ -1,3 +1,4 @@
+// frontend/src/services/adminApi.ts
 import { apiClient } from './api';
 import type {
   AuditLog,
@@ -58,17 +59,13 @@ export interface AdminStats {
   };
 }
 
-/**
- * V1 Contest payload — matches the backend `createContest` / `updateContest`.
- * No Codeforces API is used; admin enters the invitation URL manually.
- */
 export interface ContestPayload {
   name: string;
   invitationUrl: string;
   stage: 'QUALIFICATION' | 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL';
   group?: string;
-  startTime: string;      // ISO date-time string
-  endTime?: string;       // ISO date-time string
+  startTime: string;
+  endTime?: string;
   durationMinutes?: number;
   description?: string;
   matchNumber?: number;
@@ -166,12 +163,18 @@ export const adminApi = {
     return response.data;
   },
 
+  /**
+   * Reject a pending participant with an optional reason.
+   * Always sends a body — otherwise the backend throws on destructuring req.body.
+   */
   async rejectParticipant(
     tournamentId: string,
     participantId: string,
+    reason?: string,
   ): Promise<{ participant: Participant }> {
     const response = await apiClient.patch(
       `/admin/tournaments/${tournamentId}/participants/${participantId}/reject`,
+      { reason: reason ?? '' },
     );
     return response.data;
   },
@@ -254,16 +257,12 @@ export const adminApi = {
   ): Promise<{ submission: VideoSubmission }> {
     const response = await apiClient.patch(
       `/admin/video-submissions/${submissionId}/reject`,
-      { reason },
+      { reason: reason ?? '' },
     );
     return response.data;
   },
 
-  // ---------- V1 CONTESTS (manual invitations — no Codeforces API) ----------
-  /**
-   * GET /admin/tournaments/:tournamentId/contests
-   * List all contests for a tournament (includes drafts).
-   */
+  // ---------- V1 CONTESTS ----------
   async getContests(
     tournamentId: string,
   ): Promise<{ success: boolean; count: number; contests: AdminContest[] }> {
@@ -271,9 +270,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * POST /admin/tournaments/:tournamentId/contests
-   */
   async createContest(
     tournamentId: string,
     data: ContestPayload,
@@ -285,9 +281,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * GET /admin/tournaments/:tournamentId/contests/:contestId
-   */
   async getContest(
     tournamentId: string,
     contestId: string,
@@ -298,9 +291,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * PATCH /admin/tournaments/:tournamentId/contests/:contestId
-   */
   async updateContest(
     tournamentId: string,
     contestId: string,
@@ -313,10 +303,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * POST /admin/tournaments/:tournamentId/contests/:contestId/publish
-   * DRAFT → PUBLISHED. No Codeforces API call.
-   */
   async publishContest(
     tournamentId: string,
     contestId: string,
@@ -327,10 +313,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * DELETE /admin/tournaments/:tournamentId/contests/:contestId
-   * Only drafts can be deleted.
-   */
   async deleteContest(
     tournamentId: string,
     contestId: string,
@@ -341,10 +323,6 @@ export const adminApi = {
     return response.data;
   },
 
-  /**
-   * GET /admin/tournaments/:tournamentId/contests/:contestId/participants
-   * Returns eligible participants (used for admin preview).
-   */
   async getContestParticipants(
     tournamentId: string,
     contestId: string,
@@ -355,7 +333,7 @@ export const adminApi = {
     return response.data;
   },
 
-  // ---------- LEGACY (kept for backward compatibility) ----------
+  // ---------- LEGACY ----------
   async validateCodeforcesContest(
     tournamentId: string,
     contestId: number,

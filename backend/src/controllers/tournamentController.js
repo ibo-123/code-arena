@@ -644,9 +644,7 @@ const updateTournament = async (req, res) => {
       });
     }
 
-    const tournament = await Tournament.findById(
-      tournamentId
-    );
+    const tournament = await Tournament.findById(tournamentId);
 
     if (!tournament) {
       return res.status(404).json({
@@ -670,10 +668,7 @@ const updateTournament = async (req, res) => {
       });
     }
 
-    const errors = validateTournamentPayload(
-      req.body,
-      tournament
-    );
+    const errors = validateTournamentPayload(req.body, tournament);
 
     if (errors.length > 0) {
       return res.status(400).json({
@@ -684,18 +679,15 @@ const updateTournament = async (req, res) => {
     }
 
     // ----------------------------------------------------------
-    // PARTICIPANT COUNT
+    // PARTICIPANT COUNT — only non-rejected participants count
     // ----------------------------------------------------------
     if (req.body.maxParticipants !== undefined) {
-      const participantCount =
-        await Participant.countDocuments({
-          tournamentId,
-        });
+      const participantCount = await Participant.countDocuments({
+        tournamentId,
+        registrationStatus: { $ne: "REJECTED" },
+      });
 
-      if (
-        Number(req.body.maxParticipants) <
-        participantCount
-      ) {
+      if (Number(req.body.maxParticipants) < participantCount) {
         return res.status(409).json({
           success: false,
           message: `Cannot reduce maximum participants below current count (${participantCount})`,
@@ -734,40 +726,29 @@ const updateTournament = async (req, res) => {
       updateFields.maxParticipants !== undefined ||
       updateFields.numberOfGroups !== undefined
     ) {
-      const maxPart =
-        Number(
-          updateFields.maxParticipants !== undefined
-            ? updateFields.maxParticipants
-            : tournament.maxParticipants
-        );
+      const maxPart = Number(
+        updateFields.maxParticipants !== undefined
+          ? updateFields.maxParticipants
+          : tournament.maxParticipants
+      );
 
-      const numGroups =
-        Number(
-          updateFields.numberOfGroups !== undefined
-            ? updateFields.numberOfGroups
-            : tournament.numberOfGroups
-        );
+      const numGroups = Number(
+        updateFields.numberOfGroups !== undefined
+          ? updateFields.numberOfGroups
+          : tournament.numberOfGroups
+      );
 
-      updateFields.participantsPerGroup =
-        maxPart / numGroups;
+      updateFields.participantsPerGroup = maxPart / numGroups;
     }
 
     // ----------------------------------------------------------
     // UPDATE
     // ----------------------------------------------------------
-    const updated =
-      await Tournament.findByIdAndUpdate(
-        tournamentId,
-        {
-          $set: updateFields,
-        },
-        {
-          new: true,
-        }
-      ).populate(
-        "createdBy",
-        "name username"
-      );
+    const updated = await Tournament.findByIdAndUpdate(
+      tournamentId,
+      { $set: updateFields },
+      { new: true }
+    ).populate("createdBy", "name username");
 
     // ----------------------------------------------------------
     // AUDIT
@@ -777,9 +758,7 @@ const updateTournament = async (req, res) => {
         admin: req.user._id,
         action: "UPDATE_TOURNAMENT",
         tournament: tournamentId,
-        description: `Updated tournament fields: ${Object.keys(
-          updateFields
-        ).join(", ")}`,
+        description: `Updated tournament fields: ${Object.keys(updateFields).join(", ")}`,
         details: updateFields,
       });
     }
@@ -790,10 +769,7 @@ const updateTournament = async (req, res) => {
       tournament: updated,
     });
   } catch (error) {
-    console.error(
-      "Update tournament error:",
-      error
-    );
+    console.error("Update tournament error:", error);
 
     return res.status(500).json({
       success: false,
@@ -811,20 +787,19 @@ const getTournaments = async (req, res) => {
       .lean()
       .sort({ createdAt: -1 });
 
-    const tournamentsWithCount =
-      await Promise.all(
-        tournaments.map(async (t) => {
-          const count =
-            await Participant.countDocuments({
-              tournamentId: t._id,
-            });
+    const tournamentsWithCount = await Promise.all(
+      tournaments.map(async (t) => {
+        const count = await Participant.countDocuments({
+          tournamentId: t._id,
+          registrationStatus: { $ne: "REJECTED" },
+        });
 
-          return {
-            ...t,
-            participantCount: count,
-          };
-        })
-      );
+        return {
+          ...t,
+          participantCount: count,
+        };
+      })
+    );
 
     return res.status(200).json({
       success: true,
@@ -832,10 +807,7 @@ const getTournaments = async (req, res) => {
       tournaments: tournamentsWithCount,
     });
   } catch (error) {
-    console.error(
-      "Get tournaments error:",
-      error
-    );
+    console.error("Get tournaments error:", error);
 
     return res.status(500).json({
       success: false,
@@ -2079,58 +2051,44 @@ const advanceStage = async (
 // ============================================================
 // GET PARTICIPANTS
 // ============================================================
-const getParticipants = async (
-  req,
-  res
-) => {
+const getParticipants = async (req, res) => {
   try {
-    const { tournamentId } =
-      req.params;
+    const { tournamentId } = req.params;
 
-    const tournament =
-      await Tournament.findById(
-        tournamentId
-      );
+    const tournament = await Tournament.findById(tournamentId);
 
     if (!tournament) {
       return res.status(404).json({
         success: false,
-        message:
-          "Tournament not found",
+        message: "Tournament not found",
       });
     }
 
-    const participants =
-      await Participant.find({
-        tournamentId,
-      })
-        .populate(
-          "user",
-          "name username email codeforcesUsername"
-        )
-        .sort({
-          group: 1,
-          seed: 1,
-        });
+    const participants = await Participant.find({
+      tournamentId,
+    })
+      .populate("user", "name username email codeforcesUsername")
+      .sort({ group: 1, seed: 1 });
+
+    // Effective count = everyone who still occupies a slot
+    const activeCount = participants.filter(
+      (p) => p.registrationStatus !== "REJECTED"
+    ).length;
 
     return res.status(200).json({
       success: true,
-      count: participants.length,
+      count: participants.length,          // total rows (for admin list)
+      activeCount,                         // excludes rejected — use this for "X/max" displays
+      maxParticipants: tournament.maxParticipants || 20,
       participants,
     });
   } catch (error) {
-    console.error(
-      "Get participants error:",
-      error
-    );
+    console.error("Get participants error:", error);
 
-    if (
-      error.name === "CastError"
-    ) {
+    if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid tournament ID",
+        message: "Invalid tournament ID",
       });
     }
 

@@ -1,10 +1,10 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ContestSchema = new mongoose.Schema(
   {
     tournamentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Tournament',
+      ref: "Tournament",
       required: true,
     },
 
@@ -14,41 +14,41 @@ const ContestSchema = new mongoose.Schema(
     name: {
       type: String,
       trim: true,
-      required: false, // required by V1 controller, optional at DB level for legacy data
+      required: false,
     },
     invitationUrl: {
       type: String,
       trim: true,
-      required: false, // the Codeforces invitation/contest link (admin-entered)
+      required: false,
     },
     description: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
 
     // ============================================================
-    // LEGACY / SHARED FIELDS (kept for backward compatibility)
+    // LEGACY / SHARED FIELDS
     // ============================================================
     codeforcesContestId: {
       type: Number,
-      required: false, // was required: true
+      required: false,
     },
     codeforcesContestName: {
       type: String,
-      required: false, // was required: true
+      required: false,
     },
     codeforcesUrl: {
       type: String,
-      required: false, // was required: true
+      required: false,
     },
     type: {
       type: String,
-      required: false, // was required: true
+      required: false,
     },
     phase: {
       type: String,
-      required: false, // was required: true
+      required: false,
     },
 
     // ============================================================
@@ -60,11 +60,11 @@ const ContestSchema = new mongoose.Schema(
     },
     endTime: {
       type: Date,
-      required: false, // V1 can use durationSeconds instead
+      required: false,
     },
     durationSeconds: {
       type: Number,
-      required: false, // was required: true
+      required: false,
     },
 
     // ============================================================
@@ -72,7 +72,7 @@ const ContestSchema = new mongoose.Schema(
     // ============================================================
     stage: {
       type: String,
-      enum: ['QUALIFICATION', 'GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'],
+      enum: ["QUALIFICATION", "GROUP_STAGE", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"],
       required: true,
     },
     group: {
@@ -88,8 +88,8 @@ const ContestSchema = new mongoose.Schema(
     // ============================================================
     status: {
       type: String,
-      enum: ['DRAFT', 'UPCOMING', 'PUBLISHED', 'LIVE', 'FINISHED', 'CANCELLED'],
-      default: 'DRAFT',
+      enum: ["DRAFT", "UPCOMING", "PUBLISHED", "LIVE", "FINISHED", "CANCELLED"],
+      default: "DRAFT",
     },
     published: {
       type: Boolean,
@@ -115,9 +115,23 @@ const ContestSchema = new mongoose.Schema(
   }
 );
 
-ContestSchema.index({ tournamentId: 1, codeforcesContestId: 1 }, { unique: true, sparse: true });
+// ------------------------------------------------------------
+// INDEXES
+// ------------------------------------------------------------
+// Uniqueness on (tournamentId, codeforcesContestId) applies ONLY
+// when codeforcesContestId is a real number. V1 manual contests
+// don't have this field, so they're excluded from the constraint.
+ContestSchema.index(
+  { tournamentId: 1, codeforcesContestId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { codeforcesContestId: { $type: "number" } },
+  }
+);
+
 ContestSchema.index({ tournamentId: 1, stage: 1 });
 ContestSchema.index({ tournamentId: 1, published: 1 });
 ContestSchema.index({ tournamentId: 1, group: 1, status: 1 });
 
-module.exports = mongoose.model('Contest', ContestSchema);
+module.exports = mongoose.model("Contest", ContestSchema);
+

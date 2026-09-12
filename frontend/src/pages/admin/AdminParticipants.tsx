@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
-import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Users,
   Code2,
   RefreshCw,
   Search,
-  Filter,
   ArrowUp,
   ArrowDown,
   Crown,
@@ -15,10 +13,80 @@ import {
   Edit3,
   Save,
   X,
+  UserCheck,
+  UserX,
+  AlertCircle,
+  Hourglass,
 } from "lucide-react";
+import { Badge, Card, EmptyState, ErrorState, LoadingState } from "../../components/ui";
 import { adminApi } from "../../services/adminApi";
 import { useAdmin } from "../../context/AdminContext";
 import type { Participant } from "../../types";
+
+type RegFilter = "all" | "PENDING" | "APPROVED" | "REJECTED";
+
+// ---- Design tokens -----------------------------------------------------
+
+const c = {
+  bg: { card: "rgba(255,255,255,0.02)", header: "rgba(255,255,255,0.04)" },
+  border: { subtle: "rgba(255,255,255,0.06)", mid: "rgba(255,255,255,0.1)" },
+  text: {
+    primary: "#ffffff",
+    secondary: "rgba(255,255,255,0.7)",
+    muted: "rgba(255,255,255,0.5)",
+    faint: "rgba(255,255,255,0.3)",
+  },
+  accent: {
+    blue: "#64B5F6",
+    green: "#4CAF50",
+    red: "#EF5350",
+    gold: "#FFD700",
+    purple: "#CE93D8",
+    orange: "#FF9800",
+  },
+  radius: { sm: "8px", md: "12px", lg: "16px" },
+} as const;
+
+const getRegistrationTone = (status?: string) => {
+  switch (status) {
+    case "APPROVED":
+      return {
+        color: c.accent.green,
+        bg: "rgba(76,175,80,0.12)",
+        border: "rgba(76,175,80,0.25)",
+        icon: <CheckCircle size={12} />,
+      };
+    case "REJECTED":
+      return {
+        color: c.accent.red,
+        bg: "rgba(239,83,80,0.12)",
+        border: "rgba(239,83,80,0.25)",
+        icon: <UserX size={12} />,
+      };
+    case "PENDING":
+      return {
+        color: c.accent.gold,
+        bg: "rgba(255,215,0,0.12)",
+        border: "rgba(255,215,0,0.25)",
+        icon: <Hourglass size={12} />,
+      };
+    default:
+      return {
+        color: c.text.muted,
+        bg: "rgba(255,255,255,0.05)",
+        border: "rgba(255,255,255,0.1)",
+        icon: <Clock size={12} />,
+      };
+  }
+};
+
+const getStatusTone = (status?: string): "blue" | "gold" | "green" | "red" | "muted" => {
+  if (status === "ELIMINATED") return "muted";
+  if (status === "CHAMPION") return "gold";
+  if (status === "ADVANCED") return "blue";
+  if (status === "ACTIVE") return "green";
+  return "blue";
+};
 
 export const AdminParticipants = () => {
   const { selectedTournament } = useAdmin();
@@ -27,14 +95,17 @@ export const AdminParticipants = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterGroup, setFilterGroup] = useState<string>("all");
-  const [sortField, setSortField] = useState<string>("seed");
+  const [filterReg, setFilterReg] = useState<RegFilter>("PENDING"); // default to pending queue
+  const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Inline edit state
+  // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ group: string; seed: number }>({
     group: "",
@@ -42,7 +113,14 @@ export const AdminParticipants = () => {
   });
   const [saving, setSaving] = useState(false);
 
-  const fetchParticipants = async () => {
+  // Approve / reject
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Participant | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+
+  // ---- Fetch -----------------------------------------------------------
+  const fetchParticipants = useCallback(async () => {
     if (!tournamentId) {
       setParticipants([]);
       setLoading(false);
@@ -54,20 +132,15 @@ export const AdminParticipants = () => {
       setParticipants(items || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load participants");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [tournamentId]);
 
   useEffect(() => {
-    let isMounted = true;
     setLoading(true);
-    fetchParticipants().finally(() => {
-      if (isMounted) setLoading(false);
-    });
-    return () => {
-      isMounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId]);
+    fetchParticipants();
+  }, [fetchParticipants]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -75,15 +148,42 @@ export const AdminParticipants = () => {
     setRefreshing(false);
   };
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
+  // ---- Approve / reject ------------------------------------------------
+  const handleApprove = async (p: Participant) => {
+    if (!tournamentId) return;
+    setBusyId(p._id);
+    setError("");
+    try {
+      await adminApi.approveParticipant(tournamentId, p._id);
+      setNotice(`${p.user?.name || p.user?.username || "Participant"} approved`);
+      await fetchParticipants();
+      setTimeout(() => setNotice(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve");
+    } finally {
+      setBusyId(null);
     }
   };
 
+  const handleReject = async () => {
+    if (!tournamentId || !rejectTarget) return;
+    setRejecting(true);
+    setError("");
+    try {
+      await adminApi.rejectParticipant(tournamentId, rejectTarget._id, rejectReason);
+      setNotice(`${rejectTarget.user?.name || "Participant"} rejected`);
+      setRejectTarget(null);
+      setRejectReason("");
+      await fetchParticipants();
+      setTimeout(() => setNotice(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  // ---- Edit group/seed -------------------------------------------------
   const handleEditStart = (p: Participant) => {
     setEditingId(p._id);
     setEditValues({ group: p.group || "", seed: p.seed || 1 });
@@ -112,67 +212,82 @@ export const AdminParticipants = () => {
     }
   };
 
-  const groups = ["all", ...new Set(participants.map((p) => p.group).filter(Boolean))];
-  const statuses = ["all", ...new Set(participants.map((p) => p.status).filter(Boolean))];
-
-  const filteredParticipants = participants
-    .filter((p) => {
-      const matchesSearch =
-        p.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.user?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.user?.codeforcesUsername?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === "all" || p.status === filterStatus;
-      const matchesGroup = filterGroup === "all" || p.group === filterGroup;
-      return matchesSearch && matchesStatus && matchesGroup;
-    })
-    .sort((a, b) => {
-      let aVal: unknown = a[sortField as keyof Participant];
-      let bVal: unknown = b[sortField as keyof Participant];
-
-      if (sortField === "user.name") {
-        aVal = a.user?.name || "";
-        bVal = b.user?.name || "";
-      } else if (sortField === "user.username") {
-        aVal = a.user?.username || "";
-        bVal = b.user?.username || "";
-      } else if (sortField === "user.codeforcesUsername") {
-        aVal = a.user?.codeforcesUsername || "";
-        bVal = b.user?.codeforcesUsername || "";
-      }
-
-      if (aVal === undefined || aVal === null) aVal = "";
-      if (bVal === undefined || bVal === null) bVal = "";
-
-      if (typeof aVal === "string" || typeof bVal === "string") {
-        const strA = String(aVal);
-        const strB = String(bVal);
-        return sortDirection === "asc" ? strA.localeCompare(strB) : strB.localeCompare(strA);
-      }
-
-      const numA = Number(aVal) || 0;
-      const numB = Number(bVal) || 0;
-      return sortDirection === "asc" ? numA - numB : numB - numA;
-    });
-
-  const totalParticipants = participants.length;
-  const activeCount = participants.filter((p) => p.status !== "ELIMINATED").length;
-  const championCount = participants.filter((p) => p.status === "CHAMPION").length;
-  const groupCount = new Set(participants.map((p) => p.group).filter(Boolean)).size;
-
-  const getStatusTone = (status?: string): "blue" | "gold" | "green" | "red" | "muted" => {
-    if (status === "ELIMINATED") return "muted";
-    if (status === "CHAMPION") return "gold";
-    if (status === "ADVANCED") return "blue";
-    if (status === "ACTIVE") return "green";
-    return "blue";
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
   };
 
-  const getStatusIcon = (status?: string) => {
-    if (status === "CHAMPION") return <Crown size={14} />;
-    if (status === "ELIMINATED") return <Clock size={14} />;
-    if (status === "ADVANCED") return <ArrowUp size={14} />;
-    return <CheckCircle size={14} />;
-  };
+  // ---- Derived ---------------------------------------------------------
+  const counts = useMemo(() => {
+    const total = participants.length;
+    const pending = participants.filter((p) => p.registrationStatus === "PENDING").length;
+    const approved = participants.filter((p) => p.registrationStatus === "APPROVED").length;
+    const rejected = participants.filter((p) => p.registrationStatus === "REJECTED").length;
+    const active = participants.filter((p) => p.status !== "ELIMINATED").length;
+    const champion = participants.filter((p) => p.status === "CHAMPION").length;
+    return { total, pending, approved, rejected, active, champion };
+  }, [participants]);
+
+  const groups = useMemo(
+    () => ["all", ...new Set(participants.map((p) => p.group).filter(Boolean))],
+    [participants],
+  );
+
+  const statuses = useMemo(
+    () => ["all", ...new Set(participants.map((p) => p.status).filter(Boolean))],
+    [participants],
+  );
+
+  const filteredParticipants = useMemo(() => {
+    return participants
+      .filter((p) => {
+        const matchesSearch =
+          !searchTerm ||
+          p.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.user?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.user?.codeforcesUsername?.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesStatus = filterStatus === "all" || p.status === filterStatus;
+        const matchesGroup = filterGroup === "all" || p.group === filterGroup;
+        const matchesReg = filterReg === "all" || p.registrationStatus === filterReg;
+
+        return matchesSearch && matchesStatus && matchesGroup && matchesReg;
+      })
+      .sort((a, b) => {
+        let aVal: unknown = a[sortField as keyof Participant];
+        let bVal: unknown = b[sortField as keyof Participant];
+
+        if (sortField === "user.name") {
+          aVal = a.user?.name || "";
+          bVal = b.user?.name || "";
+        } else if (sortField === "user.username") {
+          aVal = a.user?.username || "";
+          bVal = b.user?.username || "";
+        } else if (sortField === "user.codeforcesUsername") {
+          aVal = a.user?.codeforcesUsername || "";
+          bVal = b.user?.codeforcesUsername || "";
+        } else if (sortField === "createdAt") {
+          aVal = new Date(a.createdAt || 0).getTime();
+          bVal = new Date(b.createdAt || 0).getTime();
+        }
+
+        if (aVal === undefined || aVal === null) aVal = "";
+        if (bVal === undefined || bVal === null) bVal = "";
+
+        if (typeof aVal === "string" || typeof bVal === "string") {
+          const strA = String(aVal);
+          const strB = String(bVal);
+          return sortDirection === "asc" ? strA.localeCompare(strB) : strB.localeCompare(strA);
+        }
+        const numA = Number(aVal) || 0;
+        const numB = Number(bVal) || 0;
+        return sortDirection === "asc" ? numA - numB : numB - numA;
+      });
+  }, [participants, searchTerm, filterStatus, filterGroup, filterReg, sortField, sortDirection]);
 
   if (!selectedTournament) {
     return (
@@ -185,163 +300,273 @@ export const AdminParticipants = () => {
   if (loading) return <LoadingState label="Loading participants directory..." />;
   if (error && !participants.length) return <ErrorState error={error} />;
 
+  const regFilterChips: { value: RegFilter; label: string; count: number; color: string }[] = [
+    { value: "all", label: "All", count: counts.total, color: c.accent.blue },
+    { value: "PENDING", label: "Pending", count: counts.pending, color: c.accent.gold },
+    { value: "APPROVED", label: "Approved", count: counts.approved, color: c.accent.green },
+    { value: "REJECTED", label: "Rejected", count: counts.rejected, color: c.accent.red },
+  ];
+
   return (
     <div style={{ padding: "24px 0" }}>
-      {/* Header */}
-      <header
+      {/* ---- Header ---- */}
+      <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "32px",
-          flexWrap: "wrap",
-          gap: "16px",
+          position: "relative",
+          padding: "28px 32px",
+          borderRadius: c.radius.lg,
+          background: "linear-gradient(135deg, rgba(41, 121, 255, 0.06), rgba(156, 39, 176, 0.06))",
+          border: `1px solid ${c.border.subtle}`,
+          overflow: "hidden",
+          marginBottom: "20px",
         }}
       >
-        <div>
-          <small
-            style={{
-              fontSize: "11px",
-              color: "rgba(255,255,255,0.4)",
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-            }}
-          >
-            Administrative Management
-          </small>
-          <h1
-            style={{
-              fontSize: "clamp(24px, 2.5vw, 36px)",
-              fontWeight: "700",
-              margin: "4px 0 0 0",
-            }}
-          >
-            Tournament Participants
-          </h1>
-          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", marginTop: "4px" }}>
-            {selectedTournament.name} · {totalParticipants} registered · {activeCount} active
-          </p>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Badge tone={championCount > 0 ? "gold" : "blue"}>
-            {championCount > 0 ? `🏆 ${championCount} Champion` : `${groupCount} Groups`}
-          </Badge>
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: "400px",
+            height: "400px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(41, 121, 255, 0.15), transparent 70%)",
+            filter: "blur(60px)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "16px",
+            flexWrap: "wrap",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div
+              style={{
+                width: "52px",
+                height: "52px",
+                borderRadius: c.radius.md,
+                background: "linear-gradient(135deg, #2979FF, #9C27B0)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                boxShadow: "0 12px 32px rgba(41, 121, 255, 0.35)",
+                flexShrink: 0,
+              }}
+            >
+              <Users size={24} />
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.2px",
+                  color: "rgba(100, 181, 246, 0.85)",
+                  marginBottom: "2px",
+                }}
+              >
+                Administrative Management
+              </div>
+              <h1
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 800,
+                  margin: 0,
+                  letterSpacing: "-0.01em",
+                  background: "linear-gradient(135deg, #FFFFFF, #90CAF9)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                Tournament Participants
+              </h1>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: c.text.muted,
+                  marginTop: "2px",
+                }}
+              >
+                {selectedTournament.name} · {counts.total} registered · {counts.active} active
+              </div>
+            </div>
+          </div>
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={refreshing}
             style={{
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "13px",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "8px",
+              padding: "10px 18px",
+              borderRadius: c.radius.md,
+              background: "rgba(255, 255, 255, 0.04)",
+              border: `1px solid ${c.border.mid}`,
+              color: c.text.primary,
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: refreshing ? "wait" : "pointer",
+              opacity: refreshing ? 0.6 : 1,
             }}
           >
             <RefreshCw
-              size={16}
-              style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }}
+              size={14}
+              style={{
+                animation: refreshing ? "spin 0.9s linear infinite" : "none",
+              }}
             />
-            {refreshing ? "Refreshing..." : "Refresh"}
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
-      </header>
+      </div>
 
+      {/* ---- Stat cards ---- */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: "12px",
+          marginBottom: "20px",
+        }}
+      >
+        <StatCard
+          label="Pending"
+          value={counts.pending}
+          color={c.accent.gold}
+          icon={<Hourglass size={18} />}
+        />
+        <StatCard
+          label="Approved"
+          value={counts.approved}
+          color={c.accent.green}
+          icon={<UserCheck size={18} />}
+        />
+        <StatCard
+          label="Rejected"
+          value={counts.rejected}
+          color={c.accent.red}
+          icon={<UserX size={18} />}
+        />
+        <StatCard
+          label="Champions"
+          value={counts.champion}
+          color={c.accent.purple}
+          icon={<Crown size={18} />}
+        />
+      </div>
+
+      {/* ---- Alerts ---- */}
       {error && participants.length > 0 && (
         <div
           style={{
-            padding: "10px 14px",
-            borderRadius: "10px",
-            background: "rgba(244,67,54,0.1)",
-            border: "1px solid rgba(244,67,54,0.2)",
-            color: "#FF6B6B",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "12px 16px",
+            borderRadius: c.radius.md,
+            background: "rgba(239, 83, 80, 0.1)",
+            border: "1px solid rgba(239, 83, 80, 0.25)",
+            color: c.accent.red,
             fontSize: "13px",
             marginBottom: "16px",
           }}
         >
+          <AlertCircle size={16} />
           {error}
         </div>
       )}
+      {notice && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "12px 16px",
+            borderRadius: c.radius.md,
+            background: "rgba(76, 175, 80, 0.1)",
+            border: "1px solid rgba(76, 175, 80, 0.25)",
+            color: c.accent.green,
+            fontSize: "13px",
+            marginBottom: "16px",
+          }}
+        >
+          <CheckCircle size={16} />
+          {notice}
+        </div>
+      )}
 
-      {/* Stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
-        {[
-          { label: "Total", value: totalParticipants, icon: Users, color: "#2979FF" },
-          { label: "Active", value: activeCount, icon: CheckCircle, color: "#4CAF50" },
-          {
-            label: "Eliminated",
-            value: totalParticipants - activeCount,
-            icon: Clock,
-            color: "#FF6B6B",
-          },
-          { label: "Champions", value: championCount, icon: Crown, color: "#FFD700" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            style={{
-              padding: "14px 18px",
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: "10px",
-              border: "1px solid rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-            }}
-          >
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "8px",
-                background: `${stat.color}22`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <stat.icon size={18} color={stat.color} />
-            </div>
-            <div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "white" }}>
-                {stat.value}
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.4)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {stat.label}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
+      {/* ---- Filters ---- */}
       <Card
         style={{
           padding: "16px 20px",
-          marginBottom: "24px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "12px",
+          marginBottom: "20px",
+          background: c.bg.card,
+          border: `1px solid ${c.border.subtle}`,
+          borderRadius: c.radius.md,
         }}
       >
+        {/* Registration filter chips */}
+        <div
+          style={{
+            display: "flex",
+            gap: "6px",
+            flexWrap: "wrap",
+            marginBottom: "14px",
+            paddingBottom: "14px",
+            borderBottom: `1px solid ${c.border.subtle}`,
+          }}
+        >
+          {regFilterChips.map((chip) => {
+            const isActive = filterReg === chip.value;
+            return (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => setFilterReg(chip.value)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "999px",
+                  background: isActive ? `${chip.color}1a` : "rgba(255,255,255,0.03)",
+                  border: isActive ? `1px solid ${chip.color}40` : `1px solid ${c.border.subtle}`,
+                  color: isActive ? chip.color : c.text.muted,
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {chip.label}
+                <span
+                  style={{
+                    padding: "1px 7px",
+                    borderRadius: "999px",
+                    background: isActive ? `${chip.color}25` : "rgba(255,255,255,0.05)",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {chip.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Secondary filters */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
           <div
             style={{
@@ -349,14 +574,14 @@ export const AdminParticipants = () => {
               alignItems: "center",
               gap: "6px",
               background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
+              borderRadius: c.radius.sm,
               padding: "6px 12px",
-              border: "1px solid rgba(255,255,255,0.06)",
+              border: `1px solid ${c.border.subtle}`,
               flex: "1",
-              minWidth: "150px",
+              minWidth: "180px",
             }}
           >
-            <Search size={16} color="rgba(255,255,255,0.3)" />
+            <Search size={14} color={c.text.faint} />
             <input
               type="text"
               placeholder="Search participants..."
@@ -365,117 +590,70 @@ export const AdminParticipants = () => {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "white",
-                fontSize: "14px",
+                color: "#fff",
+                fontSize: "13px",
                 outline: "none",
                 width: "100%",
               }}
             />
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-              padding: "4px 8px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={selectStyle}
           >
-            <Filter size={14} color="rgba(255,255,255,0.3)" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                fontSize: "13px",
-                outline: "none",
-                cursor: "pointer",
-                padding: "4px",
-              }}
-            >
-              <option value="all">All Statuses</option>
-              {statuses
-                .filter((s) => s !== "all")
-                .map((status) => (
-                  <option key={status} value={status} style={{ background: "#1a1f35" }}>
-                    {status}
-                  </option>
-                ))}
-            </select>
-          </div>
+            <option value="all">All Statuses</option>
+            {statuses
+              .filter((s) => s !== "all")
+              .map((status) => (
+                <option key={status} value={status} style={{ background: "#1a1f35" }}>
+                  {status}
+                </option>
+              ))}
+          </select>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "8px",
-              padding: "4px 8px",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
+          <select
+            value={filterGroup}
+            onChange={(e) => setFilterGroup(e.target.value)}
+            style={selectStyle}
           >
-            <Users size={14} color="rgba(255,255,255,0.3)" />
-            <select
-              value={filterGroup}
-              onChange={(e) => setFilterGroup(e.target.value)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                fontSize: "13px",
-                outline: "none",
-                cursor: "pointer",
-                padding: "4px",
-              }}
-            >
-              <option value="all">All Groups</option>
-              {groups
-                .filter((g) => g !== "all")
-                .map((group) => (
-                  <option key={group} value={group} style={{ background: "#1a1f35" }}>
-                    Group {group}
-                  </option>
-                ))}
-            </select>
-          </div>
+            <option value="all">All Groups</option>
+            {groups
+              .filter((g) => g !== "all")
+              .map((group) => (
+                <option key={group} value={group} style={{ background: "#1a1f35" }}>
+                  Group {group}
+                </option>
+              ))}
+          </select>
 
-          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", marginLeft: "auto" }}>
-            {filteredParticipants.length} participants
+          <div style={{ fontSize: "12px", color: c.text.faint, marginLeft: "auto" }}>
+            {filteredParticipants.length} shown
           </div>
         </div>
       </Card>
 
-      {/* Table */}
+      {/* ---- Table ---- */}
       <Card
         style={{
           padding: 0,
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "16px",
+          background: c.bg.card,
+          border: `1px solid ${c.border.subtle}`,
+          borderRadius: c.radius.lg,
           overflow: "hidden",
         }}
       >
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
             <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(255,255,255,0.02)",
-                }}
-              >
+              <tr style={{ borderBottom: `1px solid ${c.border.subtle}`, background: c.bg.header }}>
                 {[
                   { key: "user.name", label: "Participant" },
                   { key: "user.codeforcesUsername", label: "Codeforces" },
+                  { key: "registrationStatus", label: "Registration" },
                   { key: "group", label: "Group" },
                   { key: "seed", label: "Seed" },
-                  { key: "currentStage", label: "Round" },
                   { key: "status", label: "Status" },
                   { key: "_actions", label: "Actions" },
                 ].map((col) => (
@@ -505,17 +683,25 @@ export const AdminParticipants = () => {
                   const isEliminated = p.status === "ELIMINATED";
                   const isTopSeed = p.seed && p.seed <= 3;
                   const isEditing = editingId === p._id;
+                  const isPendingReg = p.registrationStatus === "PENDING";
+                  const isRejectedReg = p.registrationStatus === "REJECTED";
+                  const busy = busyId === p._id;
+                  const regTone = getRegistrationTone(p.registrationStatus);
 
                   return (
                     <tr
                       key={p._id}
                       style={{
-                        borderBottom: "1px solid rgba(255,255,255,0.03)",
+                        borderBottom: `1px solid ${c.border.subtle}`,
                         background: isChampion
                           ? "rgba(255,215,0,0.03)"
-                          : isEliminated
-                            ? "rgba(255,255,255,0.01)"
-                            : "transparent",
+                          : isPendingReg
+                            ? "rgba(255,215,0,0.02)"
+                            : isRejectedReg
+                              ? "rgba(239,83,80,0.02)"
+                              : isEliminated
+                                ? "rgba(255,255,255,0.01)"
+                                : "transparent",
                       }}
                     >
                       {/* Participant */}
@@ -528,35 +714,28 @@ export const AdminParticipants = () => {
                               borderRadius: "50%",
                               background: isChampion
                                 ? "linear-gradient(135deg, #FFD700, #FFA000)"
-                                : isEliminated
-                                  ? "rgba(255,255,255,0.05)"
-                                  : isTopSeed
-                                    ? "linear-gradient(135deg, #2979FF, #9C27B0)"
-                                    : "rgba(255,255,255,0.05)",
+                                : isPendingReg
+                                  ? "linear-gradient(135deg, #FFB74D, #F57C00)"
+                                  : "linear-gradient(135deg, #2979FF, #9C27B0)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               fontSize: "12px",
-                              fontWeight: "700",
-                              color: isEliminated
-                                ? "rgba(255,255,255,0.3)"
-                                : isChampion
-                                  ? "#0a0e1a"
-                                  : "white",
+                              fontWeight: 700,
+                              color: isChampion ? "#0a0e1a" : "#fff",
+                              flexShrink: 0,
                             }}
                           >
-                            {p.user?.name?.charAt(0).toUpperCase() || "U"}
+                            {p.user?.name?.charAt(0).toUpperCase() ||
+                              p.user?.username?.charAt(0).toUpperCase() ||
+                              "U"}
                           </div>
                           <div>
                             <div
                               style={{
                                 fontSize: "14px",
-                                fontWeight: isChampion ? "700" : "500",
-                                color: isEliminated
-                                  ? "rgba(255,255,255,0.3)"
-                                  : isChampion
-                                    ? "#FFD700"
-                                    : "white",
+                                fontWeight: isChampion ? 700 : 500,
+                                color: isChampion ? "#FFD700" : "#fff",
                               }}
                             >
                               {p.user?.name || "Unknown"}
@@ -568,14 +747,7 @@ export const AdminParticipants = () => {
                                 />
                               )}
                             </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: isEliminated
-                                  ? "rgba(255,255,255,0.2)"
-                                  : "rgba(255,255,255,0.4)",
-                              }}
-                            >
+                            <div style={{ fontSize: "12px", color: c.text.muted }}>
                               @{p.user?.username || "unknown"}
                             </div>
                           </div>
@@ -583,25 +755,38 @@ export const AdminParticipants = () => {
                       </td>
 
                       {/* Codeforces */}
-                      <td
-                        style={{
-                          ...tdStyle,
-                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
-                        }}
-                      >
+                      <td style={{ ...tdStyle, color: c.text.secondary }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <Code2 size={14} color="rgba(255,255,255,0.2)" />
+                          <Code2 size={14} color={c.text.faint} />
                           {p.user?.codeforcesUsername || "—"}
                         </div>
                       </td>
 
-                      {/* Group (editable) */}
-                      <td
-                        style={{
-                          ...tdStyle,
-                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
-                        }}
-                      >
+                      {/* Registration status */}
+                      <td style={tdStyle}>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "4px 10px",
+                            borderRadius: "999px",
+                            background: regTone.bg,
+                            border: `1px solid ${regTone.border}`,
+                            color: regTone.color,
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.4px",
+                          }}
+                        >
+                          {regTone.icon}
+                          {p.registrationStatus || "—"}
+                        </span>
+                      </td>
+
+                      {/* Group */}
+                      <td style={{ ...tdStyle, color: c.text.secondary }}>
                         {isEditing ? (
                           <input
                             type="text"
@@ -615,20 +800,16 @@ export const AdminParticipants = () => {
                         ) : p.group ? (
                           `Group ${p.group}`
                         ) : (
-                          "—"
+                          <span style={{ color: c.text.faint }}>—</span>
                         )}
                       </td>
 
-                      {/* Seed (editable) */}
+                      {/* Seed */}
                       <td
                         style={{
                           ...tdStyle,
-                          fontWeight: isTopSeed && !isEliminated ? "700" : "400",
-                          color: isEliminated
-                            ? "rgba(255,255,255,0.3)"
-                            : isTopSeed
-                              ? "#FFD700"
-                              : "rgba(255,255,255,0.7)",
+                          fontWeight: isTopSeed ? 700 : 400,
+                          color: isTopSeed ? c.accent.gold : c.text.secondary,
                         }}
                       >
                         {isEditing ? (
@@ -641,10 +822,10 @@ export const AdminParticipants = () => {
                             }
                             style={inlineInputStyle}
                           />
-                        ) : (
+                        ) : p.seed ? (
                           <>
-                            #{p.seed || "—"}
-                            {isTopSeed && !isEliminated && (
+                            #{p.seed}
+                            {isTopSeed && (
                               <Star
                                 size={12}
                                 color="#FFD700"
@@ -652,25 +833,14 @@ export const AdminParticipants = () => {
                               />
                             )}
                           </>
+                        ) : (
+                          <span style={{ color: c.text.faint }}>—</span>
                         )}
                       </td>
 
-                      {/* Round */}
-                      <td
-                        style={{
-                          ...tdStyle,
-                          color: isEliminated ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
-                        }}
-                      >
-                        {p.currentStage || "Group Stage"}
-                      </td>
-
-                      {/* Status */}
+                      {/* Tournament status */}
                       <td style={tdStyle}>
-                        <Badge tone={getStatusTone(p.status)}>
-                          {getStatusIcon(p.status)}
-                          {p.status || "ACTIVE"}
-                        </Badge>
+                        <Badge tone={getStatusTone(p.status)}>{p.status || "ACTIVE"}</Badge>
                       </td>
 
                       {/* Actions */}
@@ -678,58 +848,48 @@ export const AdminParticipants = () => {
                         {isEditing ? (
                           <div style={{ display: "flex", gap: "4px" }}>
                             <button
+                              type="button"
                               onClick={() => handleEditSave(p._id)}
                               disabled={saving}
-                              style={{
-                                padding: "4px 10px",
-                                borderRadius: "6px",
-                                background: "rgba(76,175,80,0.2)",
-                                border: "1px solid rgba(76,175,80,0.4)",
-                                color: "#4CAF50",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                cursor: saving ? "not-allowed" : "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                              }}
+                              style={actionBtn(c.accent.green, saving)}
                             >
                               <Save size={12} />
-                              {saving ? "..." : "Save"}
+                              {saving ? "…" : "Save"}
                             </button>
                             <button
+                              type="button"
                               onClick={handleEditCancel}
-                              style={{
-                                padding: "4px 8px",
-                                borderRadius: "6px",
-                                background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                color: "rgba(255,255,255,0.6)",
-                                fontSize: "11px",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                              }}
+                              style={actionBtn(c.text.muted)}
                             >
                               <X size={12} />
                             </button>
                           </div>
+                        ) : isPendingReg ? (
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(p)}
+                              disabled={busy}
+                              style={actionBtn(c.accent.green, busy)}
+                            >
+                              <UserCheck size={12} />
+                              {busy ? "Approving…" : "Approve"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRejectTarget(p)}
+                              disabled={busy}
+                              style={actionBtn(c.accent.red, busy)}
+                            >
+                              <UserX size={12} />
+                              Reject
+                            </button>
+                          </div>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handleEditStart(p)}
-                            style={{
-                              padding: "4px 10px",
-                              borderRadius: "6px",
-                              background: "rgba(41,121,255,0.15)",
-                              border: "1px solid rgba(41,121,255,0.25)",
-                              color: "#64B5F6",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "4px",
-                            }}
+                            style={actionBtn(c.accent.blue)}
                           >
                             <Edit3 size={12} />
                             Edit
@@ -745,9 +905,11 @@ export const AdminParticipants = () => {
                     <div style={{ padding: "40px" }}>
                       <EmptyState
                         label={
-                          searchTerm || filterStatus !== "all" || filterGroup !== "all"
-                            ? "No participants match your filters"
-                            : "No registered participants yet."
+                          filterReg === "PENDING" && counts.pending === 0
+                            ? "No pending registrations — you're all caught up!"
+                            : searchTerm || filterStatus !== "all" || filterGroup !== "all"
+                              ? "No participants match your filters"
+                              : "No participants in this category yet."
                         }
                       />
                     </div>
@@ -759,44 +921,285 @@ export const AdminParticipants = () => {
         </div>
       </Card>
 
+      {/* ---- Reject modal ---- */}
+      {rejectTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "24px",
+          }}
+          onClick={() => {
+            setRejectTarget(null);
+            setRejectReason("");
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "440px",
+              background: "#0F1420",
+              borderRadius: c.radius.lg,
+              border: `1px solid ${c.border.subtle}`,
+              padding: "24px",
+            }}
+          >
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: c.radius.sm,
+                  background: "rgba(239, 83, 80, 0.12)",
+                  border: "1px solid rgba(239, 83, 80, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: c.accent.red,
+                }}
+              >
+                <UserX size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>
+                  Reject Registration
+                </div>
+                <div style={{ fontSize: "12px", color: c.text.muted }}>
+                  {rejectTarget.user?.name || rejectTarget.user?.username}
+                </div>
+              </div>
+            </div>
+
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: c.text.secondary,
+                marginBottom: "6px",
+              }}
+            >
+              Reason (optional)
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="Explain why this registration is being rejected..."
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: c.radius.sm,
+                background: "rgba(255,255,255,0.04)",
+                border: `1px solid ${c.border.mid}`,
+                color: "#fff",
+                fontSize: "13px",
+                outline: "none",
+                resize: "vertical",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+              <button
+                type="button"
+                onClick={handleReject}
+                disabled={rejecting}
+                style={{
+                  flex: 1,
+                  padding: "11px 16px",
+                  borderRadius: c.radius.md,
+                  background: "linear-gradient(135deg, #EF5350, #C62828)",
+                  border: "none",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "13px",
+                  cursor: rejecting ? "wait" : "pointer",
+                  opacity: rejecting ? 0.6 : 1,
+                }}
+              >
+                {rejecting ? "Rejecting…" : "Confirm Rejection"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectTarget(null);
+                  setRejectReason("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "11px 16px",
+                  borderRadius: c.radius.md,
+                  background: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${c.border.mid}`,
+                  color: c.text.secondary,
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation: none !important; transition: none !important; }
         }
       `}</style>
     </div>
   );
 };
 
-// ---------- Styles ----------
+// ---- Small helpers ----------------------------------------------------
+
+interface StatCardProps {
+  label: string;
+  value: number;
+  color: string;
+  icon: React.ReactNode;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ label, value, color, icon }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      padding: "14px 16px",
+      borderRadius: c.radius.md,
+      background: c.bg.card,
+      border: `1px solid ${c.border.subtle}`,
+      transition: "transform 0.2s ease, border-color 0.2s ease",
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = "translateY(-2px)";
+      e.currentTarget.style.borderColor = `${color}40`;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = "translateY(0)";
+      e.currentTarget.style.borderColor = c.border.subtle;
+    }}
+  >
+    <div
+      style={{
+        width: "38px",
+        height: "38px",
+        borderRadius: c.radius.sm,
+        background: `${color}1a`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color,
+        flexShrink: 0,
+      }}
+    >
+      {icon}
+    </div>
+    <div>
+      <div
+        style={{
+          fontSize: "10px",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.8px",
+          color: c.text.muted,
+          marginBottom: "2px",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "20px",
+          fontWeight: 800,
+          color: c.text.primary,
+          lineHeight: 1.1,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  </div>
+);
+
+// ---- Style constants --------------------------------------------------
+
 const thStyle: React.CSSProperties = {
   padding: "12px 16px",
   textAlign: "left",
-  color: "rgba(255,255,255,0.3)",
+  color: c.text.faint,
   fontSize: "11px",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
-  fontWeight: "500",
+  fontWeight: 600,
   whiteSpace: "nowrap",
 };
 
 const tdStyle: React.CSSProperties = {
   padding: "12px 16px",
-  color: "rgba(255,255,255,0.8)",
+  color: c.text.secondary,
   verticalAlign: "middle",
 };
 
 const inlineInputStyle: React.CSSProperties = {
-  width: "70px",
+  width: "80px",
   padding: "4px 8px",
   borderRadius: "6px",
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(41,121,255,0.4)",
-  color: "white",
+  color: "#fff",
   fontSize: "13px",
   outline: "none",
   boxSizing: "border-box",
 };
+
+const selectStyle: React.CSSProperties = {
+  padding: "7px 12px",
+  borderRadius: c.radius.sm,
+  background: "rgba(255,255,255,0.05)",
+  border: `1px solid ${c.border.subtle}`,
+  color: "#fff",
+  fontSize: "13px",
+  outline: "none",
+  cursor: "pointer",
+};
+
+const actionBtn = (color: string, disabled = false): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  padding: "5px 10px",
+  borderRadius: "6px",
+  background: `${color}1a`,
+  border: `1px solid ${color}40`,
+  color,
+  fontSize: "11px",
+  fontWeight: 700,
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.5 : 1,
+  whiteSpace: "nowrap",
+});
 
 export default AdminParticipants;

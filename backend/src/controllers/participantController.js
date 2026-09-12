@@ -55,8 +55,11 @@ const joinTournament = async (req, res) => {
       });
     }
 
+    // ---- Slot counting -------------------------------------------------
+    // Rejected participants do NOT occupy a slot. Pending + approved do.
     const participantCount = await Participant.countDocuments({
       tournamentId,
+      registrationStatus: { $ne: "REJECTED" },
     });
 
     const maxParticipants = tournament.maxParticipants || 20;
@@ -68,15 +71,28 @@ const joinTournament = async (req, res) => {
       });
     }
 
+    // ---- Duplicate check ----------------------------------------------
     const existingParticipant = await Participant.findOne({
       tournamentId,
       user: userId,
     });
 
     if (existingParticipant) {
+      // Give a specific message based on their current status
+      if (existingParticipant.registrationStatus === "REJECTED") {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Your previous registration for this tournament was rejected. Contact the organizers.",
+          participant: existingParticipant,
+        });
+      }
       return res.status(409).json({
         success: false,
-        message: "You already registered for this tournament",
+        message:
+          existingParticipant.registrationStatus === "APPROVED"
+            ? "You are already approved for this tournament"
+            : "You already registered for this tournament. Awaiting approval.",
         participant: existingParticipant,
       });
     }
@@ -89,9 +105,8 @@ const joinTournament = async (req, res) => {
       currentStage: "REGISTRATION",
     });
 
-    // admin: null is allowed after schema fix
     await AuditLog.create({
-      action: 'PARTICIPANT_REGISTERED',
+      action: "PARTICIPANT_REGISTERED",
       description: `Participant ${userId} registered for tournament ${tournament.name}`,
       admin: null,
       tournament: tournamentId,
@@ -235,7 +250,7 @@ const approveParticipant = async (req, res) => {
 const rejectParticipant = async (req, res) => {
   try {
     const { tournamentId, participantId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};   // ← the only change
 
     const participant = await Participant.findOne({
       _id: participantId,
@@ -368,6 +383,21 @@ const getMyStatus = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET GROUPS
+// ============================================================
+// Returns participants grouped by their assigned group letter (A, B, C, ...).
+//
+// NOTE: We no longer filter by registrationStatus === "APPROVED".
+// Instead we require that the participant has a group assigned.
+// This way:
+//   - Pending participants without a group don't appear (they have no group)
+//   - Approved participants with a group appear
+//   - Any participant manually seeded into a group appears regardless of status
+//
+// Response shape:
+//   { success, groups: { A: [...], B: [...] }, groupCount, totalParticipants }
+// ============================================================
 const getGroups = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -383,10 +413,10 @@ const getGroups = async (req, res) => {
 
     const participants = await Participant.find({
       tournamentId,
-      registrationStatus: "APPROVED",
+      group: { $exists: true, $ne: null, $ne: "" },
     })
       .populate("user", "name username codeforcesUsername")
-      .sort({ seed: 1 });
+      .sort({ group: 1, seed: 1 });
 
     const groups = {};
 
@@ -400,9 +430,11 @@ const getGroups = async (req, res) => {
     });
 
     const sortedGroups = {};
-    Object.keys(groups).sort().forEach(key => {
-      sortedGroups[key] = groups[key];
-    });
+    Object.keys(groups)
+      .sort()
+      .forEach((key) => {
+        sortedGroups[key] = groups[key];
+      });
 
     return res.json({
       success: true,

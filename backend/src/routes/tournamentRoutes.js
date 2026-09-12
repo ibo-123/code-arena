@@ -40,7 +40,7 @@ router.get(
 router.get(
   '/my-tournaments',
   authenticate,
-  tournamentController.getMyTournaments
+  participantController.getMyTournaments
 );
 
 /*
@@ -56,7 +56,7 @@ router.get(
  */
 router.get(
   '/:tournamentId/participants',
-  tournamentController.getParticipants
+  participantController.getParticipants
 );
 
 /**
@@ -66,7 +66,7 @@ router.get(
 router.get(
   '/:tournamentId/my-status',
   authenticate,
-  tournamentController.getMyStatus
+  participantController.getMyStatus
 );
 
 /**
@@ -98,12 +98,14 @@ router.get(
 
 /**
  * POST /api/tournaments/:tournamentId/join
- * Join a tournament
+ * Join a tournament (participant)
+ *
+ * Uses participantController so `role: "USER"` accounts can register.
  */
 router.post(
   '/:tournamentId/join',
   authenticate,
-  tournamentController.joinTournament
+  participantController.joinTournament
 );
 
 /**

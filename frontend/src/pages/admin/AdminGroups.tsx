@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/AdminGroups.tsx
 import { useEffect, useState } from "react";
 import { Badge, EmptyState, ErrorState, LoadingState } from "../../components/ui";
 import { RefreshCw, Star } from "lucide-react";
@@ -12,38 +13,88 @@ import {
   globalStyles,
 } from "../../components/admin/AdminUI";
 import { tokens } from "../../styles/designTokens";
+
+// ---- Safe accessors for design tokens ---------------------------------
+
+const safeTokens = {
+  colors: {
+    text: {
+      muted: tokens?.colors?.text?.muted ?? "rgba(255,255,255,0.5)",
+      faint: tokens?.colors?.text?.faint ?? "rgba(255,255,255,0.3)",
+    },
+    border: {
+      subtle: tokens?.colors?.border?.subtle ?? "rgba(255,255,255,0.08)",
+    },
+    bg: {
+      card: tokens?.colors?.bg?.card ?? "rgba(255,255,255,0.02)",
+    },
+    accent: {
+      gold: tokens?.colors?.accent?.gold ?? "#FFD700",
+    },
+  },
+  spacing: {
+    lg: tokens?.spacing?.lg ?? "20px",
+  },
+  radius: {
+    sm: tokens?.radius?.sm ?? "8px",
+  },
+};
+
 export const AdminGroups = () => {
   const { selectedTournament } = useAdmin();
+
   const [groups, setGroups] = useState<Record<string, Participant[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  const fetchGroups = async () => {
-    if (!selectedTournament) return;
-    try {
-      setError("");
-      const { groups: map } = await tournamentApi.groups(selectedTournament._id);
-      setGroups(map);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load groups");
-    }
-  };
+  const tournamentId = selectedTournament?._id;
 
   useEffect(() => {
-    if (!selectedTournament) {
+    if (!tournamentId) {
+      setGroups({});
       setLoading(false);
       return;
     }
+
+    let cancelled = false;
     setLoading(true);
-    fetchGroups().finally(() => setLoading(false));
-  }, [selectedTournament]);
+    setError("");
+
+    tournamentApi
+      .groups(tournamentId)
+      .then((res) => {
+        if (cancelled) return;
+        const map = res?.groups ?? {};
+        setGroups(map);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load groups");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId]);
 
   const handleRefresh = async () => {
+    if (!tournamentId) return;
     setRefreshing(true);
-    await fetchGroups();
-    setRefreshing(false);
+    setError("");
+    try {
+      const res = await tournamentApi.groups(tournamentId);
+      const map = res?.groups ?? {};
+      setGroups(map);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load groups");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (loading) return <LoadingState label="Loading group seeding..." />;
@@ -54,7 +105,7 @@ export const AdminGroups = () => {
       <div style={{ padding: "24px 0" }}>
         <PageHeader eyebrow="Group Stage Allocation" title="Groups & Seeding" />
         <AdminEmptyState
-          icon={<Star size={32} color={tokens.colors.text.muted} />}
+          icon={<Star size={32} color={safeTokens.colors.text.muted} />}
           title="No tournament selected"
           description="Please select a tournament from the sidebar to view groups."
         />
@@ -62,8 +113,8 @@ export const AdminGroups = () => {
     );
   }
 
-  const groupKeys = Object.keys(groups).length ? Object.keys(groups).sort() : [];
-  const allParticipants = Object.values(groups).flat();
+  const groupKeys = Object.keys(groups || {}).sort();
+  const allParticipants = Object.values(groups || {}).flat();
   const totalParticipants = allParticipants.length;
   const groupsWithParticipants = groupKeys.filter((key) => (groups[key] || []).length > 0);
   const activeGroupsCount = groupsWithParticipants.length;
@@ -91,7 +142,7 @@ export const AdminGroups = () => {
           }
         />
         <AdminEmptyState
-          icon={<Star size={32} color={tokens.colors.text.muted} />}
+          icon={<Star size={32} color={safeTokens.colors.text.muted} />}
           title="No groups created yet"
           description="Start the tournament to generate groups automatically."
         />
@@ -121,7 +172,7 @@ export const AdminGroups = () => {
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "12px",
-          marginBottom: tokens.spacing.lg,
+          marginBottom: safeTokens.spacing.lg,
         }}
       >
         {groupStats.map(({ key, count, active, avgSeed }) => (
@@ -132,8 +183,9 @@ export const AdminGroups = () => {
             style={{
               cursor: "pointer",
               borderColor:
-                selectedGroup === key ? "rgba(76, 175, 80, 0.3)" : tokens.colors.border.subtle,
-              background: selectedGroup === key ? "rgba(76, 175, 80, 0.05)" : tokens.colors.bg.card,
+                selectedGroup === key ? "rgba(76, 175, 80, 0.3)" : safeTokens.colors.border.subtle,
+              background:
+                selectedGroup === key ? "rgba(76, 175, 80, 0.05)" : safeTokens.colors.bg.card,
             }}
           >
             <div
@@ -149,7 +201,7 @@ export const AdminGroups = () => {
                 {active}/{count}
               </Badge>
             </div>
-            <div style={{ fontSize: "12px", color: tokens.colors.text.muted }}>
+            <div style={{ fontSize: "12px", color: safeTokens.colors.text.muted }}>
               {count} participants · Avg seed {avgSeed}
             </div>
           </AdminCard>
@@ -180,7 +232,7 @@ export const AdminGroups = () => {
                 borderColor:
                   selectedGroup === groupKey
                     ? "rgba(76, 175, 80, 0.3)"
-                    : tokens.colors.border.subtle,
+                    : safeTokens.colors.border.subtle,
                 transform: selectedGroup === groupKey ? "scale(1.02)" : "scale(1)",
                 boxShadow:
                   selectedGroup === groupKey ? "0 8px 30px rgba(76, 175, 80, 0.1)" : "none",
@@ -192,7 +244,7 @@ export const AdminGroups = () => {
                 style={{
                   padding: "16px 20px",
                   background: "rgba(255,255,255,0.02)",
-                  borderBottom: `1px solid ${tokens.colors.border.subtle}`,
+                  borderBottom: `1px solid ${safeTokens.colors.border.subtle}`,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -219,7 +271,12 @@ export const AdminGroups = () => {
                     <div style={{ fontSize: "14px", fontWeight: 600, color: "white" }}>
                       Group {groupKey}
                     </div>
-                    <div style={{ fontSize: "11px", color: tokens.colors.text.muted }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: safeTokens.colors.text.muted,
+                      }}
+                    >
                       {players.length} participants · {isActive ? "Active" : "Completed"}
                     </div>
                   </div>
@@ -241,7 +298,7 @@ export const AdminGroups = () => {
                           justifyContent: "center",
                           fontSize: "10px",
                           fontWeight: 700,
-                          color: tokens.colors.accent.gold,
+                          color: safeTokens.colors.accent.gold,
                         }}
                       >
                         #{p.seed}
@@ -255,11 +312,12 @@ export const AdminGroups = () => {
               <div style={{ padding: "12px 20px" }}>
                 {players.length ? (
                   <div style={{ display: "grid", gap: "6px" }}>
-                    {players
+                    {/* Copy before sorting — never mutate state */}
+                    {[...players]
                       .sort((a, b) => (a.seed || 999) - (b.seed || 999))
                       .map((p) => {
                         const isEliminated = p.status === "ELIMINATED";
-                        const isTopSeed = p.seed && p.seed <= 2;
+                        const isTopSeed = !!p.seed && p.seed <= 2;
 
                         return (
                           <div
@@ -269,7 +327,7 @@ export const AdminGroups = () => {
                               justifyContent: "space-between",
                               alignItems: "center",
                               padding: "8px 12px",
-                              borderRadius: tokens.radius.sm,
+                              borderRadius: safeTokens.radius.sm,
                               background: isEliminated
                                 ? "rgba(255,255,255,0.02)"
                                 : isTopSeed
@@ -281,7 +339,13 @@ export const AdminGroups = () => {
                                   : "1px solid transparent",
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "12px",
+                              }}
+                            >
                               <div
                                 style={{
                                   width: "24px",
@@ -298,10 +362,10 @@ export const AdminGroups = () => {
                                   fontSize: "11px",
                                   fontWeight: 700,
                                   color: isEliminated
-                                    ? tokens.colors.text.faint
+                                    ? safeTokens.colors.text.faint
                                     : isTopSeed
-                                      ? tokens.colors.accent.gold
-                                      : tokens.colors.text.muted,
+                                      ? safeTokens.colors.accent.gold
+                                      : safeTokens.colors.text.muted,
                                 }}
                               >
                                 #{p.seed || "—"}
@@ -311,20 +375,31 @@ export const AdminGroups = () => {
                                   style={{
                                     fontSize: "13px",
                                     fontWeight: isTopSeed && !isEliminated ? 600 : 400,
-                                    color: isEliminated ? tokens.colors.text.faint : "white",
+                                    color: isEliminated ? safeTokens.colors.text.faint : "white",
                                   }}
                                 >
                                   {p.user?.name || p.user?.username || "Unknown"}
                                 </div>
-                                <div style={{ fontSize: "11px", color: tokens.colors.text.muted }}>
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: safeTokens.colors.text.muted,
+                                  }}
+                                >
                                   @{p.user?.username || "unknown"}
                                 </div>
                               </div>
                             </div>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
                               {isTopSeed && !isEliminated && (
-                                <Star size={14} color={tokens.colors.accent.gold} />
+                                <Star size={14} color={safeTokens.colors.accent.gold} />
                               )}
                               <Badge tone={isEliminated ? "muted" : "green"}>
                                 {p.status || "Active"}

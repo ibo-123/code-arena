@@ -12,6 +12,9 @@ import {
   Swords,
   Calendar,
   Clock,
+  Hourglass,
+  XCircle,
+  CheckCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { tournamentApi } from "../../services/tournamentApi";
@@ -28,9 +31,9 @@ export const ParticipantTournament = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Only tabs with real routes in App.tsx
   const tabs = [
     { path: "", label: "Overview", icon: LayoutDashboard },
+    { path: "contests", label: "Contests", icon: Swords },
     { path: "standings", label: "Standings", icon: ListOrdered },
   ];
 
@@ -55,7 +58,6 @@ export const ParticipantTournament = () => {
         return;
       }
 
-      // Participant lookup is optional — never fails the page
       try {
         const { participants } = await tournamentApi.participants(id);
         const me = participants.find((p) => p.user?._id === user?._id);
@@ -80,7 +82,83 @@ export const ParticipantTournament = () => {
   if (!tournament) return <ErrorState error="Tournament not found" />;
 
   const isActive = tournament.status !== "COMPLETED" && tournament.status !== "CANCELLED";
+  const regStatus = participant?.registrationStatus || "NONE";
 
+  // ---- Gate: not registered ----
+  if (!participant) {
+    return (
+      <div className="participant-tournament">
+        <Link to="/dashboard/tournaments" className="back-link">
+          <ArrowLeft size={16} />
+          <span>Back to My Tournaments</span>
+        </Link>
+        <GateCard
+          tone="muted"
+          icon={<Target size={32} />}
+          title="You're not registered for this tournament"
+          description="Register to participate. Once the admin approves your entry, you'll unlock contests and video submissions."
+          action={
+            <Link to={`/tournaments/${tournament._id}`} className="btn-view-public">
+              <ExternalLink size={16} />
+              <span>View Public Page</span>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  // ---- Gate: pending approval ----
+  if (regStatus === "PENDING") {
+    return (
+      <div className="participant-tournament">
+        <Link to="/dashboard/tournaments" className="back-link">
+          <ArrowLeft size={16} />
+          <span>Back to My Tournaments</span>
+        </Link>
+        <GateCard
+          tone="gold"
+          icon={<Hourglass size={32} />}
+          title="Waiting for admin approval"
+          description="Your registration has been submitted. You'll get access to contests, standings, and video submissions as soon as an admin approves your entry."
+          footer={
+            <div className="gate-meta">
+              <span className="gate-meta-item">
+                <Swords size={14} />
+                {tournament.name}
+              </span>
+              <span className="gate-meta-item">
+                <Calendar size={14} />
+                {tournament.tournamentStart
+                  ? new Date(tournament.tournamentStart).toLocaleDateString()
+                  : "TBD"}
+              </span>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  // ---- Gate: rejected ----
+  if (regStatus === "REJECTED") {
+    return (
+      <div className="participant-tournament">
+        <Link to="/dashboard/tournaments" className="back-link">
+          <ArrowLeft size={16} />
+          <span>Back to My Tournaments</span>
+        </Link>
+        <GateCard
+          tone="red"
+          icon={<XCircle size={32} />}
+          title="Registration rejected"
+          description="Your registration for this tournament was rejected by the admin. Contact the organizers if you believe this is a mistake."
+        />
+      </div>
+    );
+  }
+
+  // ---- Approved: full dashboard ----
   return (
     <div className="participant-tournament">
       <Link to="/dashboard/tournaments" className="back-link">
@@ -106,6 +184,10 @@ export const ParticipantTournament = () => {
                     Live
                   </span>
                 )}
+                <span className="approved-pill">
+                  <CheckCircle size={12} />
+                  Approved
+                </span>
               </div>
               <h1>{tournament.name}</h1>
               <div className="header-meta">
@@ -119,31 +201,20 @@ export const ParticipantTournament = () => {
           </div>
 
           <div className="header-right">
-            {participant ? (
-              <div className="participant-card">
-                <div className="participant-card-header">
-                  <Target size={14} />
-                  <span>Your Status</span>
-                </div>
-                <div className="participant-card-body">
-                  <StatusBadge
-                    status={participant.registrationStatus || participant.status || "PENDING"}
-                    size="sm"
-                  />
-                  {participant.group && (
-                    <span className="stat-pill">Group {participant.group}</span>
-                  )}
-                  {participant.rank && (
-                    <span className="stat-pill rank-pill">#{participant.rank}</span>
-                  )}
-                </div>
+            <div className="participant-card">
+              <div className="participant-card-header">
+                <Target size={14} />
+                <span>Your Status</span>
               </div>
-            ) : (
-              <Link to={`/tournaments/${id}`} className="btn-view-public">
-                <ExternalLink size={16} />
-                <span>View Public Page</span>
-              </Link>
-            )}
+              <div className="participant-card-body">
+                <StatusBadge status={regStatus} size="sm" />
+                {participant.group && <span className="stat-pill">Group {participant.group}</span>}
+                {participant.seed && <span className="stat-pill">Seed #{participant.seed}</span>}
+                {participant.rank && (
+                  <span className="stat-pill rank-pill">#{participant.rank}</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -178,7 +249,45 @@ export const ParticipantTournament = () => {
   );
 };
 
-// ---- Inline Overview panel (no separate file needed) -----------------
+// ---- Gate card ---------------------------------------------------------
+
+interface GateCardProps {
+  tone: "muted" | "gold" | "red";
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+const GateCard: React.FC<GateCardProps> = ({ tone, icon, title, description, action, footer }) => {
+  const colors = {
+    muted: { accent: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.04)" },
+    gold: { accent: "#FFD700", bg: "rgba(255,215,0,0.08)" },
+    red: { accent: "#EF5350", bg: "rgba(239,83,80,0.08)" },
+  }[tone];
+
+  return (
+    <div className="gate-card" style={{ borderColor: `${colors.accent}40` }}>
+      <div
+        className="gate-card-glow"
+        style={{ background: `radial-gradient(circle, ${colors.accent}20, transparent 70%)` }}
+        aria-hidden="true"
+      />
+      <div className="gate-card-content">
+        <div className="gate-icon" style={{ background: colors.bg, color: colors.accent }}>
+          {icon}
+        </div>
+        <h2 className="gate-title">{title}</h2>
+        <p className="gate-description">{description}</p>
+        {action && <div className="gate-action">{action}</div>}
+        {footer && <div className="gate-footer">{footer}</div>}
+      </div>
+    </div>
+  );
+};
+
+// ---- Overview panel ---------------------------------------------------
 
 interface OverviewPanelProps {
   tournament: Tournament;
