@@ -61,6 +61,7 @@ export interface Tournament {
   tournamentEnd?: string;
   startDate?: string;
   endDate?: string;
+  contestCount?: number;
   createdBy: {
     _id: string;
     name: string;

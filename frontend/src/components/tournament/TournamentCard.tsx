@@ -1,6 +1,7 @@
 // frontend/src/components/tournament/TournamentCard.tsx
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { Trophy, Users, Calendar, ArrowUpRight, Zap } from "lucide-react";
+import { Trophy, Users, Calendar, ArrowUpRight, Zap, Sparkles } from "lucide-react";
 import { StatusBadge } from "../common/StatusBadge";
 import type { Tournament } from "../../types";
 
@@ -9,126 +10,345 @@ interface TournamentCardProps {
   variant?: "default" | "compact" | "featured";
 }
 
+// ---- Design tokens ---------------------------------------------------
+
+const c = {
+  bg: {
+    card: "rgba(255, 255, 255, 0.02)",
+    cardHover: "rgba(255, 255, 255, 0.03)",
+    chip: "rgba(255, 255, 255, 0.04)",
+    progress: "rgba(255, 255, 255, 0.04)",
+  },
+  border: {
+    subtle: "rgba(255, 255, 255, 0.06)",
+    mid: "rgba(255, 255, 255, 0.1)",
+  },
+  text: {
+    primary: "#ffffff",
+    secondary: "rgba(255, 255, 255, 0.7)",
+    muted: "rgba(255, 255, 255, 0.5)",
+    faint: "rgba(255, 255, 255, 0.35)",
+  },
+  radius: { sm: "10px", md: "14px", lg: "20px" },
+} as const;
+
+const getStatusColor = (status?: string): string => {
+  switch (status) {
+    case "REGISTRATION":
+      return "#4CAF50";
+    case "GROUP_STAGE":
+      return "#FF9800";
+    case "QUARTER_FINAL":
+      return "#FF9800";
+    case "SEMI_FINAL":
+      return "#9C27B0";
+    case "FINAL":
+      return "#FFD700";
+    case "COMPLETED":
+      return "#64B5F6";
+    case "CANCELLED":
+      return "#EF5350";
+    default:
+      return "#9C27B0";
+  }
+};
+
 export const TournamentCard = ({ tournament, variant = "default" }: TournamentCardProps) => {
+  const cardRef = useRef<HTMLAnchorElement>(null);
+
   const isCompact = variant === "compact";
   const isFeatured = variant === "featured";
 
-  const statusColor =
-    tournament.status === "REGISTRATION"
-      ? "#4CAF50"
-      : tournament.status === "GROUP_STAGE"
-        ? "#FF9800"
-          : tournament.status === "COMPLETED"
-            ? "#64B5F6"
-            : "#9C27B0";
+  const statusColor = getStatusColor(tournament.status);
+  const participantCount = tournament.participantCount || 0;
+  const maxParticipants = tournament.maxParticipants || 20;
+  const fillPct = Math.min(100, (participantCount / maxParticipants) * 100);
+  const isFull = participantCount >= maxParticipants;
+
+  // Track mouse for the radial glow
+  const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    el.style.setProperty("--mouse-x", `${x}%`);
+    el.style.setProperty("--mouse-y", `${y}%`);
+  };
+
+  const padding = isCompact ? "18px" : isFeatured ? "28px" : "24px";
+  const gap = isCompact ? "12px" : "16px";
+  const radius = isCompact ? c.radius.md : isFeatured ? c.radius.lg : c.radius.lg;
+  const titleSize = isCompact ? "16px" : isFeatured ? "22px" : "19px";
 
   return (
     <Link
+      ref={cardRef}
       to={`/tournaments/${tournament._id}`}
-      className={`tournament-card ${isCompact ? "compact" : ""} ${isFeatured ? "featured" : ""}`}
-      style={{ "--status-color": statusColor } as React.CSSProperties}
+      onMouseMove={handleMouseMove}
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        gap,
+        padding,
+        background: c.bg.card,
+        border: isFeatured ? "1px solid rgba(255, 215, 0, 0.15)" : `1px solid ${c.border.subtle}`,
+        borderRadius: radius,
+        textDecoration: "none",
+        color: "inherit",
+        overflow: "hidden",
+        isolation: "isolate",
+        transition:
+          "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.35s ease, box-shadow 0.35s ease, background-color 0.35s ease",
+        // @ts-expect-error CSS custom properties
+        "--status-color": statusColor,
+        "--mouse-x": "50%",
+        "--mouse-y": "50%",
+      }}
+      className="tc-card"
     >
-      {/* Glow effect */}
-      <div className="tc-glow" />
+      {/* Radial cursor glow */}
+      <div className="tc-cursor-glow" aria-hidden="true" />
 
-      {/* Status strip */}
-      <div className="tc-status-strip" />
+      {/* Ambient status glow */}
+      <div className="tc-glow" aria-hidden="true" />
 
-      <div className="tc-header">
+      {/* Top status strip */}
+      <div className="tc-status-strip" aria-hidden="true" />
+
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "8px",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         <StatusBadge status={tournament.status} size={isCompact ? "sm" : "md"} />
-        <div className="tc-participants">
-          <Users size={14} />
-          <span>{tournament.participantCount || 0}</span>
-        </div>
-      </div>
 
-      <div className="tc-body">
-        <h3 className="tc-title">{tournament.name}</h3>
-
-        {!isCompact && tournament.description && (
-          <p className="tc-description">{tournament.description}</p>
-        )}
-      </div>
-
-      <div className="tc-meta">
-        <div className="tc-meta-item">
-          <Calendar size={14} />
-          <span>
-            {tournament.tournamentStart
-              ? new Date(tournament.tournamentStart).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })
-              : "TBD"}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            padding: "4px 10px",
+            borderRadius: "999px",
+            background: c.bg.chip,
+            border: `1px solid ${c.border.subtle}`,
+            fontSize: "12px",
+            fontWeight: 600,
+            color: c.text.muted,
+          }}
+        >
+          <Users size={12} />
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {participantCount}
+            <span style={{ color: c.text.faint, fontWeight: 500 }}>/{maxParticipants}</span>
           </span>
         </div>
-        <div className="tc-meta-item">
-          <Trophy size={14} />
-          <span>{tournament.maxParticipants || 20} slots</span>
-        </div>
-        {tournament.currentStage && (
-          <div className="tc-meta-item tc-stage">
-            <Zap size={14} />
-            <span>{tournament.currentStage.replace(/_/g, " ")}</span>
-          </div>
+      </div>
+
+      {/* Body */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <h3
+          style={{
+            fontSize: titleSize,
+            fontWeight: 700,
+            color: c.text.primary,
+            margin: 0,
+            lineHeight: 1.3,
+            letterSpacing: "-0.01em",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            lineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {tournament.name}
+        </h3>
+
+        {!isCompact && tournament.description && (
+          <p
+            style={{
+              fontSize: "13px",
+              color: c.text.muted,
+              lineHeight: 1.6,
+              margin: 0,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              lineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {tournament.description}
+          </p>
         )}
       </div>
 
-      {/* Progress bar for slots */}
-      <div className="tc-progress">
-        <div
-          className="tc-progress-fill"
+      {/* Meta */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px 16px",
+          fontSize: "12px",
+          color: c.text.muted,
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <span
           style={{
-            width: `${Math.min(
-              100,
-              ((tournament.participantCount || 0) / (tournament.maxParticipants || 20)) * 100,
-            )}%`,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <Calendar size={12} style={{ opacity: 0.6 }} />
+          {tournament.tournamentStart
+            ? new Date(tournament.tournamentStart).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "TBD"}
+        </span>
+
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <Trophy size={12} style={{ opacity: 0.6 }} />
+          {maxParticipants} slots
+        </span>
+
+        {tournament.currentStage && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              color: statusColor,
+              fontWeight: 600,
+              textTransform: "capitalize",
+            }}
+          >
+            <Zap size={12} style={{ opacity: 0.8 }} />
+            {tournament.currentStage.replace(/_/g, " ").toLowerCase()}
+          </span>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div
+        style={{
+          height: "3px",
+          width: "100%",
+          background: c.bg.progress,
+          borderRadius: "999px",
+          overflow: "hidden",
+          position: "relative",
+          zIndex: 1,
+        }}
+        role="progressbar"
+        aria-valuenow={participantCount}
+        aria-valuemin={0}
+        aria-valuemax={maxParticipants}
+        aria-label={`${participantCount} of ${maxParticipants} slots filled`}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${fillPct}%`,
+            background: isFull
+              ? "linear-gradient(90deg, #EF5350, #F44336)"
+              : `linear-gradient(90deg, ${statusColor}, #64B5F6)`,
+            borderRadius: "999px",
+            transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow: `0 0 12px ${isFull ? "rgba(239,83,80,0.5)" : `${statusColor}80`}`,
           }}
         />
       </div>
 
       {/* Hover arrow */}
-      <div className="tc-arrow">
-        <ArrowUpRight size={18} />
+      <div
+        className="tc-arrow"
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          bottom: isCompact ? "14px" : "20px",
+          right: isCompact ? "14px" : "20px",
+          width: isCompact ? "30px" : "36px",
+          height: isCompact ? "30px" : "36px",
+          borderRadius: "50%",
+          background: "rgba(41, 121, 255, 0.1)",
+          border: "1px solid rgba(41, 121, 255, 0.25)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#64B5F6",
+          opacity: 0,
+          transform: "translate(-6px, 6px)",
+          transition: "opacity 0.3s ease, transform 0.3s ease",
+          zIndex: 1,
+        }}
+      >
+        <ArrowUpRight size={16} />
       </div>
 
+      {/* Featured badge */}
+      {isFeatured && (
+        <div
+          style={{
+            position: "absolute",
+            top: "16px",
+            right: "16px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            padding: "3px 10px",
+            borderRadius: "999px",
+            background: "rgba(255, 215, 0, 0.12)",
+            border: "1px solid rgba(255, 215, 0, 0.3)",
+            color: "#FFD700",
+            fontSize: "10px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.6px",
+            zIndex: 2,
+          }}
+        >
+          <Sparkles size={10} />
+          Featured
+        </div>
+      )}
+
       <style>{`
-        .tournament-card {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          padding: 24px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 20px;
-          text-decoration: none;
-          color: inherit;
-          transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-          overflow: hidden;
-          isolation: isolate;
-        }
-
-        .tournament-card.compact {
-          padding: 18px;
-          gap: 12px;
-          border-radius: 16px;
-        }
-
-        .tournament-card.featured {
-          padding: 28px;
-          border-color: rgba(255, 215, 0, 0.15);
-        }
-
-        .tournament-card::before {
+        .tc-card::before {
           content: '';
           position: absolute;
           inset: 0;
           background: radial-gradient(
-            circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            rgba(41, 121, 255, 0.06),
-            transparent 50%
+            circle 400px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+            rgba(41, 121, 255, 0.08),
+            transparent 60%
           );
           opacity: 0;
           transition: opacity 0.4s ease;
@@ -136,15 +356,22 @@ export const TournamentCard = ({ tournament, variant = "default" }: TournamentCa
           z-index: 0;
         }
 
-        .tournament-card:hover::before {
+        .tc-card:hover::before {
           opacity: 1;
         }
 
-        .tournament-card:hover {
+        .tc-card:hover {
           transform: translateY(-6px);
-          border-color: rgba(41, 121, 255, 0.25);
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(41, 121, 255, 0.06);
-          background: rgba(255, 255, 255, 0.03);
+          border-color: rgba(41, 121, 255, 0.3);
+          box-shadow:
+            0 24px 60px rgba(0, 0, 0, 0.4),
+            0 0 40px rgba(41, 121, 255, 0.08);
+          background: ${c.bg.cardHover};
+        }
+
+        .tc-card:hover .tc-arrow {
+          opacity: 1;
+          transform: translate(0, 0);
         }
 
         .tc-glow {
@@ -162,8 +389,8 @@ export const TournamentCard = ({ tournament, variant = "default" }: TournamentCa
           z-index: 0;
         }
 
-        .tournament-card:hover .tc-glow {
-          opacity: 0.08;
+        .tc-card:hover .tc-glow {
+          opacity: 0.1;
         }
 
         .tc-status-strip {
@@ -172,148 +399,31 @@ export const TournamentCard = ({ tournament, variant = "default" }: TournamentCa
           left: 0;
           right: 0;
           height: 2px;
-          background: linear-gradient(90deg, var(--status-color, #2979FF), transparent);
-          opacity: 0.6;
+          background: linear-gradient(
+            90deg,
+            var(--status-color, #2979FF),
+            transparent
+          );
+          opacity: 0.7;
         }
 
-        .tc-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          position: relative;
-          z-index: 1;
-        }
-
-        .tc-participants {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.5);
-          padding: 4px 10px;
-          background: rgba(255, 255, 255, 0.04);
-          border-radius: 100px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .tc-body {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .tc-title {
-          font-size: 20px;
-          font-weight: 700;
-          color: white;
-          margin: 0;
-          line-height: 1.3;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .compact .tc-title {
-          font-size: 16px;
-        }
-
-        .featured .tc-title {
-          font-size: 22px;
-        }
-
-        .tc-description {
-          font-size: 13px;
-          color: rgba(255, 255, 255, 0.45);
-          line-height: 1.6;
-          margin: 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .tc-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px 16px;
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.45);
-          position: relative;
-          z-index: 1;
-        }
-
-        .tc-meta-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .tc-meta-item svg {
-          opacity: 0.6;
-        }
-
-        .tc-stage {
-          color: var(--status-color, #64B5F6);
-          font-weight: 600;
-          text-transform: capitalize;
-        }
-
-        .tc-progress {
-          height: 3px;
-          background: rgba(255, 255, 255, 0.04);
-          border-radius: 100px;
-          overflow: hidden;
-          position: relative;
-          z-index: 1;
-        }
-
-        .tc-progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--status-color, #2979FF), #64B5F6);
-          border-radius: 100px;
-          transition: width 0.6s ease;
-          box-shadow: 0 0 12px var(--status-color, #2979FF);
-        }
-
-        .tc-arrow {
+        .tc-cursor-glow {
           position: absolute;
-          bottom: 20px;
-          right: 20px;
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background: rgba(41, 121, 255, 0.1);
-          border: 1px solid rgba(41, 121, 255, 0.2);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #64B5F6;
-          opacity: 0;
-          transform: translate(-8px, 8px);
-          transition: all 0.3s ease;
-          z-index: 1;
+          inset: 0;
+          pointer-events: none;
+          z-index: 0;
         }
 
-        .tournament-card:hover .tc-arrow {
-          opacity: 1;
-          transform: translate(0, 0);
-        }
-
-        .compact .tc-arrow {
-          width: 30px;
-          height: 30px;
-          bottom: 14px;
-          right: 14px;
-        }
-
-        /* Track mouse for glow effect */
-        .tournament-card {
-          --mouse-x: 50%;
-          --mouse-y: 50%;
+        @media (prefers-reduced-motion: reduce) {
+          .tc-card,
+          .tc-arrow,
+          .tc-card::before,
+          .tc-glow {
+            transition: none;
+          }
+          .tc-card:hover {
+            transform: none;
+          }
         }
       `}</style>
     </Link>

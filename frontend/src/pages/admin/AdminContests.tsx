@@ -35,11 +35,15 @@ const STAGE_OPTIONS: Array<{
   { value: "FINAL", label: "Final" },
 ];
 
+// Stages that need a match number (actual bracket rounds)
+const KNOCKOUT_STAGES: ContestPayload["stage"][] = ["QUARTER_FINAL", "SEMI_FINAL", "FINAL"];
+
 interface ContestFormState {
   name: string;
   invitationUrl: string;
   stage: ContestPayload["stage"];
   group: string;
+  matchNumber?: number;
   startTime: string;
   durationMinutes: number;
   description: string;
@@ -84,6 +88,7 @@ const emptyForm = (): ContestFormState => ({
   invitationUrl: "",
   stage: "GROUP_STAGE",
   group: "",
+  matchNumber: undefined,
   startTime: "",
   durationMinutes: 180,
   description: "",
@@ -121,7 +126,6 @@ const getStatusColor = (status: string): string => {
   }
 };
 
-/** Can this contest have results entered? */
 const canEnterResults = (contest: AdminContest): boolean =>
   contest.published && (contest.status === "FINISHED" || contest.status === "LIVE");
 
@@ -199,6 +203,7 @@ export const AdminContests = () => {
       invitationUrl: contest.invitationUrl,
       stage: contest.stage as ContestPayload["stage"],
       group: contest.group || "",
+      matchNumber: contest.matchNumber ?? undefined,
       startTime: formatDateTimeLocal(contest.startTime),
       durationMinutes: contest.durationSeconds ? Math.round(contest.durationSeconds / 60) : 180,
       description: contest.description || "",
@@ -233,6 +238,10 @@ export const AdminContests = () => {
     if (form.stage === "GROUP_STAGE" && !form.group.trim())
       return setFormError("Group is required for GROUP_STAGE contests");
 
+    // ---- Only actual knockout stages require a match number ----
+    if (KNOCKOUT_STAGES.includes(form.stage) && !form.matchNumber)
+      return setFormError("Match number is required for knockout stage contests");
+
     setSubmitting(true);
     try {
       const payload: ContestPayload = {
@@ -240,6 +249,7 @@ export const AdminContests = () => {
         invitationUrl: form.invitationUrl.trim(),
         stage: form.stage,
         group: form.stage === "GROUP_STAGE" ? form.group.trim().toUpperCase() : undefined,
+        matchNumber: KNOCKOUT_STAGES.includes(form.stage) ? form.matchNumber : undefined,
         startTime: new Date(form.startTime).toISOString(),
         durationMinutes: Number(form.durationMinutes) || 180,
         description: form.description.trim() || undefined,
@@ -711,8 +721,9 @@ export const AdminContests = () => {
                   gap: "16px",
                 }}
               >
-                <Field label="Contest Name *">
+                <Field label="Contest Name *" htmlFor="contest-name">
                   <input
+                    id="contest-name"
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -722,8 +733,9 @@ export const AdminContests = () => {
                   />
                 </Field>
 
-                <Field label="Codeforces Invitation URL *">
+                <Field label="Codeforces Invitation URL *" htmlFor="contest-invitation-url">
                   <input
+                    id="contest-invitation-url"
                     type="url"
                     value={form.invitationUrl}
                     onChange={(e) => setForm({ ...form, invitationUrl: e.target.value })}
@@ -749,19 +761,25 @@ export const AdminContests = () => {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: form.stage === "GROUP_STAGE" ? "1fr 1fr" : "1fr",
+                    gridTemplateColumns: "1fr 1fr",
                     gap: "12px",
                   }}
                 >
-                  <Field label="Stage *">
+                  <Field label="Stage *" htmlFor="contest-stage">
                     <select
+                      id="contest-stage"
                       value={form.stage}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const nextStage = e.target.value as ContestPayload["stage"];
                         setForm({
                           ...form,
-                          stage: e.target.value as ContestPayload["stage"],
-                        })
-                      }
+                          stage: nextStage,
+                          group: nextStage === "GROUP_STAGE" ? form.group : "",
+                          matchNumber: KNOCKOUT_STAGES.includes(nextStage)
+                            ? form.matchNumber
+                            : undefined,
+                        });
+                      }}
                       style={inputBase}
                     >
                       {STAGE_OPTIONS.map((opt) => (
@@ -772,9 +790,10 @@ export const AdminContests = () => {
                     </select>
                   </Field>
 
-                  {form.stage === "GROUP_STAGE" && (
-                    <Field label="Group *">
+                  {form.stage === "GROUP_STAGE" ? (
+                    <Field label="Group *" htmlFor="contest-group">
                       <input
+                        id="contest-group"
                         type="text"
                         value={form.group}
                         onChange={(e) => setForm({ ...form, group: e.target.value })}
@@ -782,6 +801,26 @@ export const AdminContests = () => {
                         style={inputBase}
                       />
                     </Field>
+                  ) : KNOCKOUT_STAGES.includes(form.stage) ? (
+                    <Field label="Match Number *" htmlFor="contest-match">
+                      <input
+                        id="contest-match"
+                        type="number"
+                        min={1}
+                        value={form.matchNumber ?? ""}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            matchNumber: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="e.g., 1, 2, 3, 4"
+                        style={inputBase}
+                      />
+                    </Field>
+                  ) : (
+                    // QUALIFICATION doesn't need a second field
+                    <div />
                   )}
                 </div>
 
@@ -792,8 +831,9 @@ export const AdminContests = () => {
                     gap: "12px",
                   }}
                 >
-                  <Field label="Start Date/Time *">
+                  <Field label="Start Date/Time *" htmlFor="contest-start-time">
                     <input
+                      id="contest-start-time"
                       type="datetime-local"
                       value={form.startTime}
                       onChange={(e) => setForm({ ...form, startTime: e.target.value })}
@@ -801,8 +841,9 @@ export const AdminContests = () => {
                       required
                     />
                   </Field>
-                  <Field label="Duration (min) *">
+                  <Field label="Duration (min) *" htmlFor="contest-duration">
                     <input
+                      id="contest-duration"
                       type="number"
                       min={1}
                       value={form.durationMinutes}
@@ -818,8 +859,9 @@ export const AdminContests = () => {
                   </Field>
                 </div>
 
-                <Field label="Description (optional)">
+                <Field label="Description (optional)" htmlFor="contest-description">
                   <textarea
+                    id="contest-description"
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                     rows={3}
@@ -939,7 +981,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         }
       }}
     >
-      {/* Top bar with status */}
       <div
         style={{
           display: "flex",
@@ -964,6 +1005,9 @@ const ContestCard: React.FC<ContestCardProps> = ({
                 color={c.accent.blue}
                 icon={<Users size={10} />}
               />
+            )}
+            {!contest.group && contest.matchNumber && (
+              <Chip label={`Match ${contest.matchNumber}`} color={c.accent.orange} />
             )}
           </div>
           <h3
@@ -1013,7 +1057,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         </span>
       </div>
 
-      {/* Description */}
       {contest.description && (
         <p
           style={{
@@ -1031,7 +1074,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         </p>
       )}
 
-      {/* Meta */}
       <div
         style={{
           display: "flex",
@@ -1072,7 +1114,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         ) : null}
       </div>
 
-      {/* Invitation URL */}
       <a
         href={contest.invitationUrl}
         target="_blank"
@@ -1104,7 +1145,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         </span>
       </a>
 
-      {/* ---- Results shortcut ---- */}
       {showResults && (
         <Link
           to={`/admin/contests/${contest._id}/results`}
@@ -1129,7 +1169,6 @@ const ContestCard: React.FC<ContestCardProps> = ({
         </Link>
       )}
 
-      {/* Actions */}
       <div
         style={{
           display: "flex",
@@ -1220,12 +1259,14 @@ const Chip: React.FC<ChipProps> = ({ label, color, icon }) => (
 
 interface FieldProps {
   label: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }
 
-const Field: React.FC<FieldProps> = ({ label, children }) => (
+const Field: React.FC<FieldProps> = ({ label, htmlFor, children }) => (
   <div>
     <label
+      htmlFor={htmlFor}
       style={{
         display: "block",
         fontSize: "12px",
@@ -1385,5 +1426,3 @@ const alertStyle = (color: string, bg: string): React.CSSProperties => ({
 });
 
 export default AdminContests;
-
-

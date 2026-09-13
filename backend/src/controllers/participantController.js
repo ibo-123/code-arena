@@ -1,8 +1,12 @@
+// backend/src/controllers/participantController.js
 const mongoose = require("mongoose");
 const Participant = require("../models/Participant");
 const Tournament = require("../models/Tournament");
 const AuditLog = require("../models/AuditLog");
 
+// ============================================================
+// JOIN TOURNAMENT
+// ============================================================
 const joinTournament = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -48,15 +52,17 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    if (tournament.status === "GROUP_STAGE" || tournament.status === "COMPLETED") {
+    if (
+      tournament.status === "GROUP_STAGE" ||
+      tournament.status === "COMPLETED"
+    ) {
       return res.status(400).json({
         success: false,
         message: "Tournament has already started or completed",
       });
     }
 
-    // ---- Slot counting -------------------------------------------------
-    // Rejected participants do NOT occupy a slot. Pending + approved do.
+    // ---- Slot counting: rejected participants do NOT occupy a slot ----
     const participantCount = await Participant.countDocuments({
       tournamentId,
       registrationStatus: { $ne: "REJECTED" },
@@ -71,14 +77,13 @@ const joinTournament = async (req, res) => {
       });
     }
 
-    // ---- Duplicate check ----------------------------------------------
+    // ---- Duplicate check ----
     const existingParticipant = await Participant.findOne({
       tournamentId,
       user: userId,
     });
 
     if (existingParticipant) {
-      // Give a specific message based on their current status
       if (existingParticipant.registrationStatus === "REJECTED") {
         return res.status(409).json({
           success: false,
@@ -134,6 +139,9 @@ const joinTournament = async (req, res) => {
   }
 };
 
+// ============================================================
+// APPROVE PARTICIPANT
+// ============================================================
 const approveParticipant = async (req, res) => {
   try {
     const { tournamentId, participantId } = req.params;
@@ -141,7 +149,7 @@ const approveParticipant = async (req, res) => {
     const participant = await Participant.findOne({
       _id: participantId,
       tournamentId,
-    }).populate('user');
+    }).populate("user");
 
     if (!participant) {
       return res.status(404).json({
@@ -174,13 +182,13 @@ const approveParticipant = async (req, res) => {
       {
         $match: {
           tournamentId: new mongoose.Types.ObjectId(tournamentId),
-          group: { $exists: true, $ne: null, $ne: '' },
+          group: { $exists: true, $ne: null, $ne: "" },
           registrationStatus: "APPROVED",
         },
       },
       {
         $group: {
-          _id: '$group',
+          _id: "$group",
           count: { $sum: 1 },
         },
       },
@@ -227,8 +235,9 @@ const approveParticipant = async (req, res) => {
     await participant.save();
 
     await AuditLog.create({
-      action: 'PARTICIPANT_APPROVED',
-      description: `Participant ${participant.user?.username || participant.user} approved for tournament ${tournament.name}`,
+      action: "PARTICIPANT_APPROVED",
+      description: `Participant ${participant.user?.username || participant.user
+        } approved for tournament ${tournament.name}`,
       admin: req.user.userId || req.user._id,
       tournament: tournamentId,
     });
@@ -247,15 +256,18 @@ const approveParticipant = async (req, res) => {
   }
 };
 
+// ============================================================
+// REJECT PARTICIPANT
+// ============================================================
 const rejectParticipant = async (req, res) => {
   try {
     const { tournamentId, participantId } = req.params;
-    const { reason } = req.body || {};   // ← the only change
+    const { reason } = req.body || {};
 
     const participant = await Participant.findOne({
       _id: participantId,
       tournamentId,
-    }).populate('user');
+    }).populate("user");
 
     if (!participant) {
       return res.status(404).json({
@@ -264,30 +276,42 @@ const rejectParticipant = async (req, res) => {
       });
     }
 
-    if (participant.registrationStatus !== "PENDING") {
+    // ---- Only block if already rejected ----
+    if (participant.registrationStatus === "REJECTED") {
       return res.status(400).json({
         success: false,
-        message: `Participant is already ${participant.registrationStatus.toLowerCase()}`,
+        message: "Participant is already rejected",
       });
     }
 
+    // Note: APPROVED participants CAN be rejected.
+    // This frees their slot for a new registrant.
+
+    const wasApproved = participant.registrationStatus === "APPROVED";
+
     participant.registrationStatus = "REJECTED";
     participant.status = "ELIMINATED";
+    participant.group = undefined;
+    participant.seed = undefined;
     await participant.save();
 
     const tournament = await Tournament.findById(tournamentId);
 
     await AuditLog.create({
-      action: 'PARTICIPANT_REJECTED',
-      description: `Participant ${participant.user?.username || participant.user} rejected from tournament ${tournament?.name || tournamentId}${reason ? ` — Reason: ${reason}` : ''}`,
+      action: "PARTICIPANT_REJECTED",
+      description: `Participant ${participant.user?.username || participant.user
+        } ${wasApproved ? "removed" : "rejected"} from tournament ${tournament?.name || tournamentId
+        }${reason ? ` — Reason: ${reason}` : ""}`,
       admin: req.user.userId || req.user._id,
       tournament: tournamentId,
-      details: reason ? { reason } : {},
+      details: { reason, wasApproved },
     });
 
     return res.json({
       success: true,
-      message: "Participant rejected",
+      message: wasApproved
+        ? "Approved participant rejected. Slot is now free."
+        : "Participant rejected",
       participant,
     });
   } catch (error) {
@@ -299,6 +323,9 @@ const rejectParticipant = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET PARTICIPANTS
+// ============================================================
 const getParticipants = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -316,9 +343,15 @@ const getParticipants = async (req, res) => {
       .populate("user", "name username codeforcesUsername email")
       .sort({ createdAt: 1 });
 
+    const activeCount = participants.filter(
+      (p) => p.registrationStatus !== "REJECTED"
+    ).length;
+
     return res.status(200).json({
       success: true,
       count: participants.length,
+      activeCount,
+      maxParticipants: tournament.maxParticipants || 20,
       participants,
     });
   } catch (error) {
@@ -330,6 +363,9 @@ const getParticipants = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET MY STATUS
+// ============================================================
 const getMyStatus = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -338,7 +374,7 @@ const getMyStatus = async (req, res) => {
     const participant = await Participant.findOne({
       tournamentId,
       user: userId,
-    }).populate('user', 'name username codeforcesUsername');
+    }).populate("user", "name username codeforcesUsername");
 
     if (!participant) {
       return res.status(404).json({
@@ -364,7 +400,9 @@ const getMyStatus = async (req, res) => {
         currentStage: participant.currentStage,
         isApproved: participant.registrationStatus === "APPROVED",
         isEliminated: participant.status === "ELIMINATED",
-        hasAdvanced: participant.status === "ADVANCED" || participant.status === "CHAMPION",
+        hasAdvanced:
+          participant.status === "ADVANCED" ||
+          participant.status === "CHAMPION",
         user: participant.user,
       },
       tournament: {
@@ -385,18 +423,6 @@ const getMyStatus = async (req, res) => {
 
 // ============================================================
 // GET GROUPS
-// ============================================================
-// Returns participants grouped by their assigned group letter (A, B, C, ...).
-//
-// NOTE: We no longer filter by registrationStatus === "APPROVED".
-// Instead we require that the participant has a group assigned.
-// This way:
-//   - Pending participants without a group don't appear (they have no group)
-//   - Approved participants with a group appear
-//   - Any participant manually seeded into a group appears regardless of status
-//
-// Response shape:
-//   { success, groups: { A: [...], B: [...] }, groupCount, totalParticipants }
 // ============================================================
 const getGroups = async (req, res) => {
   try {
@@ -451,6 +477,9 @@ const getGroups = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE PARTICIPANT
+// ============================================================
 const updateParticipant = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId || req.params.id;
@@ -460,7 +489,7 @@ const updateParticipant = async (req, res) => {
     const participant = await Participant.findOne({
       _id: participantId,
       tournamentId,
-    }).populate('user', 'username name');
+    }).populate("user", "username name");
 
     if (!participant) {
       return res.status(404).json({
@@ -469,8 +498,7 @@ const updateParticipant = async (req, res) => {
       });
     }
 
-    // Validate group belongs to tournament's group set
-    if (group !== undefined && group !== null && group !== '') {
+    if (group !== undefined && group !== null && group !== "") {
       const tournament = await Tournament.findById(tournamentId);
       const totalGroups = Math.max(1, Number(tournament?.numberOfGroups || 4));
       const validGroups = Array.from({ length: totalGroups }, (_, i) =>
@@ -480,7 +508,7 @@ const updateParticipant = async (req, res) => {
       if (!validGroups.includes(normalizedGroup)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid group. Valid groups: ${validGroups.join(', ')}`,
+          message: `Invalid group. Valid groups: ${validGroups.join(", ")}`,
         });
       }
       participant.group = normalizedGroup;
@@ -509,7 +537,8 @@ const updateParticipant = async (req, res) => {
 
     await AuditLog.create({
       action: "PARTICIPANT_UPDATED",
-      description: `Updated participant ${participant.user?.username || participant.user}`,
+      description: `Updated participant ${participant.user?.username || participant.user
+        }`,
       admin: req.user.userId || req.user._id,
       tournament: tournamentId,
       details: { group, seed, status, currentStage },
@@ -528,31 +557,37 @@ const updateParticipant = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET MY TOURNAMENTS
+// ============================================================
 const getMyTournaments = async (req, res) => {
   try {
     const userId = req.user.userId || req.user._id;
 
     const participants = await Participant.find({
       user: userId,
-      registrationStatus: { $in: ['APPROVED', 'PENDING'] }
-    }).populate('tournamentId', 'name description status currentStage registrationEnd tournamentStart tournamentEnd');
+      registrationStatus: { $in: ["APPROVED", "PENDING"] },
+    }).populate(
+      "tournamentId",
+      "name description status currentStage registrationEnd tournamentStart tournamentEnd"
+    );
 
     if (!participants || participants.length === 0) {
       return res.json({
         success: true,
-        tournaments: []
+        tournaments: [],
       });
     }
 
-    const tournaments = participants.map(p => ({
+    const tournaments = participants.map((p) => ({
       ...p.toObject(),
-      tournament: p.tournamentId
+      tournament: p.tournamentId,
     }));
 
     return res.json({
       success: true,
       count: tournaments.length,
-      tournaments
+      tournaments,
     });
   } catch (error) {
     console.error("getMyTournaments error:", error);
@@ -563,6 +598,9 @@ const getMyTournaments = async (req, res) => {
   }
 };
 
+// ============================================================
+// EXPORTS
+// ============================================================
 module.exports = {
   joinTournament,
   approveParticipant,

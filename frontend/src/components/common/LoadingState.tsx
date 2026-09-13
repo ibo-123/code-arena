@@ -8,17 +8,26 @@ interface LoadingStateProps {
   fullScreen?: boolean;
 }
 
+const sizeMap = {
+  sm: { container: 36, dot: 8, stroke: 2, font: 12, avatar: 32, gap: 12, barH: 10 },
+  md: { container: 56, dot: 12, stroke: 3, font: 14, avatar: 48, gap: 16, barH: 14 },
+  lg: { container: 80, dot: 16, stroke: 4, font: 16, avatar: 64, gap: 20, barH: 18 },
+};
+
+const Colors = {
+  blue: "#2979FF",
+  blueLight: "#64B5F6",
+  purple: "#9C27B0",
+  textMuted: "rgba(255,255,255,0.55)",
+  textFaint: "rgba(255,255,255,0.4)",
+};
+
 export const LoadingState: React.FC<LoadingStateProps> = ({
   label = "Loading...",
   size = "md",
   variant = "skeleton",
   fullScreen = false,
 }) => {
-  const sizeMap = {
-    sm: { container: 36, dot: 8, stroke: 2, font: 12, avatar: 32, gap: 12 },
-    md: { container: 56, dot: 12, stroke: 3, font: 14, avatar: 48, gap: 16 },
-    lg: { container: 80, dot: 16, stroke: 4, font: 16, avatar: 64, gap: 20 },
-  };
   const s = sizeMap[size] || sizeMap.md;
 
   const wrapperStyle: React.CSSProperties = {
@@ -35,11 +44,19 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
       inset: 0,
       background: "rgba(8, 10, 20, 0.95)",
       backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
       zIndex: 9999,
     }),
   };
 
-  // ---- Dots variant ----
+  const labelStyle: React.CSSProperties = {
+    fontSize: `${s.font}px`,
+    color: Colors.textMuted,
+    fontWeight: 600,
+    letterSpacing: "0.4px",
+  };
+
+  // ---- Dots variant --------------------------------------------------
   if (variant === "dots") {
     return (
       <div style={wrapperStyle}>
@@ -51,46 +68,44 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
                 width: `${s.dot}px`,
                 height: `${s.dot}px`,
                 borderRadius: "50%",
-                background: "linear-gradient(135deg, #2979FF, #64B5F6)",
-                boxShadow: "0 0 16px rgba(41, 121, 255, 0.5)",
+                background: `linear-gradient(135deg, ${Colors.blue}, ${Colors.blueLight})`,
+                boxShadow: `0 0 16px ${Colors.blue}80`,
                 animation: `dotBounce 1.4s ease-in-out ${i * 0.15}s infinite`,
               }}
             />
           ))}
         </div>
-        {label && (
-          <div
-            style={{
-              fontSize: `${s.font}px`,
-              color: "rgba(255,255,255,0.55)",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-            }}
-          >
-            {label}
-          </div>
-        )}
+        {label && <div style={labelStyle}>{label}</div>}
         <style>{`
           @keyframes dotBounce {
             0%, 80%, 100% { transform: scale(0.6) translateY(0); opacity: 0.3; }
             40% { transform: scale(1) translateY(-8px); opacity: 1; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            div[style*="dotBounce"] { animation: none !important; }
           }
         `}</style>
       </div>
     );
   }
 
-  // ---- Pulse variant ----
+  // ---- Pulse variant -------------------------------------------------
   if (variant === "pulse") {
     return (
       <div style={wrapperStyle}>
-        <div style={{ position: "relative", width: s.container, height: s.container }}>
+        <div
+          style={{
+            position: "relative",
+            width: s.container,
+            height: s.container,
+          }}
+        >
           <div
             style={{
               position: "absolute",
               inset: 0,
               borderRadius: "50%",
-              background: "rgba(41, 121, 255, 0.15)",
+              background: `${Colors.blue}26`,
               animation: "pulseRing 2s ease-out infinite",
             }}
           />
@@ -99,7 +114,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: 0,
               borderRadius: "50%",
-              background: "rgba(41, 121, 255, 0.1)",
+              background: `${Colors.blue}1a`,
               animation: "pulseRing 2s ease-out 0.5s infinite",
             }}
           />
@@ -108,47 +123,45 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: "30%",
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #2979FF, #64B5F6)",
-              boxShadow: "0 0 32px rgba(41, 121, 255, 0.6)",
+              background: `linear-gradient(135deg, ${Colors.blue}, ${Colors.blueLight})`,
+              boxShadow: `0 0 32px ${Colors.blue}99`,
             }}
           />
         </div>
-        {label && (
-          <div
-            style={{
-              fontSize: `${s.font}px`,
-              color: "rgba(255,255,255,0.55)",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-            }}
-          >
-            {label}
-          </div>
-        )}
+        {label && <div style={labelStyle}>{label}</div>}
         <style>{`
           @keyframes pulseRing {
             0% { transform: scale(0.5); opacity: 1; }
             100% { transform: scale(1.6); opacity: 0; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            div[style*="pulseRing"] { animation: none !important; opacity: 0.3; }
           }
         `}</style>
       </div>
     );
   }
 
-  // ---- Spinner variant ----
+  // ---- Spinner variant -----------------------------------------------
   if (variant === "spinner") {
     return (
       <div style={wrapperStyle}>
-        <div style={{ width: s.container, height: s.container, position: "relative" }}>
+        <div
+          style={{
+            width: s.container,
+            height: s.container,
+            position: "relative",
+          }}
+        >
           <div
             style={{
               position: "absolute",
               inset: 0,
               borderRadius: "50%",
-              border: `${s.stroke}px solid rgba(41,121,255,0.08)`,
-              borderTop: `${s.stroke}px solid #2979FF`,
+              border: `${s.stroke}px solid ${Colors.blue}14`,
+              borderTop: `${s.stroke}px solid ${Colors.blue}`,
               animation: "spin 0.9s linear infinite",
-              boxShadow: "0 0 24px rgba(41, 121, 255, 0.2)",
+              boxShadow: `0 0 24px ${Colors.blue}33`,
             }}
           />
           <div
@@ -156,8 +169,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: `${s.container * 0.2}px`,
               borderRadius: "50%",
-              border: `${s.stroke}px solid rgba(156,39,176,0.08)`,
-              borderBottom: `${s.stroke}px solid #9C27B0`,
+              border: `${s.stroke}px solid ${Colors.purple}14`,
+              borderBottom: `${s.stroke}px solid ${Colors.purple}`,
               animation: "spin 1.4s linear infinite reverse",
             }}
           />
@@ -166,23 +179,12 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               position: "absolute",
               inset: `${s.container * 0.4}px`,
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #2979FF, #64B5F6)",
+              background: `linear-gradient(135deg, ${Colors.blue}, ${Colors.blueLight})`,
               animation: "corePulse 1.2s ease-in-out infinite",
             }}
           />
         </div>
-        {label && (
-          <div
-            style={{
-              fontSize: `${s.font}px`,
-              color: "rgba(255,255,255,0.55)",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-            }}
-          >
-            {label}
-          </div>
-        )}
+        {label && <div style={labelStyle}>{label}</div>}
         <style>{`
           @keyframes spin {
             from { transform: rotate(0deg); }
@@ -192,12 +194,16 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(0.85); opacity: 0.7; }
           }
+          @media (prefers-reduced-motion: reduce) {
+            div[style*="spin"] { animation: none !important; }
+            div[style*="corePulse"] { animation: none !important; }
+          }
         `}</style>
       </div>
     );
   }
 
-  // ---- Skeleton variant (default) ----
+  // ---- Skeleton variant (default) ------------------------------------
   return (
     <div
       style={{
@@ -223,14 +229,16 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
           position: "relative",
           overflow: "hidden",
           backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
         }}
       >
         {/* Shimmer overlay */}
         <div
+          aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent)",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)",
             backgroundSize: "200% 100%",
             animation: "shimmer 1.8s infinite",
             pointerEvents: "none",
@@ -243,7 +251,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
             width: `${s.avatar}px`,
             height: `${s.avatar}px`,
             borderRadius: "16px",
-            background: "linear-gradient(135deg, rgba(41,121,255,0.1), rgba(156,39,176,0.1))",
+            background: `linear-gradient(135deg, ${Colors.blue}1a, ${Colors.purple}1a)`,
             flexShrink: 0,
             position: "relative",
             overflow: "hidden",
@@ -261,20 +269,20 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
           />
         </div>
 
-        {/* Text skeletons */}
+        {/* Text bars */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
           {[
-            { width: "75%", height: 16, opacity: 0.08 },
-            { width: "55%", height: 12, opacity: 0.06 },
-            { width: "35%", height: 10, opacity: 0.04 },
+            { width: "75%", h: s.barH, op: 0.08 },
+            { width: "55%", h: s.barH - 2, op: 0.06 },
+            { width: "35%", h: s.barH - 4, op: 0.05 },
           ].map((bar, i) => (
             <div
               key={i}
               style={{
-                height: `${bar.height}px`,
+                height: `${bar.h}px`,
                 width: bar.width,
                 borderRadius: "8px",
-                background: `rgba(255,255,255,${bar.opacity})`,
+                background: `rgba(255,255,255,${bar.op})`,
                 position: "relative",
                 overflow: "hidden",
               }}
@@ -295,12 +303,13 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
         {/* Accent dot */}
         <div
+          aria-hidden="true"
           style={{
             width: "8px",
             height: "8px",
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #2979FF, #64B5F6)",
-            boxShadow: "0 0 12px rgba(41, 121, 255, 0.5)",
+            background: `linear-gradient(135deg, ${Colors.blue}, ${Colors.blueLight})`,
+            boxShadow: `0 0 12px ${Colors.blue}80`,
             animation: "corePulse 1.5s ease-in-out infinite",
             flexShrink: 0,
           }}
@@ -310,12 +319,11 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
       {label && (
         <div
           style={{
-            position: "absolute",
-            bottom: "20px",
             fontSize: `${s.font}px`,
-            color: "rgba(255,255,255,0.4)",
+            color: Colors.textFaint,
             fontWeight: 600,
-            letterSpacing: "0.5px",
+            letterSpacing: "0.4px",
+            marginTop: "4px",
           }}
         >
           {label}
@@ -330,6 +338,10 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
         @keyframes corePulse {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(0.85); opacity: 0.7; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          div[style*="shimmer"] { animation: none !important; }
+          div[style*="corePulse"] { animation: none !important; }
         }
       `}</style>
     </div>

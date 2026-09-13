@@ -20,6 +20,8 @@ import {
   Shield,
   Timer,
   BarChart3,
+  GitBranch,
+  Video,
 } from "lucide-react";
 import { tournamentApi } from "../../services/tournamentApi";
 import { TournamentCard } from "../../components/tournament/TournamentCard";
@@ -28,21 +30,21 @@ import { Badge } from "../../components/ui/Badge";
 import type { Tournament } from "../../types";
 import "./Home.css";
 
-// ---- Static data (outside component — never recreated) ----------------
+// ---- Static data -----------------------------------------------------
 
 const PATH_STEPS = [
   {
     stage: 1,
     label: "Group Stage",
-    icon: "🌍",
+    emoji: "🌍",
     color: "#4CAF50",
-    desc: "Qualification rounds",
+    desc: "Regional qualifiers",
     gradient: "linear-gradient(135deg, #4CAF50, #2E7D32)",
   },
   {
     stage: 2,
     label: "Quarter Final",
-    icon: "⚡",
+    emoji: "⚡",
     color: "#FF9800",
     desc: "Top 8 battle",
     gradient: "linear-gradient(135deg, #FF9800, #F57C00)",
@@ -50,15 +52,15 @@ const PATH_STEPS = [
   {
     stage: 3,
     label: "Semi Final",
-    icon: "🔥",
+    emoji: "🔥",
     color: "#9C27B0",
-    desc: "Final four",
+    desc: "Final four clash",
     gradient: "linear-gradient(135deg, #9C27B0, #7B1FA2)",
   },
   {
     stage: 4,
     label: "Grand Final",
-    icon: "👑",
+    emoji: "👑",
     color: "#FFD700",
     desc: "Champion crowned",
     gradient: "linear-gradient(135deg, #FFD700, #FFA000)",
@@ -73,7 +75,7 @@ const PRIZES = [
     tone: "gold",
     label: "Grand Prize",
     value: "$10,000",
-    desc: "+ Exclusive NFT Trophy",
+    desc: "+ Exclusive trophy",
     barWidth: "100%",
   },
   {
@@ -83,7 +85,7 @@ const PRIZES = [
     tone: "blue",
     label: "Runner Up",
     value: "$5,000",
-    desc: "+ Silver Medal",
+    desc: "+ Silver medal",
     barWidth: "60%",
   },
   {
@@ -93,8 +95,35 @@ const PRIZES = [
     tone: "purple",
     label: "Third Place",
     value: "$2,500",
-    desc: "+ Bronze Medal",
+    desc: "+ Bronze medal",
     barWidth: "35%",
+  },
+] as const;
+
+const FEATURES = [
+  {
+    icon: <Code2 size={20} />,
+    title: "Manual Invitations",
+    desc: "Admins link Codeforces contests directly — no API keys or OAuth required.",
+    color: "#2979FF",
+  },
+  {
+    icon: <GitBranch size={20} />,
+    title: "Auto Bracket",
+    desc: "Group stage results feed into quarter finals, semis, and the grand final.",
+    color: "#9C27B0",
+  },
+  {
+    icon: <Video size={20} />,
+    title: "Video Verification",
+    desc: "Participants confirm their Codeforces join, then submit proof for review.",
+    color: "#4CAF50",
+  },
+  {
+    icon: <BarChart3 size={20} />,
+    title: "Live Standings",
+    desc: "Ranks update instantly as admins enter solved counts and penalty minutes.",
+    color: "#FF9800",
   },
 ] as const;
 
@@ -121,7 +150,7 @@ const getTimeLeft = (target: string): TimeLeft => {
 const isZeroTime = (t: TimeLeft) =>
   t.days === 0 && t.hours === 0 && t.minutes === 0 && t.seconds === 0;
 
-// ---- Component --------------------------------------------------------
+// ---- Component -------------------------------------------------------
 
 export const Home = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -129,8 +158,7 @@ export const Home = () => {
   const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(ZERO_TIME);
 
-  // ---- Fetch ----------------------------------------------------------
-
+  // ---- Fetch --------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
     tournamentApi
@@ -149,16 +177,20 @@ export const Home = () => {
     };
   }, []);
 
-  // ---- Derived data ---------------------------------------------------
-
+  // ---- Derived ------------------------------------------------------
   const active = useMemo(
-    () => tournaments.filter((t) => t.status !== "COMPLETED" && t.status !== "CANCELLED"),
-    [tournaments],
+    () =>
+      tournaments.filter(
+        (t) => t.status !== "COMPLETED" && t.status !== "CANCELLED"
+      ),
+    [tournaments]
   );
 
   const featured = useMemo(() => {
     return (
-      active.find((t) => t.status === "REGISTRATION" || t.status === "GROUP_STAGE") ??
+      active.find(
+        (t) => t.status === "REGISTRATION" || t.status === "GROUP_STAGE"
+      ) ??
       active[0] ??
       null
     );
@@ -166,11 +198,15 @@ export const Home = () => {
 
   const totalCompetitors = useMemo(
     () => active.reduce((sum, t) => sum + (t.participantCount || 0), 0),
-    [active],
+    [active]
   );
 
-  // ---- Countdown timer (interval depends only on featured target) -----
+  const totalContests = useMemo(
+    () => active.reduce((sum, t) => sum + (t.contestCount || 0), 0),
+    [active]
+  );
 
+  // ---- Countdown ----------------------------------------------------
   const countdownTarget = featured?.tournamentStart ?? null;
 
   useEffect(() => {
@@ -178,19 +214,15 @@ export const Home = () => {
       setTimeLeft(ZERO_TIME);
       return;
     }
-
-    // Recompute immediately, then every second
     setTimeLeft(getTimeLeft(countdownTarget));
     const id = window.setInterval(() => {
       setTimeLeft(getTimeLeft(countdownTarget));
     }, 1000);
-
     return () => window.clearInterval(id);
   }, [countdownTarget]);
 
-  // ---- Render ---------------------------------------------------------
-
-  if (loading) return <LoadingState />;
+  // ---- Render -------------------------------------------------------
+  if (loading) return <LoadingState variant="spinner" size="lg" />;
   if (error) return <ErrorState error={error} />;
 
   const showCountdown =
@@ -229,7 +261,8 @@ export const Home = () => {
           </h1>
 
           <p className="hero-subtitle">
-            Elite competitive programming tournament where coders battle for the ultimate crown.
+            Elite competitive programming tournament where coders battle for the
+            ultimate crown.
             <span className="highlight"> $10,000 Prize Pool</span>
           </p>
 
@@ -238,9 +271,9 @@ export const Home = () => {
               <span>View Tournaments</span>
               <ArrowRight size={20} />
             </Link>
-            <Link to="/bracket" className="btn-secondary btn-large">
+            <Link to="/tournaments" className="btn-secondary btn-large">
               <Trophy size={20} />
-              <span>View Bracket</span>
+              <span>Browse Brackets</span>
             </Link>
           </div>
 
@@ -270,8 +303,8 @@ export const Home = () => {
                 <TrendingUp size={20} />
               </div>
               <div className="stat-info">
-                <strong>32</strong>
-                <span className="stat-label">Contests</span>
+                <strong>{totalContests || "—"}</strong>
+                <span className="stat-label">Live Contests</span>
               </div>
             </div>
           </div>
@@ -287,7 +320,9 @@ export const Home = () => {
                 <div className="featured-status">
                   <span
                     className={`status-dot ${
-                      featured.status === "REGISTRATION" ? "registration" : "live"
+                      featured.status === "REGISTRATION"
+                        ? "registration"
+                        : "live"
                     }`}
                   />
                   {featured.status === "REGISTRATION"
@@ -296,8 +331,7 @@ export const Home = () => {
                       ? "Group Stage"
                       : "Live"}
                 </div>
-                <Badge tone="gold" size="sm">
-                  <Star size={12} />
+                <Badge tone="gold" size="sm" icon={<Star size={12} />}>
                   Featured
                 </Badge>
               </div>
@@ -327,30 +361,65 @@ export const Home = () => {
 
               <div className="featured-stats">
                 <span>
-                  <Users size={14} /> {featured.participantCount || 0} participants
+                  <Users size={14} /> {featured.participantCount || 0}{" "}
+                  participants
                 </span>
                 <span>
                   <Calendar size={14} />{" "}
                   {featured.tournamentStart
-                    ? new Date(featured.tournamentStart).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
+                    ? new Date(featured.tournamentStart).toLocaleDateString(
+                        "en-US",
+                        { month: "short", day: "numeric", year: "numeric" }
+                      )
                     : "TBD"}
                 </span>
                 <span>
-                  <Zap size={14} /> {featured.currentStage?.replace(/_/g, " ") || "Registration"}
+                  <Zap size={14} />{" "}
+                  {featured.currentStage?.replace(/_/g, " ") || "Registration"}
                 </span>
               </div>
 
-              <Link to={`/tournaments/${featured._id}`} className="featured-action">
+              <Link
+                to={`/tournaments/${featured._id}`}
+                className="featured-action"
+              >
                 <span>View Tournament</span>
                 <ChevronRight size={18} />
               </Link>
             </div>
           </div>
         )}
+      </section>
+
+      {/* ============================================
+          FEATURES — What makes Code Arena different
+      ============================================ */}
+      <section className="features-section">
+        <div className="section-header">
+          <div className="section-title">
+            <div className="section-icon section-icon--blue">
+              <Sparkles size={24} />
+            </div>
+            <h2>Built for Competitive Coding</h2>
+          </div>
+          <p className="section-subtitle">
+            Everything you need to run a tournament end-to-end
+          </p>
+        </div>
+
+        <div className="features-grid">
+          {FEATURES.map((f) => (
+            <div
+              key={f.title}
+              className="feature-card"
+              style={{ "--feature-color": f.color } as React.CSSProperties}
+            >
+              <div className="feature-icon">{f.icon}</div>
+              <h3 className="feature-title">{f.title}</h3>
+              <p className="feature-desc">{f.desc}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* ============================================
@@ -364,7 +433,9 @@ export const Home = () => {
             </div>
             <h2>The Road to the Crown</h2>
           </div>
-          <p className="section-subtitle">Four stages of competition to determine the champion</p>
+          <p className="section-subtitle">
+            Four stages of competition to determine the champion
+          </p>
         </div>
 
         <div className="path-steps">
@@ -377,7 +448,7 @@ export const Home = () => {
                   boxShadow: `0 0 30px ${step.color}20`,
                 }}
               >
-                <span>{step.icon}</span>
+                <span>{step.emoji}</span>
               </div>
               <div className="step-content">
                 <div className="step-number">Stage {step.stage}</div>
@@ -403,7 +474,10 @@ export const Home = () => {
             </div>
             <div>
               <h2>Active Tournaments</h2>
-              <p className="section-subtitle">{active.length} tournaments currently running</p>
+              <p className="section-subtitle">
+                {active.length} tournament{active.length !== 1 ? "s" : ""}{" "}
+                currently running
+              </p>
             </div>
           </div>
           <Link to="/tournaments" className="btn-outline">
@@ -444,12 +518,17 @@ export const Home = () => {
             </div>
             <h2>Prize Pool</h2>
           </div>
-          <p className="section-subtitle">$17,500 total prize pool across all placements</p>
+          <p className="section-subtitle">
+            $17,500 total prize pool across all placements
+          </p>
         </div>
 
         <div className="rewards-grid">
           {PRIZES.map((prize) => (
-            <div key={prize.rank} className={`reward-card reward-card-${prize.tone}`}>
+            <div
+              key={prize.rank}
+              className={`reward-card reward-card-${prize.tone}`}
+            >
               <div className="reward-glow" aria-hidden="true" />
               <div className="reward-rank">
                 {prize.rankIcon}
@@ -495,18 +574,18 @@ export const Home = () => {
             </div>
             <h2>Ready to Compete?</h2>
             <p>
-              Register now and secure your spot in the Code Arena Championship 2026. Battle against
-              the best coders and claim your glory.
+              Register now and secure your spot in the Code Arena Championship
+              2026. Battle against the best coders and claim your glory.
             </p>
             <div className="cta-features">
               <span>
-                <Code2 size={14} /> Real-time judging
+                <Code2 size={14} /> Manual invitations
               </span>
               <span>
                 <BarChart3 size={14} /> Live leaderboard
               </span>
               <span>
-                <Zap size={14} /> Instant feedback
+                <Zap size={14} /> Instant advancement
               </span>
             </div>
           </div>
@@ -526,7 +605,7 @@ export const Home = () => {
   );
 };
 
-// ---- Small helpers ----------------------------------------------------
+// ---- Small helpers --------------------------------------------------
 
 interface CountdownUnitProps {
   value: number;

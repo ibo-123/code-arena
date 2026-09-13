@@ -2,27 +2,27 @@ const mongoose = require("mongoose");
 const Contest = require("../models/Contest");
 const Participant = require("../models/Participant");
 const Result = require("../models/Result");
+const Match = require("../models/Match");
 const VideoSubmission = require("../models/VideoSubmission");
 const AuditLog = require("../models/AuditLog");
+const {
+        computeWinnerFromContest,
+} = require("../services/advancementService");
 
 const getAuthUserId = (req) =>
         req.user?.userId || req.user?.id || req.user?._id || null;
 
 // ============================================================
-// SHARED — compute ranks for a contest
-// ============================================================
-// Sorts by solved DESC, then penalty ASC, then seed ASC.
-// Only participants whose video is APPROVED are counted —
-// everyone else gets 0 solved / 0 penalty but still appears.
+// Internal helper — recompute ranks for a contest AND update
+// the linked match's winner if the contest is attached to one.
 // ============================================================
 const recomputeContestRanks = async (contestId) => {
         const contest = await Contest.findById(contestId).lean();
         if (!contest) return;
 
-        // Get all Results for this contest
         const results = await Result.find({ contestId }).lean();
 
-        // Get video approvals for this contest
+        // Approved video gate
         const approvedVideos = await VideoSubmission.find({
                 contestId,
                 status: "APPROVED",
@@ -33,8 +33,6 @@ const recomputeContestRanks = async (contestId) => {
                 approvedVideos.map((v) => String(v.participantId))
         );
 
-        // For each result, compute effective solved/penalty
-        // If video not approved → force 0
         const effective = results.map((r) => {
                 const isEligible = approvedIds.has(String(r.participantId));
                 return {
@@ -45,7 +43,6 @@ const recomputeContestRanks = async (contestId) => {
                 };
         });
 
-        // Sort: solved desc, penalty asc, seed asc (tiebreak)
         effective.sort((a, b) => {
                 if (b.effectiveSolved !== a.effectiveSolved)
                         return b.effectiveSolved - a.effectiveSolved;
@@ -54,7 +51,6 @@ const recomputeContestRanks = async (contestId) => {
                 return 0;
         });
 
-        // Assign ranks and persist
         for (let i = 0; i < effective.length; i++) {
                 const row = effective[i];
                 const rank = i + 1;
@@ -64,14 +60,12 @@ const recomputeContestRanks = async (contestId) => {
                         {
                                 $set: {
                                         rank,
-                                        // keep the raw entered values so admin sees what they typed
                                         solvedCount: row.solvedCount || 0,
                                         penalty: row.penalty || 0,
                                 },
                         }
                 );
 
-                // Also update the Participant summary row (used by standings)
                 await Participant.updateOne(
                         { _id: row.participantId },
                         {
@@ -84,30 +78,73 @@ const recomputeContestRanks = async (contestId) => {
                         }
                 );
         }
+
+        // ---- Auto-update the linked match's winner ----
+        if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
+                const match = await Match.findOne({
+                        tournament: contest.tournamentId,
+                        stage: contest.stage,
+                        matchNumber: contest.matchNumber,
+                });
+
+                if (match) {
+                        // Don't override if the match already advanced past this stage
+                        // (e.g. QF match already resolved and SF matches created)
+                        const tournament = await require("../models/Tournament")
+                                .findById(contest.tournamentId)
+                                .lean();
+                        const stageOrder = [
+                                "QUARTER_FINAL",
+                                "SEMI_FINAL",
+                                "FINAL",
+                                "COMPLETED",
+                        ];
+                        const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
+                        const thisIdx = stageOrder.indexOf(contest.stage);
+
+                        // If we've moved past this stage, lock the result
+                        const isLocked = currentIdx > thisIdx;
+
+                        if (!isLocked) {
+                                const { winner, tie } = await computeWinnerFromContest(
+                                        contest._id,
+                                        match.participants
+                                );
+
+                                if (tie) {
+                                        match.winner = null;
+                                        match.status = "TIE";
+                                } else if (winner) {
+                                        match.winner = winner;
+                                        match.status = "COMPLETED";
+                                }
+                                // If neither (results incomplete), leave winner/status untouched
+                                await match.save();
+                        }
+                }
+        }
 };
 
 // ============================================================
 // GET — roster + existing results
-// ============================================================
-// GET /api/admin/contests/:contestId/results
-// Returns every eligible participant for this contest, merged
-// with any Result document and video approval status.
 // ============================================================
 exports.getContestResultsRoster = async (req, res) => {
         try {
                 const { contestId } = req.params;
 
                 if (!mongoose.Types.ObjectId.isValid(contestId)) {
-                        return res.status(400).json({ success: false, message: "Invalid contest ID" });
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Invalid contest ID" });
                 }
 
                 const contest = await Contest.findById(contestId).lean();
                 if (!contest) {
-                        return res.status(404).json({ success: false, message: "Contest not found" });
+                        return res
+                                .status(404)
+                                .json({ success: false, message: "Contest not found" });
                 }
 
-                // ---- Determine which participants are eligible ---------------
-                // GROUP_STAGE → only that group; everything else → everyone APPROVED
                 const participantFilter = {
                         tournamentId: contest.tournamentId,
                         registrationStatus: "APPROVED",
@@ -116,6 +153,17 @@ exports.getContestResultsRoster = async (req, res) => {
                 if (contest.stage === "GROUP_STAGE" && contest.group) {
                         const g = String(contest.group).trim().toUpperCase();
                         participantFilter.$or = [{ group: g }, { group: g.toLowerCase() }];
+                } else if (contest.stage !== "GROUP_STAGE" && contest.matchNumber) {
+                        // For knockout contests, use the match's participant list
+                        const match = await Match.findOne({
+                                tournament: contest.tournamentId,
+                                stage: contest.stage,
+                                matchNumber: contest.matchNumber,
+                        }).lean();
+
+                        if (match) {
+                                participantFilter._id = { $in: match.participants };
+                        }
                 }
 
                 const participants = await Participant.find(participantFilter)
@@ -123,13 +171,11 @@ exports.getContestResultsRoster = async (req, res) => {
                         .sort({ group: 1, seed: 1 })
                         .lean();
 
-                // ---- Fetch all results for this contest ----------------------
                 const results = await Result.find({ contestId }).lean();
                 const resultsByParticipant = Object.fromEntries(
                         results.map((r) => [String(r.participantId), r])
                 );
 
-                // ---- Fetch video submission status ---------------------------
                 const videos = await VideoSubmission.find({ contestId })
                         .select("participantId status")
                         .lean();
@@ -137,7 +183,6 @@ exports.getContestResultsRoster = async (req, res) => {
                         videos.map((v) => [String(v.participantId), v.status])
                 );
 
-                // ---- Merge into a single roster ------------------------------
                 const roster = participants.map((p) => {
                         const r = resultsByParticipant[String(p._id)] || null;
                         const videoStatus = videoByParticipant[String(p._id)] || "NOT_SUBMITTED";
@@ -150,15 +195,58 @@ exports.getContestResultsRoster = async (req, res) => {
                                 seed: p.seed,
                                 videoStatus,
                                 isEligible,
-                                // entered values (what admin typed)
                                 solved: r?.solvedCount ?? 0,
                                 penalty: r?.penalty ?? 0,
                                 rank: r?.rank ?? null,
-                                // effective values used for standings
-                                effectiveSolved: isEligible ? (r?.solvedCount ?? 0) : 0,
-                                effectivePenalty: isEligible ? (r?.penalty ?? 0) : 0,
+                                effectiveSolved: isEligible ? r?.solvedCount ?? 0 : 0,
+                                effectivePenalty: isEligible ? r?.penalty ?? 0 : 0,
                         };
                 });
+
+                // ---- Match info for the UI ----
+                let matchInfo = null;
+                if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
+                        const match = await Match.findOne({
+                                tournament: contest.tournamentId,
+                                stage: contest.stage,
+                                matchNumber: contest.matchNumber,
+                        })
+                                .populate({
+                                        path: "winner",
+                                        populate: { path: "user", select: "name username" },
+                                })
+                                .lean();
+
+                        if (match) {
+                                const tournament = await require("../models/Tournament")
+                                        .findById(contest.tournamentId)
+                                        .lean();
+                                const stageOrder = [
+                                        "QUARTER_FINAL",
+                                        "SEMI_FINAL",
+                                        "FINAL",
+                                        "COMPLETED",
+                                ];
+                                const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
+                                const thisIdx = stageOrder.indexOf(contest.stage);
+                                const isLocked = currentIdx > thisIdx;
+
+                                matchInfo = {
+                                        matchId: match._id,
+                                        matchNumber: match.matchNumber,
+                                        stage: match.stage,
+                                        status: match.status,
+                                        isLocked,
+                                        winner: match.winner
+                                                ? {
+                                                        participantId: match.winner._id,
+                                                        name: match.winner.user?.name,
+                                                        username: match.winner.user?.username,
+                                                }
+                                                : null,
+                                };
+                        }
+                }
 
                 return res.json({
                         success: true,
@@ -167,10 +255,12 @@ exports.getContestResultsRoster = async (req, res) => {
                                 name: contest.name,
                                 stage: contest.stage,
                                 group: contest.group,
+                                matchNumber: contest.matchNumber,
                                 status: contest.status,
                                 startTime: contest.startTime,
                                 endTime: contest.endTime,
                         },
+                        matchInfo,
                         count: roster.length,
                         roster,
                 });
@@ -183,41 +273,63 @@ exports.getContestResultsRoster = async (req, res) => {
 // ============================================================
 // POST — save one participant's result (incremental)
 // ============================================================
-// POST /api/admin/contests/:contestId/results
-// Body: { participantId, solved, penalty }
-// Upserts a Result document, then recomputes ranks.
-// ============================================================
 exports.saveParticipantResult = async (req, res) => {
         try {
                 const { contestId } = req.params;
                 const { participantId, solved, penalty } = req.body || {};
 
                 if (!mongoose.Types.ObjectId.isValid(contestId)) {
-                        return res.status(400).json({ success: false, message: "Invalid contest ID" });
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Invalid contest ID" });
                 }
                 if (!mongoose.Types.ObjectId.isValid(participantId)) {
-                        return res.status(400).json({ success: false, message: "Invalid participant ID" });
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Invalid participant ID" });
                 }
 
                 const solvedNum = Number(solved);
                 const penaltyNum = Number(penalty);
 
                 if (!Number.isFinite(solvedNum) || solvedNum < 0) {
-                        return res.status(400).json({
-                                success: false,
-                                message: "Solved must be a non-negative number",
-                        });
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Solved must be non-negative" });
                 }
                 if (!Number.isFinite(penaltyNum) || penaltyNum < 0) {
-                        return res.status(400).json({
-                                success: false,
-                                message: "Penalty must be a non-negative number",
-                        });
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Penalty must be non-negative" });
                 }
 
                 const contest = await Contest.findById(contestId).lean();
                 if (!contest) {
-                        return res.status(404).json({ success: false, message: "Contest not found" });
+                        return res
+                                .status(404)
+                                .json({ success: false, message: "Contest not found" });
+                }
+
+                // ---- Lock check ----
+                if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
+                        const tournament = await require("../models/Tournament")
+                                .findById(contest.tournamentId)
+                                .lean();
+                        const stageOrder = [
+                                "QUARTER_FINAL",
+                                "SEMI_FINAL",
+                                "FINAL",
+                                "COMPLETED",
+                        ];
+                        const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
+                        const thisIdx = stageOrder.indexOf(contest.stage);
+                        if (currentIdx > thisIdx) {
+                                return res.status(409).json({
+                                        success: false,
+                                        message:
+                                                "This stage has already advanced — results are locked",
+                                });
+                        }
                 }
 
                 const participant = await Participant.findOne({
@@ -226,10 +338,11 @@ exports.saveParticipantResult = async (req, res) => {
                 }).lean();
 
                 if (!participant) {
-                        return res.status(404).json({ success: false, message: "Participant not found in this tournament" });
+                        return res
+                                .status(404)
+                                .json({ success: false, message: "Participant not found" });
                 }
 
-                // Upsert the Result
                 const result = await Result.findOneAndUpdate(
                         { contestId, participantId },
                         {
@@ -246,7 +359,7 @@ exports.saveParticipantResult = async (req, res) => {
                         { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
 
-                // Recompute all ranks in the contest
+                // Recompute ranks + update linked match winner
                 await recomputeContestRanks(contestId);
 
                 await AuditLog.create({
@@ -257,13 +370,111 @@ exports.saveParticipantResult = async (req, res) => {
                         details: { contestId, participantId, solved: solvedNum, penalty: penaltyNum },
                 }).catch(() => { });
 
-                return res.json({
-                        success: true,
-                        message: "Result saved",
-                        result,
-                });
+                return res.json({ success: true, message: "Result saved", result });
         } catch (err) {
                 console.error("saveParticipantResult error:", err);
+                return res.status(500).json({ success: false, message: "Server error" });
+        }
+};
+
+// ============================================================
+// POST — trigger a rematch
+// ============================================================
+// POST /api/admin/matches/:matchId/rematch
+// Body: { invitationUrl, startTime, durationMinutes }
+//
+// - Marks the current match as TIE (if not already)
+// - Creates a new CONTEST for the same stage + matchNumber
+// - Attaches the new contest to the same match
+// - Keeps the old contest in `previousContests`
+// - Deletes the old results so the admin re-enters them
+// ============================================================
+exports.startRematch = async (req, res) => {
+        try {
+                const { matchId } = req.params;
+                const {
+                        invitationUrl,
+                        startTime,
+                        durationMinutes = 60,
+                        description = "",
+                } = req.body || {};
+
+                if (!mongoose.Types.ObjectId.isValid(matchId)) {
+                        return res
+                                .status(400)
+                                .json({ success: false, message: "Invalid match ID" });
+                }
+
+                if (!invitationUrl || !startTime) {
+                        return res.status(400).json({
+                                success: false,
+                                message: "invitationUrl and startTime are required",
+                        });
+                }
+
+                const match = await Match.findById(matchId);
+                if (!match) {
+                        return res
+                                .status(404)
+                                .json({ success: false, message: "Match not found" });
+                }
+
+                if (match.status !== "TIE") {
+                        return res.status(409).json({
+                                success: false,
+                                message: "Only tied matches can start a rematch",
+                        });
+                }
+
+                // Archive the old contest
+                const previousContestId = match.contest;
+
+                // Create the new contest
+                const startDate = new Date(startTime);
+                const endDate = new Date(
+                        startDate.getTime() + Number(durationMinutes) * 60 * 1000
+                );
+
+                const newContest = await Contest.create({
+                        tournamentId: match.tournament,
+                        name: `${match.stage.replace(/_/g, " ")} — Match ${match.matchNumber} (Rematch ${match.rematchRound + 1})`,
+                        invitationUrl,
+                        description,
+                        stage: match.stage,
+                        matchNumber: match.matchNumber,
+                        startTime: startDate,
+                        endTime: endDate,
+                        durationSeconds: Number(durationMinutes) * 60,
+                        status: "DRAFT",
+                        published: true,
+                        publishedAt: new Date(),
+                });
+
+                // Update the match: keep history, set new contest, reset winner
+                match.previousContests = [
+                        ...(match.previousContests || []),
+                        previousContestId,
+                ].filter(Boolean);
+                match.contest = newContest._id;
+                match.contestId = newContest._id;
+                match.rematchRound = (match.rematchRound || 0) + 1;
+                match.winner = null;
+                match.status = "PENDING";
+                await match.save();
+
+                // Delete the old results so admin can re-enter for the new contest
+                if (previousContestId) {
+                        await Result.deleteMany({ contestId: previousContestId });
+                }
+
+                return res.json({
+                        success: true,
+                        message: "Rematch created. Enter new results.",
+                        match,
+                        contest: newContest,
+                });
+        } catch (err) {
+                console.error("startRematch error:", err);
                 return res.status(500).json({ success: false, message: "Server error" });
         }
 };

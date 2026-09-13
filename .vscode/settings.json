@@ -4,5 +4,6 @@
       "fileMatch": ["package.json"],
       "url": "https://json.schemastore.org/package.json"
     }
-  ]
+  ],
+  "json.schemaDownload.enable": false
 }

@@ -8,6 +8,8 @@ const { authenticate, authorize } = require('../middleware/auth');
 const resultsEntryController = require("../controllers/resultsEntryController");
 const tournamentController = require('../controllers/tournamentController');
 const contestController = require('../controllers/contestController');
+
+// const resultsEntryController = require("../controllers/resultsEntryController");
 const participantController = require('../controllers/participantController');
 const auditLogController = require('../controllers/auditLogController');
 const matchController = require('../controllers/matchController');
@@ -32,6 +34,19 @@ router.patch('/tournaments/:tournamentId', tournamentController.updateTournament
 router.post('/tournaments/:tournamentId/start', tournamentController.startTournament);
 router.post('/tournaments/:tournamentId/advance', tournamentController.advanceTournament);
 
+// ---- Contest result entry ----
+router.get(
+        "/contests/:contestId/results",
+        resultsEntryController.getContestResultsRoster
+);
+
+router.post(
+        "/contests/:contestId/results",
+        resultsEntryController.saveParticipantResult
+);
+
+// ---- Rematch ----
+router.post("/matches/:matchId/rematch", resultsEntryController.startRematch);
 // ============================================
 // CONTEST MANAGEMENT — V1 (manual invitations, no Codeforces API)
 // ============================================

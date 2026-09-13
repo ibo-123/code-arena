@@ -11,6 +11,8 @@ import {
   Clock,
   Video,
   VideoOff,
+  Lock,
+  Swords,
 } from "lucide-react";
 import { LoadingState, ErrorState } from "../../components/ui";
 import { apiClient } from "../../services/api";
@@ -38,9 +40,19 @@ interface ContestInfo {
   name: string;
   stage: string;
   group?: string;
+  matchNumber?: number;
   status: string;
   startTime?: string;
   endTime?: string;
+}
+
+interface MatchInfo {
+  matchId: string;
+  matchNumber: number;
+  stage: string;
+  status: string;
+  isLocked: boolean;
+  winner: { participantId: string; name?: string; username?: string } | null;
 }
 
 // ---- Design tokens ---------------------------------------------------
@@ -67,13 +79,29 @@ const c = {
 const getVideoTone = (status: string) => {
   switch (status) {
     case "APPROVED":
-      return { color: c.accent.green, label: "Approved", icon: <Video size={12} /> };
+      return {
+        color: c.accent.green,
+        label: "Approved",
+        icon: <Video size={12} />,
+      };
     case "PENDING":
-      return { color: c.accent.gold, label: "Pending", icon: <Clock size={12} /> };
+      return {
+        color: c.accent.gold,
+        label: "Pending",
+        icon: <Clock size={12} />,
+      };
     case "REJECTED":
-      return { color: c.accent.red, label: "Rejected", icon: <VideoOff size={12} /> };
+      return {
+        color: c.accent.red,
+        label: "Rejected",
+        icon: <VideoOff size={12} />,
+      };
     default:
-      return { color: c.text.faint, label: "Not submitted", icon: <VideoOff size={12} /> };
+      return {
+        color: c.text.faint,
+        label: "Not submitted",
+        icon: <VideoOff size={12} />,
+      };
   }
 };
 
@@ -81,6 +109,7 @@ export const AdminContestResults = () => {
   const { contestId } = useParams<{ contestId: string }>();
 
   const [contest, setContest] = useState<ContestInfo | null>(null);
+  const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,6 +123,13 @@ export const AdminContestResults = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
+  // Rematch form state
+  const [showRematchForm, setShowRematchForm] = useState(false);
+  const [rematchUrl, setRematchUrl] = useState("");
+  const [rematchStart, setRematchStart] = useState("");
+  const [rematchDuration, setRematchDuration] = useState(60);
+  const [rematchSubmitting, setRematchSubmitting] = useState(false);
+
   // ---- Load ----------------------------------------------------------
   const load = useCallback(async () => {
     if (!contestId) return;
@@ -101,6 +137,7 @@ export const AdminContestResults = () => {
       setError("");
       const res = await apiClient.get(`/admin/contests/${contestId}/results`);
       setContest(res.data.contest);
+      setMatchInfo(res.data.matchInfo || null);
       setRoster(res.data.roster || []);
 
       // Seed edits from current values
@@ -134,7 +171,6 @@ export const AdminContestResults = () => {
       ...prev,
       [participantId]: { ...prev[participantId], ...patch },
     }));
-    // If this participant was saved before, they now have unsaved changes
     setSavedIds((prev) => {
       if (!prev.has(participantId)) return prev;
       const next = new Set(prev);
@@ -158,15 +194,13 @@ export const AdminContestResults = () => {
         penalty: edit.penalty,
       });
 
-      // Reload so ranks update
       const res = await apiClient.get(`/admin/contests/${contestId}/results`);
       setRoster(res.data.roster || []);
+      setMatchInfo(res.data.matchInfo || null);
 
-      // Re-seed edits from fresh data (keeps any unsaved edits on other rows)
       setEdits((prev) => {
         const next = { ...prev };
         for (const r of res.data.roster || []) {
-          // Only overwrite the row we just saved
           if (r.participantId === participantId) {
             next[r.participantId] = { solved: r.solved, penalty: r.penalty };
           }
@@ -184,10 +218,37 @@ export const AdminContestResults = () => {
     }
   };
 
-  // ---- Preview rank (client-side, live as you type) ------------------
+  // ---- Start rematch --------------------------------------------------
+  const handleStartRematch = async () => {
+    if (!matchInfo?.matchId || !rematchUrl || !rematchStart) return;
+    setRematchSubmitting(true);
+    setError("");
+    try {
+      await apiClient.post(`/admin/matches/${matchInfo.matchId}/rematch`, {
+        invitationUrl: rematchUrl,
+        startTime: new Date(rematchStart).toISOString(),
+        durationMinutes: rematchDuration,
+      });
+      setShowRematchForm(false);
+      setRematchUrl("");
+      setRematchStart("");
+      setNotice("Rematch created — enter the new results");
+      await load();
+      setTimeout(() => setNotice(""), 3500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create rematch");
+    } finally {
+      setRematchSubmitting(false);
+    }
+  };
+
+  // ---- Preview rank ---------------------------------------------------
   const previewRanks = useMemo(() => {
     const rows = roster.map((r) => {
-      const edit = edits[r.participantId] || { solved: r.solved, penalty: r.penalty };
+      const edit = edits[r.participantId] || {
+        solved: r.solved,
+        penalty: r.penalty,
+      };
       const isEligible = r.isEligible;
       return {
         participantId: r.participantId,
@@ -212,6 +273,8 @@ export const AdminContestResults = () => {
   const eligibleCount = roster.filter((r) => r.isEligible).length;
   const notEligibleCount = roster.length - eligibleCount;
   const enteredCount = roster.filter((r) => savedIds.has(r.participantId)).length;
+
+  const isLocked = matchInfo?.isLocked ?? false;
 
   if (loading) return <LoadingState label="Loading contest results..." />;
   if (error && !contest) return <ErrorState error={error} />;
@@ -364,6 +427,137 @@ export const AdminContestResults = () => {
         </div>
       </div>
 
+      {/* Match status banners */}
+      {matchInfo && matchInfo.status === "TIE" && !isLocked && (
+        <div
+          data-testid="match-tied-banner"
+          style={{
+            padding: "20px 24px",
+            borderRadius: c.radius.lg,
+            background: "rgba(255, 152, 0, 0.08)",
+            border: "1px solid rgba(255, 152, 0, 0.3)",
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <AlertCircle size={24} color={c.accent.orange} />
+          <div style={{ flex: 1, minWidth: "220px" }}>
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                color: c.accent.orange,
+                marginBottom: "2px",
+              }}
+            >
+              Match Tied
+            </div>
+            <div style={{ fontSize: "13px", color: c.text.secondary }}>
+              Both participants have identical results. Create a rematch with a new contest to
+              determine the winner.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowRematchForm(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "10px 18px",
+              borderRadius: c.radius.md,
+              background: "linear-gradient(135deg, #FF9800, #F57C00)",
+              border: "none",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            <Swords size={14} />
+            Start Rematch
+          </button>
+        </div>
+      )}
+
+      {matchInfo?.winner && (
+        <div
+          data-testid="match-winner-banner"
+          style={{
+            padding: "16px 20px",
+            borderRadius: c.radius.md,
+            background: "rgba(76, 175, 80, 0.08)",
+            border: "1px solid rgba(76, 175, 80, 0.3)",
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <Trophy size={20} color={c.accent.green} />
+          <div style={{ flex: 1, minWidth: "180px" }}>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: c.accent.green,
+                textTransform: "uppercase",
+                letterSpacing: "0.8px",
+              }}
+            >
+              Match Winner
+            </div>
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                color: c.text.primary,
+              }}
+            >
+              {matchInfo.winner.name || matchInfo.winner.username}
+            </div>
+          </div>
+          {isLocked && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                color: c.text.muted,
+                fontSize: "12px",
+              }}
+            >
+              <Lock size={12} />
+              Locked (stage advanced)
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLocked && !matchInfo?.winner && (
+        <div
+          style={{
+            padding: "14px 18px",
+            borderRadius: c.radius.md,
+            background: "rgba(255, 255, 255, 0.02)",
+            border: `1px solid ${c.border.mid}`,
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            color: c.text.muted,
+            fontSize: "13px",
+          }}
+        >
+          <Lock size={16} />
+          Results are locked — this stage has already advanced.
+        </div>
+      )}
+
       {/* Stats */}
       <div
         style={{
@@ -498,6 +692,7 @@ export const AdminContestResults = () => {
                   const videoTone = getVideoTone(r.videoStatus);
                   const name = r.user?.name || r.user?.username || "Unknown";
                   const initial = name.charAt(0).toUpperCase();
+                  const inputsDisabled = !isEligible || isLocked;
 
                   return (
                     <tr
@@ -506,7 +701,6 @@ export const AdminContestResults = () => {
                         borderBottom: `1px solid ${c.border.subtle}`,
                       }}
                     >
-                      {/* Rank */}
                       <td style={{ padding: "12px 16px" }}>
                         <span
                           style={{
@@ -536,7 +730,6 @@ export const AdminContestResults = () => {
                         </span>
                       </td>
 
-                      {/* Participant */}
                       <td style={{ padding: "12px 16px" }}>
                         <div
                           style={{
@@ -583,7 +776,6 @@ export const AdminContestResults = () => {
                         </div>
                       </td>
 
-                      {/* Group */}
                       <td
                         style={{
                           padding: "12px 16px",
@@ -610,7 +802,6 @@ export const AdminContestResults = () => {
                         )}
                       </td>
 
-                      {/* Video status */}
                       <td
                         style={{
                           padding: "12px 16px",
@@ -638,7 +829,6 @@ export const AdminContestResults = () => {
                         </span>
                       </td>
 
-                      {/* Solved input */}
                       <td
                         style={{
                           padding: "12px 16px",
@@ -654,25 +844,24 @@ export const AdminContestResults = () => {
                               solved: Math.max(0, Number(e.target.value) || 0),
                             })
                           }
-                          disabled={!isEligible}
+                          disabled={inputsDisabled}
                           style={{
                             width: "70px",
                             padding: "7px 10px",
                             borderRadius: c.radius.sm,
-                            background: isEligible
-                              ? "rgba(255,255,255,0.05)"
-                              : "rgba(255,255,255,0.02)",
+                            background: inputsDisabled
+                              ? "rgba(255,255,255,0.02)"
+                              : "rgba(255,255,255,0.05)",
                             border: `1px solid ${c.border.mid}`,
-                            color: isEligible ? "#fff" : c.text.faint,
+                            color: inputsDisabled ? c.text.faint : "#fff",
                             fontSize: "13px",
                             textAlign: "center",
                             outline: "none",
-                            cursor: isEligible ? "text" : "not-allowed",
+                            cursor: inputsDisabled ? "not-allowed" : "text",
                           }}
                         />
                       </td>
 
-                      {/* Penalty input */}
                       <td
                         style={{
                           padding: "12px 16px",
@@ -688,25 +877,24 @@ export const AdminContestResults = () => {
                               penalty: Math.max(0, Number(e.target.value) || 0),
                             })
                           }
-                          disabled={!isEligible}
+                          disabled={inputsDisabled}
                           style={{
                             width: "90px",
                             padding: "7px 10px",
                             borderRadius: c.radius.sm,
-                            background: isEligible
-                              ? "rgba(255,255,255,0.05)"
-                              : "rgba(255,255,255,0.02)",
+                            background: inputsDisabled
+                              ? "rgba(255,255,255,0.02)"
+                              : "rgba(255,255,255,0.05)",
                             border: `1px solid ${c.border.mid}`,
-                            color: isEligible ? "#fff" : c.text.faint,
+                            color: inputsDisabled ? c.text.faint : "#fff",
                             fontSize: "13px",
                             textAlign: "center",
                             outline: "none",
-                            cursor: isEligible ? "text" : "not-allowed",
+                            cursor: inputsDisabled ? "not-allowed" : "text",
                           }}
                         />
                       </td>
 
-                      {/* Save button */}
                       <td
                         style={{
                           padding: "12px 16px",
@@ -716,7 +904,7 @@ export const AdminContestResults = () => {
                         <button
                           type="button"
                           onClick={() => handleSave(r.participantId)}
-                          disabled={isSaving || !isEligible}
+                          disabled={isSaving || inputsDisabled}
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -730,8 +918,8 @@ export const AdminContestResults = () => {
                             color: "#fff",
                             fontWeight: 700,
                             fontSize: "12px",
-                            cursor: isSaving || !isEligible ? "not-allowed" : "pointer",
-                            opacity: isSaving || !isEligible ? 0.5 : 1,
+                            cursor: isSaving || inputsDisabled ? "not-allowed" : "pointer",
+                            opacity: isSaving || inputsDisabled ? 0.5 : 1,
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -767,6 +955,196 @@ export const AdminContestResults = () => {
         </div>
       )}
 
+      {/* Rematch modal */}
+      {showRematchForm && matchInfo && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "24px",
+          }}
+          onClick={() => setShowRematchForm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              background: "#0F1420",
+              borderRadius: c.radius.lg,
+              border: `1px solid ${c.border.subtle}`,
+              padding: "24px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#fff",
+                marginBottom: "4px",
+              }}
+            >
+              Start Rematch
+            </div>
+            <div
+              style={{
+                fontSize: "13px",
+                color: c.text.muted,
+                marginBottom: "20px",
+                lineHeight: 1.5,
+              }}
+            >
+              A new contest will be created for Match {matchInfo.matchNumber}. Old results will be
+              cleared so you can enter the new ones.
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: c.text.secondary,
+                    marginBottom: "6px",
+                  }}
+                >
+                  New Invitation URL *
+                </label>
+                <input
+                  type="url"
+                  value={rematchUrl}
+                  onChange={(e) => setRematchUrl(e.target.value)}
+                  placeholder="https://codeforces.com/contestInvitation/..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: c.radius.sm,
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid ${c.border.mid}`,
+                    color: "#fff",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: c.text.secondary,
+                    marginBottom: "6px",
+                  }}
+                >
+                  Start Time *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={rematchStart}
+                  onChange={(e) => setRematchStart(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: c.radius.sm,
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid ${c.border.mid}`,
+                    color: "#fff",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    colorScheme: "dark",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: c.text.secondary,
+                    marginBottom: "6px",
+                  }}
+                >
+                  Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={rematchDuration}
+                  onChange={(e) => setRematchDuration(Number(e.target.value))}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: c.radius.sm,
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid ${c.border.mid}`,
+                    color: "#fff",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <button
+                type="button"
+                onClick={handleStartRematch}
+                disabled={rematchSubmitting || !rematchUrl || !rematchStart}
+                style={{
+                  flex: 1,
+                  padding: "11px 16px",
+                  borderRadius: c.radius.md,
+                  background: "linear-gradient(135deg, #FF9800, #F57C00)",
+                  border: "none",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "13px",
+                  cursor:
+                    rematchSubmitting || !rematchUrl || !rematchStart ? "not-allowed" : "pointer",
+                  opacity: rematchSubmitting || !rematchUrl || !rematchStart ? 0.5 : 1,
+                }}
+              >
+                {rematchSubmitting ? "Creating…" : "Create Rematch"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRematchForm(false)}
+                style={{
+                  flex: 1,
+                  padding: "11px 16px",
+                  borderRadius: c.radius.md,
+                  background: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${c.border.mid}`,
+                  color: c.text.secondary,
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -782,10 +1160,10 @@ export const AdminContestResults = () => {
 
 // ---- Helpers --------------------------------------------------------
 
-const Th: React.FC<{ children: React.ReactNode; align?: "left" | "center" }> = ({
-  children,
-  align = "left",
-}) => (
+const Th: React.FC<{
+  children: React.ReactNode;
+  align?: "left" | "center";
+}> = ({ children, align = "left" }) => (
   <th
     style={{
       padding: "12px 16px",

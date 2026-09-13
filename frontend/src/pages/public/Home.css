@@ -1329,3 +1329,125 @@
                 transform: none;
         }
 }
+/* ============================================
+   FEATURES SECTION
+   ============================================ */
+
+.features-section {
+        padding: 60px 0;
+}
+
+.features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+}
+
+.feature-card {
+        position: relative;
+        padding: 24px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow: hidden;
+        transition:
+                transform 0.3s ease,
+                border-color 0.3s ease,
+                background-color 0.3s ease;
+}
+
+.feature-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg,
+                        var(--feature-color, #2979ff),
+                        transparent);
+        opacity: 0.7;
+}
+
+.feature-card:hover {
+        transform: translateY(-4px);
+        border-color: color-mix(in srgb,
+                        var(--feature-color, #2979ff) 40%,
+                        transparent);
+        background: rgba(255, 255, 255, 0.03);
+}
+
+.feature-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: color-mix(in srgb,
+                        var(--feature-color, #2979ff) 12%,
+                        transparent);
+        border: 1px solid color-mix(in srgb, var(--feature-color, #2979ff) 30%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--feature-color, #2979ff);
+        flex-shrink: 0;
+        transition: transform 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+        transform: scale(1.08) rotate(-3deg);
+}
+
+.feature-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+        letter-spacing: -0.01em;
+}
+
+.feature-desc {
+        font-size: 13px;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.5);
+        margin: 0;
+}
+
+/* Section icon variant (blue) */
+.section-icon--blue {
+        background: rgba(41, 121, 255, 0.08) !important;
+        border-color: rgba(41, 121, 255, 0.15) !important;
+        color: #64b5f6 !important;
+}
+
+/* ============================================
+   RESPONSIVE — Features
+   ============================================ */
+
+@media (max-width: 768px) {
+        .features-grid {
+                grid-template-columns: 1fr;
+        }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+        .feature-card,
+        .feature-icon {
+                transition: none;
+        }
+
+        .feature-card:hover {
+                transform: none;
+        }
+
+        .feature-card:hover .feature-icon {
+                transform: none;
+        }
+}
