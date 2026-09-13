@@ -1,46 +1,144 @@
 // frontend/src/pages/participant/Invitations.tsx
-import { useEffect, useState } from "react";
-import { Mail, Check, X, Sparkles, Swords, Calendar, Users, Inbox } from "lucide-react";
-import { LoadingState, ErrorState, StatusBadge } from "../../components/common";
-import { invitationApi } from "../../services/invitationApi";
-import type { Invitation } from "../../types";
+import { useEffect, useState, useCallback } from "react";
+import {
+  Check,
+  X,
+  Sparkles,
+  Swords,
+  Calendar,
+  ExternalLink,
+  Inbox,
+  CheckCircle,
+  Trophy,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { LoadingState, ErrorState } from "../../components/common";
+import { tournamentApi } from "../../services/tournamentApi";
+import { contestApi } from "../../services/contestApi";
+import { useAuth } from "../../context/AuthContext";
+import type { Contest } from "../../types";
+
+interface PendingContest {
+  contest: Contest;
+  tournament: {
+    _id: string;
+    name: string;
+  };
+}
 
 export const Invitations = () => {
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const { user } = useAuth();
+  const [pending, setPending] = useState<PendingContest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [responding, setResponding] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [declined, setDeclined] = useState<Set<string>>(new Set());
+
+  // ---- Load pending contests -----------------------------------------
+  const load = useCallback(async () => {
+    if (!user?._id) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      // 1. Get the user's approved tournaments
+      //    Backend shape: { tournaments: (Participant & { tournament: Tournament })[] }
+      const res = await tournamentApi.getMyTournaments();
+      const myTournaments = res.tournaments || [];
+
+      const approved = myTournaments.filter((t) => t.registrationStatus === "APPROVED");
+
+      // 2. For each approved tournament, fetch its visible contests
+      //    and keep only those the participant hasn't confirmed yet.
+      const collected: PendingContest[] = [];
+
+      for (const t of approved) {
+        // The nested tournament document — read the id and name from it
+        const tournamentDoc = t.tournament;
+        const tournamentId = tournamentDoc?._id;
+        if (!tournamentId) continue;
+
+        try {
+          const { contests } = await contestApi.getMyContests(tournamentId);
+
+          for (const c of contests || []) {
+            if (declined.has(c._id)) continue;
+
+            const participation = await contestApi.getMyParticipation(c._id).catch(() => null);
+
+            const confirmed = participation?.confirmedJoined ?? false;
+            if (confirmed) continue;
+
+            collected.push({
+              contest: c,
+              tournament: {
+                _id: tournamentId,
+                name: tournamentDoc.name || "Tournament",
+              },
+            });
+          }
+        } catch {
+          // Skip tournaments we can't read
+          continue;
+        }
+      }
+
+      setPending(collected);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load invitations");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?._id, declined]);
 
   useEffect(() => {
-    const loadInvitations = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const response = await invitationApi.getMyInvitations("PENDING");
-        setInvitations(response.invitations || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load invitations");
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadInvitations();
-  }, []);
+    load();
+  }, [load]);
 
-  const handleRespond = async (invitationId: string, status: "ACCEPTED" | "DECLINED") => {
+  // ---- Accept (confirm joined) ----------------------------------------
+  const handleAccept = async (contestId: string) => {
+    setAccepting(contestId);
+    setError("");
     try {
-      setResponding(invitationId);
-      await invitationApi.respondToInvitation(invitationId, status);
-      setInvitations(invitations.filter((inv) => inv._id !== invitationId));
+      await contestApi.confirmJoined(contestId);
+      setPending((prev) => prev.filter((p) => p.contest._id !== contestId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to respond to invitation");
+      setError(err instanceof Error ? err.message : "Failed to confirm join");
     } finally {
-      setResponding(null);
+      setAccepting(null);
     }
   };
 
-  if (loading) return <LoadingState variant="spinner" size="lg" label="Loading invitations..." />;
-  if (error) return <ErrorState error={error} />;
+  // ---- Decline (hide locally only) ------------------------------------
+  const handleDecline = (contestId: string) => {
+    setDeclined((prev) => new Set(prev).add(contestId));
+    setPending((prev) => prev.filter((p) => p.contest._id !== contestId));
+  };
+
+  // ---- Helpers --------------------------------------------------------
+  const getStatusLabel = (contest: Contest): string => {
+    const s = String(contest.status || "PUBLISHED").toUpperCase();
+    if (s === "LIVE") return "LIVE";
+    if (s === "FINISHED") return "FINISHED";
+    if (s === "UPCOMING") return "UPCOMING";
+    if (s === "PUBLISHED") return "PUBLISHED";
+    return s;
+  };
+
+  const getStatusClass = (contest: Contest): string => {
+    const s = String(contest.status || "PUBLISHED").toUpperCase();
+    if (s === "LIVE") return "status-live";
+    if (s === "FINISHED") return "status-finished";
+    return "status-upcoming";
+  };
+
+  const count = pending.length;
+
+  // ---- Render ---------------------------------------------------------
+  if (loading) {
+    return <LoadingState variant="spinner" size="lg" label="Loading invitations..." />;
+  }
+  if (error && pending.length === 0) return <ErrorState error={error} />;
 
   return (
     <div className="invitations-page">
@@ -49,71 +147,93 @@ export const Invitations = () => {
         <div className="page-header-glow" />
         <div className="page-header-content">
           <div className="header-icon">
-            <Mail size={24} />
+            <Inbox size={24} />
           </div>
           <div>
             <h1>Invitations</h1>
             <p className="subtitle">
-              {invitations.length > 0
-                ? `You have ${invitations.length} pending invitation${invitations.length > 1 ? "s" : ""}`
-                : "Contest invitations from tournaments will appear here"}
+              {count > 0
+                ? `You have ${count} contest${count > 1 ? "s" : ""} to join`
+                : "Contests you're eligible for will appear here"}
             </p>
           </div>
-          {invitations.length > 0 && (
+          {count > 0 && (
             <div className="header-count-badge">
               <Sparkles size={14} />
-              {invitations.length} New
+              {count} Pending
             </div>
           )}
         </div>
       </div>
 
-      {invitations.length > 0 ? (
+      {error && pending.length > 0 && <div className="inline-error">{error}</div>}
+
+      {pending.length > 0 ? (
         <div className="invitations-list">
-          {invitations.map((inv) => {
-            const isResponding = responding === inv._id;
+          {pending.map(({ contest, tournament }) => {
+            const isAccepting = accepting === contest._id;
+            const statusLabel = getStatusLabel(contest);
+            const statusClass = getStatusClass(contest);
 
             return (
-              <div key={inv._id} className="invitation-card">
+              <div key={contest._id} className="invitation-card">
                 <div className="card-glow" />
                 <div className="card-accent" />
 
-                {/* Left icon */}
                 <div className="invitation-icon">
                   <Swords size={24} />
                 </div>
 
-                {/* Main content */}
                 <div className="invitation-content">
                   <div className="invitation-title-row">
-                    <h3>Contest Invitation</h3>
-                    <StatusBadge status={inv.status} size="sm" />
+                    <h3>{contest.name || "Contest"}</h3>
+                    <span className={`status-pill ${statusClass}`}>{statusLabel}</span>
                   </div>
 
                   <p className="invitation-message">
-                    You've been invited to participate in a contest
+                    You're invited to participate in <strong>{tournament.name}</strong>. Open the
+                    invitation link on Codeforces to join the contest, then click Accept.
                   </p>
 
                   <div className="invitation-meta">
                     <span className="meta-pill">
-                      <Calendar size={12} />
-                      Just now
+                      <Trophy size={12} />
+                      {tournament.name}
                     </span>
-                    <span className="meta-pill">
-                      <Users size={12} />
-                      Contest slot
-                    </span>
+                    {contest.startTime && (
+                      <span className="meta-pill">
+                        <Calendar size={12} />
+                        {new Date(contest.startTime).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
                   </div>
+
+                  {contest.invitationUrl && (
+                    <a
+                      href={contest.invitationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="invitation-link"
+                    >
+                      <ExternalLink size={12} />
+                      <span>Open on Codeforces</span>
+                    </a>
+                  )}
                 </div>
 
-                {/* Actions */}
                 <div className="invitation-actions">
                   <button
+                    type="button"
                     className="btn-accept"
-                    onClick={() => handleRespond(inv._id, "ACCEPTED")}
-                    disabled={isResponding}
+                    onClick={() => handleAccept(contest._id)}
+                    disabled={isAccepting}
                   >
-                    {isResponding ? (
+                    {isAccepting ? (
                       <span className="btn-loading" />
                     ) : (
                       <>
@@ -123,18 +243,13 @@ export const Invitations = () => {
                     )}
                   </button>
                   <button
+                    type="button"
                     className="btn-decline"
-                    onClick={() => handleRespond(inv._id, "DECLINED")}
-                    disabled={isResponding}
+                    onClick={() => handleDecline(contest._id)}
+                    disabled={isAccepting}
                   >
-                    {isResponding ? (
-                      <span className="btn-loading" />
-                    ) : (
-                      <>
-                        <X size={16} />
-                        <span>Decline</span>
-                      </>
-                    )}
+                    <X size={16} />
+                    <span>Dismiss</span>
                   </button>
                 </div>
               </div>
@@ -144,13 +259,17 @@ export const Invitations = () => {
       ) : (
         <div className="empty-state">
           <div className="empty-icon">
-            <Inbox size={48} />
+            <CheckCircle size={48} />
           </div>
-          <h3>No invitations</h3>
+          <h3>You're all caught up</h3>
           <p>
-            You don't have any pending contest invitations. They'll show up here when you receive
-            one.
+            No pending contest invitations right now. When a new contest is published for your
+            group, it will appear here.
           </p>
+          <Link to="/dashboard/tournaments" className="empty-cta">
+            <Trophy size={16} />
+            <span>Browse My Tournaments</span>
+          </Link>
         </div>
       )}
 
@@ -162,9 +281,6 @@ export const Invitations = () => {
           padding-bottom: 40px;
         }
 
-        /* ============================================
-           HEADER
-        ============================================ */
         .page-header {
           position: relative;
           padding: 32px;
@@ -235,17 +351,17 @@ export const Invitations = () => {
           color: #FFD700;
           font-size: 13px;
           font-weight: 700;
-          animation: subtlePulse 2s ease-in-out infinite;
         }
 
-        @keyframes subtlePulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.2); }
-          50% { box-shadow: 0 0 0 8px rgba(255, 215, 0, 0); }
+        .inline-error {
+          padding: 12px 16px;
+          border-radius: 12px;
+          background: rgba(239, 83, 80, 0.1);
+          border: 1px solid rgba(239, 83, 80, 0.25);
+          color: #EF5350;
+          font-size: 13px;
         }
 
-        /* ============================================
-           INVITATIONS LIST
-        ============================================ */
         .invitations-list {
           display: flex;
           flex-direction: column;
@@ -255,13 +371,14 @@ export const Invitations = () => {
         .invitation-card {
           position: relative;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 20px;
           padding: 24px 28px;
           background: rgba(255, 255, 255, 0.02);
           border: 1px solid rgba(255, 255, 255, 0.06);
           border-radius: 20px;
-          transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: transform 0.35s ease, background-color 0.35s ease,
+            border-color 0.35s ease, box-shadow 0.35s ease;
           overflow: hidden;
           isolation: isolate;
         }
@@ -324,7 +441,7 @@ export const Invitations = () => {
           min-width: 0;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px;
         }
 
         .invitation-title-row {
@@ -341,18 +458,51 @@ export const Invitations = () => {
           margin: 0;
         }
 
+        .status-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 10px;
+          border-radius: 100px;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .status-live {
+          background: rgba(239, 83, 80, 0.12);
+          border: 1px solid rgba(239, 83, 80, 0.25);
+          color: #EF5350;
+        }
+
+        .status-upcoming {
+          background: rgba(41, 121, 255, 0.12);
+          border: 1px solid rgba(41, 121, 255, 0.25);
+          color: #64B5F6;
+        }
+
+        .status-finished {
+          background: rgba(76, 175, 80, 0.12);
+          border: 1px solid rgba(76, 175, 80, 0.25);
+          color: #4CAF50;
+        }
+
         .invitation-message {
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.55);
           margin: 0;
-          line-height: 1.5;
+          line-height: 1.55;
+        }
+
+        .invitation-message strong {
+          color: rgba(255, 255, 255, 0.85);
+          font-weight: 600;
         }
 
         .invitation-meta {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
-          margin-top: 4px;
         }
 
         .meta-pill {
@@ -368,13 +518,31 @@ export const Invitations = () => {
           font-weight: 600;
         }
 
-        /* ============================================
-           ACTIONS
-        ============================================ */
+        .invitation-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          width: fit-content;
+          padding: 6px 12px;
+          border-radius: 8px;
+          background: rgba(41, 121, 255, 0.08);
+          border: 1px solid rgba(41, 121, 255, 0.2);
+          color: #64B5F6;
+          font-size: 12px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: background-color 0.15s ease;
+        }
+
+        .invitation-link:hover {
+          background: rgba(41, 121, 255, 0.15);
+        }
+
         .invitation-actions {
           display: flex;
           gap: 10px;
           flex-shrink: 0;
+          align-self: center;
         }
 
         .btn-accept,
@@ -390,7 +558,8 @@ export const Invitations = () => {
           font-size: 14px;
           font-weight: 700;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: transform 0.3s ease, background-color 0.3s ease,
+            border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
           border: none;
           font-family: inherit;
         }
@@ -439,9 +608,6 @@ export const Invitations = () => {
           to { transform: rotate(360deg); }
         }
 
-        /* ============================================
-           EMPTY STATE
-        ============================================ */
         .empty-state {
           display: flex;
           flex-direction: column;
@@ -459,12 +625,12 @@ export const Invitations = () => {
           width: 88px;
           height: 88px;
           border-radius: 28px;
-          background: rgba(41, 121, 255, 0.06);
-          border: 1px solid rgba(41, 121, 255, 0.1);
+          background: rgba(76, 175, 80, 0.06);
+          border: 1px solid rgba(76, 175, 80, 0.15);
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #64B5F6;
+          color: #4CAF50;
           margin-bottom: 8px;
         }
 
@@ -482,9 +648,26 @@ export const Invitations = () => {
           line-height: 1.6;
         }
 
-        /* ============================================
-           RESPONSIVE
-        ============================================ */
+        .empty-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 8px;
+          padding: 12px 24px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #2979FF, #1565C0);
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .empty-cta:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px rgba(41, 121, 255, 0.35);
+        }
+
         @media (max-width: 768px) {
           .invitation-card {
             flex-direction: column;
@@ -501,6 +684,7 @@ export const Invitations = () => {
           .invitation-actions {
             padding-top: 16px;
             border-top: 1px solid rgba(255, 255, 255, 0.04);
+            align-self: stretch;
           }
 
           .btn-accept,
@@ -526,6 +710,21 @@ export const Invitations = () => {
 
           .header-count-badge {
             display: none;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .invitation-card,
+          .invitation-card .card-glow,
+          .invitation-card .invitation-icon,
+          .btn-accept,
+          .btn-decline,
+          .empty-cta {
+            transition: none;
+          }
+
+          .btn-loading {
+            animation: none;
           }
         }
       `}</style>
