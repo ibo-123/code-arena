@@ -1510,9 +1510,6 @@ const getBracket = async (req, res) => {
 // ============================================================
 // GET LEADERBOARD
 // ============================================================
-// ============================================================
-// GET LEADERBOARD
-// ============================================================
 const getLeaderboard = async (req, res) => {
   try {
     const tournamentId =
@@ -1671,6 +1668,21 @@ const advanceGroupStage = async (
       req.params.tournamentId ||
       req.params.id;
 
+    // NEW — idempotent guard for completed tournaments
+    const existing = await Tournament.findById(tournamentId).lean();
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+    if (existing.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Tournament is already completed",
+      });
+    }
+
     const advancing =
       await advancementService.advanceGroupStage(
         tournamentId
@@ -1720,6 +1732,21 @@ const advanceQuarterFinal = async (
     const tournamentId =
       req.params.tournamentId ||
       req.params.id;
+
+    // NEW — idempotent guard
+    const existing = await Tournament.findById(tournamentId).lean();
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+    if (existing.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Tournament is already completed",
+      });
+    }
 
     const advancing =
       await advancementService.advanceQuarterFinal(
@@ -1771,6 +1798,21 @@ const advanceSemiFinal = async (
       req.params.tournamentId ||
       req.params.id;
 
+    // NEW — idempotent guard
+    const existing = await Tournament.findById(tournamentId).lean();
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+    if (existing.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Tournament is already completed",
+      });
+    }
+
     const advancing =
       await advancementService.advanceSemiFinal(
         tournamentId
@@ -1820,6 +1862,22 @@ const completeTournament = async (
     const tournamentId =
       req.params.tournamentId ||
       req.params.id;
+
+    // NEW — idempotent: if already completed, respond 200 instead of 400
+    const existing = await Tournament.findById(tournamentId).lean();
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+    if (existing.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Tournament is already completed",
+        winnerId: null,
+      });
+    }
 
     const winnerId =
       await advancementService.completeTournament(
@@ -1877,6 +1935,26 @@ const advanceStage = async (
     .toLowerCase();
 
   try {
+    // NEW — read tournament once; short-circuit if already completed
+    const tournamentId =
+      req.params.tournamentId || req.params.id;
+
+    const tournament = await Tournament.findById(tournamentId).lean();
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: "Tournament not found",
+      });
+    }
+    if (tournament.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Tournament is already completed",
+        status: tournament.status,
+        currentStage: tournament.currentStage,
+      });
+    }
+
     switch (stage) {
       case "group-stage":
       case "group_stage":

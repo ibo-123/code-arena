@@ -13,7 +13,7 @@
 
 .page-header {
         position: relative;
-        padding: 32px;
+        padding: 28px 32px;
         border-radius: 24px;
         background: linear-gradient(135deg,
                         rgba(41, 121, 255, 0.06),
@@ -57,10 +57,24 @@
         flex-shrink: 0;
 }
 
+.header-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+}
+
+.header-eyebrow {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: rgba(100, 181, 246, 0.85);
+}
+
 .page-header h1 {
         font-size: 28px;
         font-weight: 800;
-        margin: 0 0 4px;
+        margin: 0;
         background: linear-gradient(135deg, #ffffff, #90caf9);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -68,9 +82,53 @@
 }
 
 .page-header .subtitle {
-        font-size: 15px;
+        font-size: 14px;
         color: rgba(255, 255, 255, 0.5);
-        margin: 0;
+        margin: 2px 0 0;
+}
+
+.stat-advanced {
+        color: #4caf50;
+        font-weight: 600;
+}
+
+.stat-eliminated {
+        color: #ef5350;
+        font-weight: 600;
+}
+
+/* ---- Champion banner -------------------------------------------------- */
+
+.champion-banner {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px 24px;
+        border-radius: 18px;
+        background: linear-gradient(135deg,
+                        rgba(255, 215, 0, 0.12),
+                        rgba(255, 215, 0, 0.04));
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        color: #ffd700;
+}
+
+.champion-crown {
+        flex-shrink: 0;
+        filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.6));
+}
+
+.champion-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: rgba(255, 215, 0, 0.75);
+}
+
+.champion-name {
+        font-size: 22px;
+        font-weight: 800;
+        color: #ffd700;
 }
 
 /* ============================================
@@ -95,7 +153,8 @@
         background: rgba(255, 255, 255, 0.02);
         border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 20px;
-        transition: all 0.35s ease;
+        transition: transform 0.35s ease, border-color 0.35s ease,
+                background-color 0.35s ease;
         overflow: hidden;
 }
 
@@ -123,6 +182,14 @@
 .podium-item.is-me {
         border-color: rgba(41, 121, 255, 0.4);
         box-shadow: 0 0 40px rgba(41, 121, 255, 0.15);
+}
+
+.podium-item.is-eliminated {
+        opacity: 0.65;
+}
+
+.podium-item.is-eliminated .podium-avatar {
+        filter: grayscale(0.4);
 }
 
 .podium-item:hover {
@@ -189,6 +256,27 @@
         text-align: center;
 }
 
+.podium-status {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+}
+
+.podium-status--advanced {
+        background: rgba(76, 175, 80, 0.12);
+        border: 1px solid rgba(76, 175, 80, 0.3);
+        color: #4caf50;
+}
+
+.podium-status--eliminated {
+        background: rgba(239, 83, 80, 0.12);
+        border: 1px solid rgba(239, 83, 80, 0.3);
+        color: #ef5350;
+}
+
 .you-tag {
         display: inline-flex;
         align-items: center;
@@ -234,18 +322,43 @@
 }
 
 /* ============================================
-   MY POSITION BANNER
+   MY POSITION BANNER (status variants)
    ============================================ */
 
 .my-position-banner {
         position: relative;
         padding: 20px 24px;
         border-radius: 18px;
+        overflow: hidden;
+        transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.my-position-banner--active {
         background: linear-gradient(135deg,
                         rgba(41, 121, 255, 0.1),
                         rgba(41, 121, 255, 0.04));
         border: 1px solid rgba(41, 121, 255, 0.2);
-        overflow: hidden;
+}
+
+.my-position-banner--advanced {
+        background: linear-gradient(135deg,
+                        rgba(76, 175, 80, 0.1),
+                        rgba(76, 175, 80, 0.03));
+        border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.my-position-banner--eliminated {
+        background: linear-gradient(135deg,
+                        rgba(239, 83, 80, 0.08),
+                        rgba(239, 83, 80, 0.02));
+        border: 1px solid rgba(239, 83, 80, 0.3);
+}
+
+.my-position-banner--champion {
+        background: linear-gradient(135deg,
+                        rgba(255, 215, 0, 0.12),
+                        rgba(255, 215, 0, 0.03));
+        border: 1px solid rgba(255, 215, 0, 0.35);
 }
 
 .my-position-glow {
@@ -260,6 +373,24 @@
                         transparent 70%);
         filter: blur(60px);
         pointer-events: none;
+}
+
+.my-position-banner--advanced .my-position-glow {
+        background: radial-gradient(circle,
+                        rgba(76, 175, 80, 0.2),
+                        transparent 70%);
+}
+
+.my-position-banner--eliminated .my-position-glow {
+        background: radial-gradient(circle,
+                        rgba(239, 83, 80, 0.15),
+                        transparent 70%);
+}
+
+.my-position-banner--champion .my-position-glow {
+        background: radial-gradient(circle,
+                        rgba(255, 215, 0, 0.25),
+                        transparent 70%);
 }
 
 .my-position-content {
@@ -284,6 +415,21 @@
         flex-shrink: 0;
 }
 
+.my-position-banner--advanced .my-position-icon {
+        background: linear-gradient(135deg, #4caf50, #2e7d32);
+        box-shadow: 0 8px 24px rgba(76, 175, 80, 0.35);
+}
+
+.my-position-banner--eliminated .my-position-icon {
+        background: linear-gradient(135deg, #ef5350, #c62828);
+        box-shadow: 0 8px 24px rgba(239, 83, 80, 0.35);
+}
+
+.my-position-banner--champion .my-position-icon {
+        background: linear-gradient(135deg, #ffd700, #ffa000);
+        box-shadow: 0 8px 24px rgba(255, 215, 0, 0.45);
+}
+
 .my-position-text {
         flex: 1;
         min-width: 0;
@@ -296,6 +442,18 @@
         text-transform: uppercase;
         letter-spacing: 1.2px;
         margin-bottom: 4px;
+}
+
+.my-position-banner--advanced .my-position-label {
+        color: rgba(76, 175, 80, 0.9);
+}
+
+.my-position-banner--eliminated .my-position-label {
+        color: rgba(239, 83, 80, 0.9);
+}
+
+.my-position-banner--champion .my-position-label {
+        color: rgba(255, 215, 0, 0.9);
 }
 
 .my-position-value {
@@ -338,6 +496,11 @@
 }
 
 .table-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
         padding: 20px 24px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         background: rgba(255, 255, 255, 0.01);
@@ -354,6 +517,12 @@
 
 .table-title svg {
         color: #64b5f6;
+}
+
+.table-subtitle {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.4);
+        font-weight: 500;
 }
 
 .table-wrap {
@@ -405,6 +574,16 @@
                         rgba(41, 121, 255, 0.02));
 }
 
+.standings-table tbody tr.eliminated-row td {
+        opacity: 0.55;
+}
+
+.standings-table tbody tr.champion-row {
+        background: linear-gradient(90deg, rgba(255, 215, 0, 0.06), transparent);
+}
+
+/* ---- Rank ------------------------------------------------------------- */
+
 .rank-cell {
         display: inline-flex;
         align-items: center;
@@ -421,6 +600,8 @@
         color: var(--medal-color, #ffd700);
         filter: drop-shadow(0 0 6px var(--medal-color, #ffd700));
 }
+
+/* ---- Participant ------------------------------------------------------ */
 
 .participant-cell {
         display: flex;
@@ -442,9 +623,24 @@
         flex-shrink: 0;
 }
 
-.participant-cell strong {
+.participant-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+}
+
+.participant-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         color: white;
         font-weight: 700;
+}
+
+.inline-crown {
+        color: #ffd700;
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
 }
 
 .you-badge {
@@ -598,6 +794,10 @@
                 height: 48px;
         }
 
+        .table-header {
+                padding: 16px 18px;
+        }
+
         .standings-table th,
         .standings-table td {
                 padding: 12px 14px;
@@ -614,16 +814,82 @@
         }
 }
 
-/* ---- Reduced motion --------------------------------------------------- */
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
 
 @media (prefers-reduced-motion: reduce) {
 
         .podium-item,
-        .standings-table tbody tr {
+        .standings-table tbody tr,
+        .my-position-banner {
                 transition: none;
         }
 
         .podium-item:hover {
                 transform: none;
         }
+}
+/* ============================================
+   Tournament switcher (only shows if user has >1 tournament)
+   ============================================ */
+
+.tournament-switcher {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        position: relative;
+        z-index: 1;
+}
+
+.switcher-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        font-family: inherit;
+}
+
+.switcher-chip:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.16);
+        color: white;
+}
+
+.switcher-chip.active {
+        background: linear-gradient(135deg, rgba(41, 121, 255, 0.18), rgba(41, 121, 255, 0.08));
+        border-color: rgba(41, 121, 255, 0.35);
+        color: white;
+        box-shadow: 0 6px 20px rgba(41, 121, 255, 0.2);
+}
+
+.switcher-name {
+        font-weight: 700;
+}
+
+.switcher-status {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        padding: 2px 8px;
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.5);
+}
+
+.switcher-chip.active .switcher-status {
+        background: rgba(41, 121, 255, 0.35);
+        color: #90CAF9;
 }

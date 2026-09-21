@@ -3,7 +3,7 @@
 // ============================================================
 export interface User {
   _id: string;
-  id?: string; // For backward compatibility
+  id?: string;
   username: string;
   email: string;
   name: string;
@@ -39,7 +39,11 @@ export type TournamentStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type TournamentStage = 'GROUP_STAGE' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL';
+export type TournamentStage =
+  | 'GROUP_STAGE'
+  | 'QUARTER_FINAL'
+  | 'SEMI_FINAL'
+  | 'FINAL';
 
 export interface Tournament {
   _id: string;
@@ -50,6 +54,11 @@ export interface Tournament {
   currentStage?: TournamentStage | string;
   maxParticipants: number;
   participantCount?: number;
+
+  // Display / metadata
+  format?: string;
+  prizePool?: string | number;
+
   numberOfGroups?: number;
   participantsPerGroup?: number;
   qualifiersPerGroup?: number;
@@ -74,7 +83,11 @@ export interface Tournament {
 // ============================================================
 // PARTICIPANT TYPES
 // ============================================================
-export type ParticipantStatus = 'ACTIVE' | 'ELIMINATED' | 'ADVANCED' | 'CHAMPION';
+export type ParticipantStatus =
+  | 'ACTIVE'
+  | 'ELIMINATED'
+  | 'ADVANCED'
+  | 'CHAMPION';
 export type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface Participant {
@@ -109,7 +122,6 @@ export interface Contest {
   _id: string;
   tournamentId: string;
 
-  // ----- V1 fields (manual invitation — no Codeforces API) -----
   name?: string;
   invitationUrl?: string;
   description?: string;
@@ -117,7 +129,6 @@ export interface Contest {
   publishedAt?: Date;
   endTime?: Date;
 
-  // ----- Legacy Codeforces fields (optional) -----
   codeforcesContestId?: number;
   codeforcesContestName?: string;
   codeforcesUrl?: string;
@@ -126,18 +137,16 @@ export interface Contest {
   lastSyncedAt?: Date;
   syncedCount?: number;
 
-  // ----- Scheduling -----
   startTime: Date;
   durationSeconds?: number;
   durationMinutes?: number;
 
-  // ----- Assignment -----
   stage: TournamentStage | string;
   round?: string;
   group?: string;
   matchNumber?: number;
+  matchNumbers?: number[];
 
-  // ----- Status -----
   status?: ContestStatus;
 
   createdAt?: string;
@@ -157,7 +166,15 @@ export interface LeaderboardEntry {
   solved: number;
   score: number;
   penalty: number;
+
+  status?: ParticipantStatus;
+  currentStage?: string | null;
+
   validContests?: number;
+  contestCount?: number;
+  groupRank?: number | null;
+  latestRank?: number | null;
+  winRate?: number | null;
   isEliminated?: boolean;
   hasAdvanced?: boolean;
   isChampion?: boolean;
@@ -240,7 +257,11 @@ export interface Result {
 // ============================================================
 // VIDEO SUBMISSION TYPES
 // ============================================================
-export type VideoStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_SUBMITTED';
+export type VideoStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'NOT_SUBMITTED';
 
 export interface VideoSubmission {
   _id: string;

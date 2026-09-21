@@ -19,8 +19,66 @@ const log = (...args) => {
 };
 
 // ============================================================
+// Helper — build a Set of participant IDs in this contest's round.
+// Returns:
+//   - null → no restriction (fallback: show all approved)
+//   - Set  → restrict roster/results to these participant IDs
+// ============================================================
+const getRoundParticipantIds = async (contest) => {
+        // Group stage → everyone in the group
+        if (contest.stage === "GROUP_STAGE" && contest.group) {
+                const g = String(contest.group).trim();
+                const groupParticipants = await Participant.find({
+                        tournamentId: contest.tournamentId,
+                        registrationStatus: "APPROVED",
+                        $or: [{ group: g }, { group: g.toUpperCase() }, { group: g.toLowerCase() }],
+                })
+                        .select("_id")
+                        .lean();
+
+                return new Set(groupParticipants.map((p) => String(p._id)));
+        }
+
+        // Knockout round (new): union of participants across all matches in matchNumbers
+        if (Array.isArray(contest.matchNumbers) && contest.matchNumbers.length > 0) {
+                const matches = await Match.find({
+                        tournament: contest.tournamentId,
+                        matchNumber: { $in: contest.matchNumbers },
+                })
+                        .select("participants")
+                        .lean();
+
+                const ids = new Set();
+                for (const m of matches) {
+                        for (const pid of m.participants || []) {
+                                ids.add(String(pid));
+                        }
+                }
+                return ids;
+        }
+
+        // Knockout match (legacy): single matchNumber
+        if (contest.matchNumber) {
+                const match = await Match.findOne({
+                        tournament: contest.tournamentId,
+                        stage: contest.stage,
+                        matchNumber: contest.matchNumber,
+                })
+                        .select("participants")
+                        .lean();
+
+                if (match) {
+                        return new Set(match.participants.map((pid) => String(pid)));
+                }
+        }
+
+        // Fallback — no restriction
+        return null;
+};
+
+// ============================================================
 // Internal helper — recompute ranks for a contest AND update
-// the linked match's winner if the contest is attached to one.
+// the linked match(es)' winner if the contest is attached.
 // ============================================================
 const recomputeContestRanks = async (contestId) => {
         const contest = await Contest.findById(contestId).lean();
@@ -84,45 +142,55 @@ const recomputeContestRanks = async (contestId) => {
                 );
         }
 
-        // ---- Auto-update the linked match's winner ----
-        if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
-                const match = await Match.findOne({
-                        tournament: contest.tournamentId,
-                        stage: contest.stage,
-                        matchNumber: contest.matchNumber,
-                });
+        // ---- Auto-update linked match winners ----
+        // Knockout only (not group stage).
+        if (contest.stage === "GROUP_STAGE") return;
 
-                if (match) {
-                        const tournament = await require("../models/Tournament")
-                                .findById(contest.tournamentId)
-                                .lean();
-                        const stageOrder = [
-                                "QUARTER_FINAL",
-                                "SEMI_FINAL",
-                                "FINAL",
-                                "COMPLETED",
-                        ];
-                        const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
-                        const thisIdx = stageOrder.indexOf(contest.stage);
+        const tournament = await require("../models/Tournament")
+                .findById(contest.tournamentId)
+                .lean();
 
-                        const isLocked = currentIdx > thisIdx;
+        const stageOrder = [
+                "QUARTER_FINAL",
+                "SEMI_FINAL",
+                "FINAL",
+                "COMPLETED",
+        ];
+        const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
+        const thisIdx = stageOrder.indexOf(contest.stage);
+        const isLocked = currentIdx > thisIdx;
+        if (isLocked) return;
 
-                        if (!isLocked) {
-                                const { winner, tie } = await computeWinnerFromContest(
-                                        contest._id,
-                                        match.participants
-                                );
+        // NEW — handle multi-match rounds
+        const matchNumbers =
+                Array.isArray(contest.matchNumbers) && contest.matchNumbers.length > 0
+                        ? contest.matchNumbers
+                        : contest.matchNumber
+                                ? [contest.matchNumber]
+                                : [];
 
-                                if (tie) {
-                                        match.winner = null;
-                                        match.status = "TIE";
-                                } else if (winner) {
-                                        match.winner = winner;
-                                        match.status = "COMPLETED";
-                                }
-                                await match.save();
-                        }
+        if (matchNumbers.length === 0) return;
+
+        const matches = await Match.find({
+                tournament: contest.tournamentId,
+                stage: contest.stage,
+                matchNumber: { $in: matchNumbers },
+        });
+
+        for (const match of matches) {
+                const { winner, tie } = await computeWinnerFromContest(
+                        contest._id,
+                        match.participants
+                );
+
+                if (tie) {
+                        match.winner = null;
+                        match.status = "TIE";
+                } else if (winner) {
+                        match.winner = winner;
+                        match.status = "COMPLETED";
                 }
+                await match.save();
         }
 };
 
@@ -151,19 +219,10 @@ exports.getContestResultsRoster = async (req, res) => {
                         registrationStatus: "APPROVED",
                 };
 
-                if (contest.stage === "GROUP_STAGE" && contest.group) {
-                        const g = String(contest.group).trim().toUpperCase();
-                        participantFilter.$or = [{ group: g }, { group: g.toLowerCase() }];
-                } else if (contest.stage !== "GROUP_STAGE" && contest.matchNumber) {
-                        const match = await Match.findOne({
-                                tournament: contest.tournamentId,
-                                stage: contest.stage,
-                                matchNumber: contest.matchNumber,
-                        }).lean();
-
-                        if (match) {
-                                participantFilter._id = { $in: match.participants };
-                        }
+                // NEW — restrict roster to the round's actual participants
+                const roundIds = await getRoundParticipantIds(contest);
+                if (roundIds) {
+                        participantFilter._id = { $in: [...roundIds] };
                 }
 
                 const participants = await Participant.find(participantFilter)
@@ -171,12 +230,21 @@ exports.getContestResultsRoster = async (req, res) => {
                         .sort({ group: 1, seed: 1 })
                         .lean();
 
-                const results = await Result.find({ contestId }).lean();
+                // Only pull results/videos for the visible participants
+                const visibleParticipantIds = participants.map((p) => p._id);
+
+                const results = await Result.find({
+                        contestId,
+                        participantId: { $in: visibleParticipantIds },
+                }).lean();
                 const resultsByParticipant = Object.fromEntries(
                         results.map((r) => [String(r.participantId), r])
                 );
 
-                const videos = await VideoSubmission.find({ contestId })
+                const videos = await VideoSubmission.find({
+                        contestId,
+                        participantId: { $in: visibleParticipantIds },
+                })
                         .select("participantId status")
                         .lean();
                 const videoByParticipant = Object.fromEntries(
@@ -203,20 +271,29 @@ exports.getContestResultsRoster = async (req, res) => {
                         };
                 });
 
+                // ---- Match info (for knockout stages) ----
                 let matchInfo = null;
-                if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
-                        const match = await Match.findOne({
+                const matchNumbers =
+                        Array.isArray(contest.matchNumbers) && contest.matchNumbers.length > 0
+                                ? contest.matchNumbers
+                                : contest.matchNumber
+                                        ? [contest.matchNumber]
+                                        : [];
+
+                if (matchNumbers.length > 0 && contest.stage !== "GROUP_STAGE") {
+                        const matches = await Match.find({
                                 tournament: contest.tournamentId,
                                 stage: contest.stage,
-                                matchNumber: contest.matchNumber,
+                                matchNumber: { $in: matchNumbers },
                         })
                                 .populate({
                                         path: "winner",
                                         populate: { path: "user", select: "name username" },
                                 })
+                                .sort({ matchNumber: 1 })
                                 .lean();
 
-                        if (match) {
+                        if (matches.length > 0) {
                                 const tournament = await require("../models/Tournament")
                                         .findById(contest.tournamentId)
                                         .lean();
@@ -231,18 +308,21 @@ exports.getContestResultsRoster = async (req, res) => {
                                 const isLocked = currentIdx > thisIdx;
 
                                 matchInfo = {
-                                        matchId: match._id,
-                                        matchNumber: match.matchNumber,
-                                        stage: match.stage,
-                                        status: match.status,
+                                        stage: contest.stage,
                                         isLocked,
-                                        winner: match.winner
-                                                ? {
-                                                        participantId: match.winner._id,
-                                                        name: match.winner.user?.name,
-                                                        username: match.winner.user?.username,
-                                                }
-                                                : null,
+                                        matchNumbers,
+                                        matches: matches.map((m) => ({
+                                                matchId: m._id,
+                                                matchNumber: m.matchNumber,
+                                                status: m.status,
+                                                winner: m.winner
+                                                        ? {
+                                                                participantId: m.winner._id,
+                                                                name: m.winner.user?.name,
+                                                                username: m.winner.user?.username,
+                                                        }
+                                                        : null,
+                                        })),
                                 };
                         }
                 }
@@ -255,6 +335,7 @@ exports.getContestResultsRoster = async (req, res) => {
                                 stage: contest.stage,
                                 group: contest.group,
                                 matchNumber: contest.matchNumber,
+                                matchNumbers: contest.matchNumbers || [],
                                 status: contest.status,
                                 startTime: contest.startTime,
                                 endTime: contest.endTime,
@@ -309,23 +390,30 @@ exports.saveParticipantResult = async (req, res) => {
                                 .json({ success: false, message: "Contest not found" });
                 }
 
-                if (contest.matchNumber && contest.stage !== "GROUP_STAGE") {
-                        const tournament = await require("../models/Tournament")
-                                .findById(contest.tournamentId)
-                                .lean();
-                        const stageOrder = [
-                                "QUARTER_FINAL",
-                                "SEMI_FINAL",
-                                "FINAL",
-                                "COMPLETED",
-                        ];
-                        const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
-                        const thisIdx = stageOrder.indexOf(contest.stage);
-                        if (currentIdx > thisIdx) {
-                                return res.status(409).json({
-                                        success: false,
-                                        message: "This stage has already advanced — results are locked",
-                                });
+                // ---- Lock check for knockout rounds ----
+                if (contest.stage !== "GROUP_STAGE") {
+                        const hasMatches =
+                                (Array.isArray(contest.matchNumbers) && contest.matchNumbers.length > 0) ||
+                                contest.matchNumber;
+
+                        if (hasMatches) {
+                                const tournament = await require("../models/Tournament")
+                                        .findById(contest.tournamentId)
+                                        .lean();
+                                const stageOrder = [
+                                        "QUARTER_FINAL",
+                                        "SEMI_FINAL",
+                                        "FINAL",
+                                        "COMPLETED",
+                                ];
+                                const currentIdx = stageOrder.indexOf(tournament?.currentStage || "");
+                                const thisIdx = stageOrder.indexOf(contest.stage);
+                                if (currentIdx > thisIdx) {
+                                        return res.status(409).json({
+                                                success: false,
+                                                message: "This stage has already advanced — results are locked",
+                                        });
+                                }
                         }
                 }
 
@@ -338,6 +426,15 @@ exports.saveParticipantResult = async (req, res) => {
                         return res
                                 .status(404)
                                 .json({ success: false, message: "Participant not found" });
+                }
+
+                // NEW — ensure participant is actually in this round
+                const roundIds = await getRoundParticipantIds(contest);
+                if (roundIds && !roundIds.has(String(participantId))) {
+                        return res.status(400).json({
+                                success: false,
+                                message: "Participant is not part of this contest round",
+                        });
                 }
 
                 // ---- Save (upsert) ----------------------------------------
@@ -362,7 +459,7 @@ exports.saveParticipantResult = async (req, res) => {
                         `solved=${solvedNum} penalty=${penaltyNum} resultId=${result._id}`
                 );
 
-                // ---- Recompute ranks + match winner -----------------------
+                // ---- Recompute ranks + match winners ----------------------
                 await recomputeContestRanks(contestId);
 
                 await AuditLog.create({
@@ -439,6 +536,7 @@ exports.startRematch = async (req, res) => {
                         description,
                         stage: match.stage,
                         matchNumber: match.matchNumber,
+                        matchNumbers: [match.matchNumber],
                         startTime: startDate,
                         endTime: endDate,
                         durationSeconds: Number(durationMinutes) * 60,
@@ -472,4 +570,4 @@ exports.startRematch = async (req, res) => {
                 console.error("startRematch error:", err);
                 return res.status(500).json({ success: false, message: "Server error" });
         }
-};
+};      

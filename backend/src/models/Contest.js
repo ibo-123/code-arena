@@ -79,8 +79,16 @@ const ContestSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    // Legacy single-match number (kept for backwards compatibility).
+    // For knockout rounds we now use `matchNumbers` (array below).
     matchNumber: {
       type: Number,
+    },
+    // NEW — one contest per knockout round.
+    // Example: QF → [1, 2, 3, 4] (all quarter-final matches in this contest).
+    matchNumbers: {
+      type: [Number],
+      default: [],
     },
 
     // ============================================================
@@ -133,5 +141,7 @@ ContestSchema.index({ tournamentId: 1, stage: 1 });
 ContestSchema.index({ tournamentId: 1, published: 1 });
 ContestSchema.index({ tournamentId: 1, group: 1, status: 1 });
 
-module.exports = mongoose.model("Contest", ContestSchema);
+// Helpful for looking up which contest owns a given knockout match.
+ContestSchema.index({ tournamentId: 1, stage: 1, matchNumbers: 1 });
 
+module.exports = mongoose.model("Contest", ContestSchema);

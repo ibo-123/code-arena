@@ -94,7 +94,7 @@ export const ParticipantTournament = () => {
         </Link>
         <GateCard
           tone="muted"
-          icon={<Target size={32} />}
+          icon={<Target size={36} />}
           title="You're not registered for this tournament"
           description="Register to participate. Once the admin approves your entry, you'll unlock contests and video submissions."
           action={
@@ -118,7 +118,7 @@ export const ParticipantTournament = () => {
         </Link>
         <GateCard
           tone="gold"
-          icon={<Hourglass size={32} />}
+          icon={<Hourglass size={36} />}
           title="Waiting for admin approval"
           description="Your registration has been submitted. You'll get access to contests, standings, and video submissions as soon as an admin approves your entry."
           footer={
@@ -150,7 +150,7 @@ export const ParticipantTournament = () => {
         </Link>
         <GateCard
           tone="red"
-          icon={<XCircle size={32} />}
+          icon={<XCircle size={36} />}
           title="Registration rejected"
           description="Your registration for this tournament was rejected by the admin. Contact the organizers if you believe this is a mistake."
         />
@@ -171,7 +171,7 @@ export const ParticipantTournament = () => {
         <div className="header-content">
           <div className="header-left">
             <div className="header-icon-wrap">
-              {isActive ? <Swords size={26} /> : <Award size={26} />}
+              {isActive ? <Swords size={28} /> : <Award size={28} />}
             </div>
             <div className="header-text">
               <div className="header-breadcrumb">
@@ -262,16 +262,16 @@ interface GateCardProps {
 
 const GateCard: React.FC<GateCardProps> = ({ tone, icon, title, description, action, footer }) => {
   const colors = {
-    muted: { accent: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.04)" },
-    gold: { accent: "#FFD700", bg: "rgba(255,215,0,0.08)" },
-    red: { accent: "#EF5350", bg: "rgba(239,83,80,0.08)" },
+    muted: { accent: "rgba(255,255,255,0.6)", bg: "rgba(255,255,255,0.05)" },
+    gold: { accent: "#FFD700", bg: "rgba(255,215,0,0.1)" },
+    red: { accent: "#EF5350", bg: "rgba(239,83,80,0.1)" },
   }[tone];
 
   return (
     <div className="gate-card" style={{ borderColor: `${colors.accent}40` }}>
       <div
         className="gate-card-glow"
-        style={{ background: `radial-gradient(circle, ${colors.accent}20, transparent 70%)` }}
+        style={{ background: `radial-gradient(circle, ${colors.accent}25, transparent 70%)` }}
         aria-hidden="true"
       />
       <div className="gate-card-content">

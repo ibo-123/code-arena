@@ -20,6 +20,8 @@ const getAuthUserId = (req) => req.user?.userId || req.user?.id || req.user?._id
 
 const VALID_STAGES = ['QUALIFICATION', 'GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'];
 
+const KNOCKOUT_STAGES = ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'];
+
 const isValidInvitationUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
@@ -39,6 +41,20 @@ const normalizeGroup = (group) => {
   if (/^[A-Z]$/.test(raw)) return raw;          // "A", "B", ...
   const match = raw.match(/^GROUP\s+([A-Z0-9]+)$/);
   return match ? match[1] : raw;
+};
+
+// Normalize matchNumbers from request body (accepts array or single number).
+const normalizeMatchNumbers = (matchNumbers, matchNumber) => {
+  if (Array.isArray(matchNumbers) && matchNumbers.length > 0) {
+    return matchNumbers
+      .map((n) => Number(n))
+      .filter((n) => Number.isInteger(n) && n > 0);
+  }
+  if (matchNumber !== undefined && matchNumber !== null && matchNumber !== '') {
+    const n = Number(matchNumber);
+    if (Number.isInteger(n) && n > 0) return [n];
+  }
+  return [];
 };
 
 // ============================================================
@@ -1394,6 +1410,8 @@ exports.getParticipantContests = async (req, res) => {
           description: c.description || '',
           stage: c.stage,
           group: c.group || null,
+          matchNumbers: c.matchNumbers || [],
+          matchNumber: c.matchNumber ?? null,
           startTime: start,
           endTime: end,
           durationSeconds: c.durationSeconds || null,
@@ -1432,6 +1450,12 @@ exports.getParticipantContests = async (req, res) => {
 /**
  * POST /admin/tournaments/:tournamentId/contests
  * Create a manual contest invitation (V1).
+ *
+ * - GROUP_STAGE: requires `group`
+ * - QUALIFICATION: no extra field
+ * - Knockout stages (QF / SF / FINAL): one contest per round.
+ *   Pass `matchNumbers: [1,2,3,4]` — all matches in that round
+ *   share this single contest + invitation URL.
  */
 exports.createContest = async (req, res) => {
   try {
@@ -1446,6 +1470,7 @@ exports.createContest = async (req, res) => {
       durationMinutes,
       description,
       matchNumber,
+      matchNumbers,
     } = req.body;
 
     if (!tournamentId || !mongoose.Types.ObjectId.isValid(tournamentId)) {
@@ -1526,6 +1551,19 @@ exports.createContest = async (req, res) => {
 
     const normalizedGroup = normalizedStage === 'GROUP_STAGE' ? normalizeGroup(group) : undefined;
 
+    // Knockout rounds: one contest holds every match in that round.
+    const parsedMatchNumbers = KNOCKOUT_STAGES.includes(normalizedStage)
+      ? normalizeMatchNumbers(matchNumbers, matchNumber)
+      : [];
+
+    if (KNOCKOUT_STAGES.includes(normalizedStage) && parsedMatchNumbers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'matchNumbers is required for knockout rounds. Pass an array of every match in this round (e.g. [1,2,3,4] for Quarter Finals).',
+      });
+    }
+
     const contest = await Contest.create({
       tournamentId,
       name: String(name).trim(),
@@ -1533,7 +1571,10 @@ exports.createContest = async (req, res) => {
       description: description ? String(description).trim() : '',
       stage: normalizedStage,
       group: normalizedGroup,
-      matchNumber: matchNumber !== undefined && matchNumber !== null ? Number(matchNumber) : undefined,
+      // Legacy single-match field: only set when there's exactly one match.
+      matchNumber: parsedMatchNumbers.length === 1 ? parsedMatchNumbers[0] : undefined,
+      // New: full list of matches in this round.
+      matchNumbers: parsedMatchNumbers,
       startTime: parsedStart,
       endTime: parsedEnd,
       durationSeconds,
@@ -1541,15 +1582,30 @@ exports.createContest = async (req, res) => {
       published: false,
     });
 
+    // Attach this single contest to every match in the round.
+    if (parsedMatchNumbers.length > 0) {
+      try {
+        await Match.updateMany(
+          { tournament: tournamentId, matchNumber: { $in: parsedMatchNumbers } },
+          { $set: { contest: contest._id } }
+        );
+      } catch (matchErr) {
+        console.error('[createContest] Failed to attach matches:', matchErr);
+      }
+    }
+
     await AuditLog.create({
       action: 'CONTEST_CREATED',
-      description: `Created contest "${contest.name}" (${normalizedStage}${normalizedGroup ? ` — Group ${normalizedGroup}` : ''})`,
+      description: `Created contest "${contest.name}" (${normalizedStage}${normalizedGroup ? ` — Group ${normalizedGroup}` : ''
+        }${parsedMatchNumbers.length ? ` — Matches ${parsedMatchNumbers.join(', ')}` : ''
+        })`,
       admin: getAuthUserId(req),
       tournament: tournamentId,
       details: {
         contestId: contest._id,
         stage: normalizedStage,
         group: normalizedGroup,
+        matchNumbers: parsedMatchNumbers,
         invitationUrl: contest.invitationUrl,
       },
     });
@@ -1612,6 +1668,8 @@ exports.getAdminContests = async (req, res) => {
         status: computedStatus,
         startTime: start,
         endTime: end,
+        // Ensure consumers always receive an array even for legacy docs.
+        matchNumbers: Array.isArray(c.matchNumbers) ? c.matchNumbers : [],
       };
     });
 
@@ -1679,6 +1737,7 @@ exports.updateContest = async (req, res) => {
       durationMinutes,
       description,
       matchNumber,
+      matchNumbers,
     } = req.body;
 
     if (invitationUrl !== undefined) {
@@ -1743,15 +1802,60 @@ exports.updateContest = async (req, res) => {
       }
     }
 
-    if (matchNumber !== undefined) {
-      contest.matchNumber = matchNumber === null ? undefined : Number(matchNumber);
+    // ---- Knockout match numbers (array) ----
+    if (matchNumbers !== undefined) {
+      const normalized = Array.isArray(matchNumbers)
+        ? matchNumbers
+          .map((n) => Number(n))
+          .filter((n) => Number.isInteger(n) && n > 0)
+        : [];
+      contest.matchNumbers = normalized;
+      contest.matchNumber = normalized.length === 1 ? normalized[0] : undefined;
+    } else if (matchNumber !== undefined) {
+      // Legacy single-match path
+      const n = matchNumber === null ? undefined : Number(matchNumber);
+      contest.matchNumber = n;
+      if (n !== undefined) contest.matchNumbers = [n];
     }
 
     if (contest.stage === 'GROUP_STAGE' && !contest.group) {
       return res.status(400).json({ success: false, message: 'group is required for GROUP_STAGE contests' });
     }
 
+    if (
+      KNOCKOUT_STAGES.includes(contest.stage) &&
+      (!Array.isArray(contest.matchNumbers) || contest.matchNumbers.length === 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'matchNumbers is required for knockout contests.',
+      });
+    }
+
     await contest.save();
+
+    // Re-attach matches in case matchNumbers changed.
+    if (KNOCKOUT_STAGES.includes(contest.stage) && contest.matchNumbers.length > 0) {
+      try {
+        // Detach any match that previously pointed here but is no longer in the round.
+        await Match.updateMany(
+          {
+            tournament: tournamentId,
+            contest: contest._id,
+            matchNumber: { $nin: contest.matchNumbers },
+          },
+          { $unset: { contest: '' } }
+        );
+
+        // Attach all matches in the round.
+        await Match.updateMany(
+          { tournament: tournamentId, matchNumber: { $in: contest.matchNumbers } },
+          { $set: { contest: contest._id } }
+        );
+      } catch (matchErr) {
+        console.error('[updateContest] Failed to sync matches:', matchErr);
+      }
+    }
 
     await AuditLog.create({
       action: 'CONTEST_UPDATED',
@@ -1798,6 +1902,15 @@ exports.publishContestV1 = async (req, res) => {
     if (contest.stage === 'GROUP_STAGE' && !contest.group) {
       return res.status(400).json({ success: false, message: 'group is required for GROUP_STAGE contests' });
     }
+    if (
+      KNOCKOUT_STAGES.includes(contest.stage) &&
+      (!Array.isArray(contest.matchNumbers) || contest.matchNumbers.length === 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'matchNumbers is required for knockout contests',
+      });
+    }
     if (!isValidInvitationUrl(contest.invitationUrl)) {
       return res.status(400).json({ success: false, message: 'Invitation URL is invalid' });
     }
@@ -1812,7 +1925,12 @@ exports.publishContestV1 = async (req, res) => {
       description: `Published contest "${contest.name}"`,
       admin: getAuthUserId(req),
       tournament: tournamentId,
-      details: { contestId: contest._id, stage: contest.stage, group: contest.group },
+      details: {
+        contestId: contest._id,
+        stage: contest.stage,
+        group: contest.group,
+        matchNumbers: contest.matchNumbers,
+      },
     });
 
     return res.json({ success: true, message: 'Contest published', contest });
@@ -1845,6 +1963,9 @@ exports.deleteContestV1 = async (req, res) => {
         message: 'Cannot delete a published contest. Unpublish it first or archive it.',
       });
     }
+
+    // Detach from any matches before deleting.
+    await Match.updateMany({ contest: contest._id }, { $unset: { contest: '' } });
 
     await contest.deleteOne();
 
@@ -1902,7 +2023,10 @@ exports.getContestEligibleParticipants = async (req, res) => {
       success: true,
       count: participants.length,
       participants,
-      scope: contest.stage === 'GROUP_STAGE' ? `Group ${contest.group}` : 'All eligible participants',
+      scope:
+        contest.stage === 'GROUP_STAGE'
+          ? `Group ${contest.group}`
+          : 'All eligible participants',
     });
   } catch (error) {
     console.error('[getContestEligibleParticipants] ERROR:', error);
@@ -1910,9 +2034,6 @@ exports.getContestEligibleParticipants = async (req, res) => {
   }
 };
 
-// ============================================================
-// MODULE EXPORTS
-// ============================================================
 // ============================================================
 // PARTICIPANT — CONFIRM JOINED + PARTICIPATION STATUS
 // ============================================================
@@ -2024,6 +2145,10 @@ exports.getMyParticipation = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ============================================================
+// MODULE EXPORTS
+// ============================================================
 module.exports = {
   // V1 — manual invitation management (no Codeforces API)
   createContest: exports.createContest,

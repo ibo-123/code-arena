@@ -190,7 +190,7 @@ export const ParticipantDashboard = () => {
         <div className="dashboard-header-content">
           <div className="dashboard-greeting">
             <div className="greeting-icon">
-              <Flame size={24} />
+              <Flame size={26} />
             </div>
             <div>
               <h1>Welcome back, {user?.username}</h1>

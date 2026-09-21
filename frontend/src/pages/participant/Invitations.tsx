@@ -147,7 +147,7 @@ export const Invitations = () => {
         <div className="page-header-glow" />
         <div className="page-header-content">
           <div className="header-icon">
-            <Inbox size={24} />
+            <Inbox size={26} />
           </div>
           <div>
             <h1>Invitations</h1>
@@ -181,7 +181,7 @@ export const Invitations = () => {
                 <div className="card-accent" />
 
                 <div className="invitation-icon">
-                  <Swords size={24} />
+                  <Swords size={26} />
                 </div>
 
                 <div className="invitation-content">
@@ -277,56 +277,59 @@ export const Invitations = () => {
         .invitations-page {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 28px;
           padding-bottom: 40px;
         }
 
+        /* ============================================
+           HEADER
+        ============================================ */
         .page-header {
           position: relative;
-          padding: 32px;
-          border-radius: 24px;
-          background: linear-gradient(135deg, rgba(41, 121, 255, 0.06), rgba(156, 39, 176, 0.06));
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 36px 40px;
+          border-radius: 28px;
+          background: linear-gradient(135deg, rgba(41, 121, 255, 0.08), rgba(156, 39, 176, 0.08));
+          border: 1px solid rgba(255, 255, 255, 0.08);
           overflow: hidden;
         }
 
         .page-header-glow {
           position: absolute;
-          top: -50%;
+          top: -60%;
           right: -10%;
-          width: 400px;
-          height: 400px;
+          width: 500px;
+          height: 500px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(41, 121, 255, 0.15), transparent 70%);
-          filter: blur(60px);
+          background: radial-gradient(circle, rgba(156, 39, 176, 0.18), transparent 70%);
+          filter: blur(70px);
           pointer-events: none;
         }
 
         .page-header-content {
           display: flex;
           align-items: center;
-          gap: 20px;
+          gap: 22px;
           position: relative;
           z-index: 1;
         }
 
         .header-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 18px;
+          width: 64px;
+          height: 64px;
+          border-radius: 20px;
           background: linear-gradient(135deg, #2979FF, #9C27B0);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          box-shadow: 0 12px 32px rgba(41, 121, 255, 0.3);
+          box-shadow: 0 16px 40px rgba(41, 121, 255, 0.4);
           flex-shrink: 0;
         }
 
         .page-header h1 {
-          font-size: 28px;
+          font-size: 30px;
           font-weight: 800;
-          margin: 0 0 4px;
+          margin: 0 0 6px;
           background: linear-gradient(135deg, #FFFFFF, #90CAF9);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -335,7 +338,7 @@ export const Invitations = () => {
 
         .page-header .subtitle {
           font-size: 15px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.55);
           margin: 0;
         }
 
@@ -343,40 +346,44 @@ export const Invitations = () => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 8px 16px;
+          padding: 9px 18px;
           margin-left: auto;
           border-radius: 100px;
-          background: rgba(255, 215, 0, 0.1);
-          border: 1px solid rgba(255, 215, 0, 0.2);
+          background: rgba(255, 215, 0, 0.12);
+          border: 1px solid rgba(255, 215, 0, 0.22);
           color: #FFD700;
           font-size: 13px;
           font-weight: 700;
         }
 
         .inline-error {
-          padding: 12px 16px;
-          border-radius: 12px;
-          background: rgba(239, 83, 80, 0.1);
-          border: 1px solid rgba(239, 83, 80, 0.25);
+          padding: 14px 18px;
+          border-radius: 14px;
+          background: rgba(239, 83, 80, 0.12);
+          border: 1px solid rgba(239, 83, 80, 0.28);
           color: #EF5350;
           font-size: 13px;
+          font-weight: 600;
         }
 
+        /* ============================================
+           INVITATIONS LIST
+        ============================================ */
         .invitations-list {
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          gap: 16px;
         }
 
         .invitation-card {
           position: relative;
           display: flex;
           align-items: flex-start;
-          gap: 20px;
-          padding: 24px 28px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 20px;
+          gap: 22px;
+          padding: 28px 32px;
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 22px;
           transition: transform 0.35s ease, background-color 0.35s ease,
             border-color 0.35s ease, box-shadow 0.35s ease;
           overflow: hidden;
@@ -387,11 +394,11 @@ export const Invitations = () => {
           position: absolute;
           top: -50%;
           right: -10%;
-          width: 250px;
-          height: 250px;
+          width: 300px;
+          height: 300px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(156, 39, 176, 0.12), transparent 70%);
-          filter: blur(60px);
+          background: radial-gradient(circle, rgba(156, 39, 176, 0.15), transparent 70%);
+          filter: blur(70px);
           opacity: 0;
           transition: opacity 0.4s ease;
           pointer-events: none;
@@ -401,17 +408,17 @@ export const Invitations = () => {
           position: absolute;
           top: 0;
           left: 0;
-          width: 3px;
+          width: 4px;
           height: 100%;
           background: linear-gradient(180deg, #2979FF, #9C27B0);
-          opacity: 0.7;
+          opacity: 0.8;
         }
 
         .invitation-card:hover {
-          transform: translateY(-3px);
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(41, 121, 255, 0.2);
-          box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+          transform: translateY(-4px);
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(41, 121, 255, 0.25);
+          box-shadow: 0 20px 52px rgba(0, 0, 0, 0.4);
         }
 
         .invitation-card:hover .card-glow {
@@ -419,11 +426,11 @@ export const Invitations = () => {
         }
 
         .invitation-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 16px;
-          background: linear-gradient(135deg, rgba(41, 121, 255, 0.15), rgba(156, 39, 176, 0.15));
-          border: 1px solid rgba(41, 121, 255, 0.2);
+          width: 60px;
+          height: 60px;
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(41, 121, 255, 0.18), rgba(156, 39, 176, 0.18));
+          border: 1px solid rgba(41, 121, 255, 0.25);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -433,7 +440,7 @@ export const Invitations = () => {
         }
 
         .invitation-card:hover .invitation-icon {
-          transform: scale(1.05) rotate(-3deg);
+          transform: scale(1.06) rotate(-3deg);
         }
 
         .invitation-content {
@@ -441,7 +448,7 @@ export const Invitations = () => {
           min-width: 0;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
         }
 
         .invitation-title-row {
@@ -452,7 +459,7 @@ export const Invitations = () => {
         }
 
         .invitation-title-row h3 {
-          font-size: 17px;
+          font-size: 18px;
           font-weight: 700;
           color: white;
           margin: 0;
@@ -461,41 +468,41 @@ export const Invitations = () => {
         .status-pill {
           display: inline-flex;
           align-items: center;
-          padding: 3px 10px;
+          padding: 4px 12px;
           border-radius: 100px;
           font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.6px;
         }
 
         .status-live {
-          background: rgba(239, 83, 80, 0.12);
-          border: 1px solid rgba(239, 83, 80, 0.25);
+          background: rgba(239, 83, 80, 0.14);
+          border: 1px solid rgba(239, 83, 80, 0.28);
           color: #EF5350;
         }
 
         .status-upcoming {
-          background: rgba(41, 121, 255, 0.12);
-          border: 1px solid rgba(41, 121, 255, 0.25);
+          background: rgba(41, 121, 255, 0.14);
+          border: 1px solid rgba(41, 121, 255, 0.28);
           color: #64B5F6;
         }
 
         .status-finished {
-          background: rgba(76, 175, 80, 0.12);
-          border: 1px solid rgba(76, 175, 80, 0.25);
+          background: rgba(76, 175, 80, 0.14);
+          border: 1px solid rgba(76, 175, 80, 0.28);
           color: #4CAF50;
         }
 
         .invitation-message {
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.55);
+          color: rgba(255, 255, 255, 0.6);
           margin: 0;
-          line-height: 1.55;
+          line-height: 1.6;
         }
 
         .invitation-message strong {
-          color: rgba(255, 255, 255, 0.85);
+          color: rgba(255, 255, 255, 0.9);
           font-weight: 600;
         }
 
@@ -508,13 +515,13 @@ export const Invitations = () => {
         .meta-pill {
           display: inline-flex;
           align-items: center;
-          gap: 5px;
-          padding: 4px 10px;
+          gap: 6px;
+          padding: 5px 12px;
           border-radius: 100px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 11px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.55);
+          font-size: 12px;
           font-weight: 600;
         }
 
@@ -523,19 +530,20 @@ export const Invitations = () => {
           align-items: center;
           gap: 6px;
           width: fit-content;
-          padding: 6px 12px;
-          border-radius: 8px;
-          background: rgba(41, 121, 255, 0.08);
-          border: 1px solid rgba(41, 121, 255, 0.2);
+          padding: 7px 14px;
+          border-radius: 10px;
+          background: rgba(41, 121, 255, 0.1);
+          border: 1px solid rgba(41, 121, 255, 0.22);
           color: #64B5F6;
           font-size: 12px;
           font-weight: 600;
           text-decoration: none;
-          transition: background-color 0.15s ease;
+          transition: background-color 0.15s ease, border-color 0.15s ease;
         }
 
         .invitation-link:hover {
-          background: rgba(41, 121, 255, 0.15);
+          background: rgba(41, 121, 255, 0.18);
+          border-color: rgba(41, 121, 255, 0.35);
         }
 
         .invitation-actions {
@@ -551,10 +559,10 @@ export const Invitations = () => {
           align-items: center;
           justify-content: center;
           gap: 6px;
-          min-width: 100px;
-          height: 42px;
-          padding: 0 18px;
-          border-radius: 12px;
+          min-width: 110px;
+          height: 44px;
+          padding: 0 20px;
+          border-radius: 13px;
           font-size: 14px;
           font-weight: 700;
           cursor: pointer;
@@ -567,25 +575,25 @@ export const Invitations = () => {
         .btn-accept {
           background: linear-gradient(135deg, #4CAF50, #2E7D32);
           color: white;
-          box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+          box-shadow: 0 8px 24px rgba(76, 175, 80, 0.35);
         }
 
         .btn-accept:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 32px rgba(76, 175, 80, 0.4);
+          transform: translateY(-3px);
+          box-shadow: 0 14px 36px rgba(76, 175, 80, 0.45);
         }
 
         .btn-decline {
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           color: rgba(255, 255, 255, 0.7);
         }
 
         .btn-decline:hover:not(:disabled) {
-          background: rgba(239, 83, 80, 0.08);
-          border-color: rgba(239, 83, 80, 0.3);
+          background: rgba(239, 83, 80, 0.1);
+          border-color: rgba(239, 83, 80, 0.35);
           color: #EF5350;
-          transform: translateY(-2px);
+          transform: translateY(-3px);
         }
 
         .btn-accept:disabled,
@@ -608,43 +616,46 @@ export const Invitations = () => {
           to { transform: rotate(360deg); }
         }
 
+        /* ============================================
+           EMPTY STATE
+        ============================================ */
         .empty-state {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 80px 24px;
-          gap: 16px;
+          padding: 90px 24px;
+          gap: 18px;
           text-align: center;
-          background: rgba(255, 255, 255, 0.02);
-          border-radius: 24px;
-          border: 1px dashed rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.025);
+          border-radius: 28px;
+          border: 1px dashed rgba(255, 255, 255, 0.1);
         }
 
         .empty-icon {
-          width: 88px;
-          height: 88px;
-          border-radius: 28px;
-          background: rgba(76, 175, 80, 0.06);
-          border: 1px solid rgba(76, 175, 80, 0.15);
+          width: 96px;
+          height: 96px;
+          border-radius: 32px;
+          background: rgba(76, 175, 80, 0.08);
+          border: 1px solid rgba(76, 175, 80, 0.18);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #4CAF50;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
         }
 
         .empty-state h3 {
-          font-size: 24px;
+          font-size: 26px;
           font-weight: 700;
-          color: rgba(255, 255, 255, 0.7);
+          color: rgba(255, 255, 255, 0.75);
           margin: 0;
         }
 
         .empty-state p {
-          color: rgba(255, 255, 255, 0.4);
+          color: rgba(255, 255, 255, 0.45);
           margin: 0;
-          max-width: 400px;
+          max-width: 420px;
           line-height: 1.6;
         }
 
@@ -652,38 +663,42 @@ export const Invitations = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          margin-top: 8px;
-          padding: 12px 24px;
-          border-radius: 12px;
+          margin-top: 10px;
+          padding: 14px 28px;
+          border-radius: 14px;
           background: linear-gradient(135deg, #2979FF, #1565C0);
           color: white;
           font-size: 14px;
           font-weight: 600;
           text-decoration: none;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          box-shadow: 0 10px 28px rgba(41, 121, 255, 0.35);
         }
 
         .empty-cta:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 28px rgba(41, 121, 255, 0.35);
+          transform: translateY(-3px);
+          box-shadow: 0 14px 36px rgba(41, 121, 255, 0.45);
         }
 
+        /* ============================================
+           RESPONSIVE
+        ============================================ */
         @media (max-width: 768px) {
           .invitation-card {
             flex-direction: column;
             align-items: stretch;
-            gap: 16px;
-            padding: 20px;
+            gap: 18px;
+            padding: 22px;
           }
 
           .invitation-icon {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
           }
 
           .invitation-actions {
-            padding-top: 16px;
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
             align-self: stretch;
           }
 
@@ -696,16 +711,16 @@ export const Invitations = () => {
 
         @media (max-width: 640px) {
           .page-header {
-            padding: 24px;
+            padding: 26px;
           }
 
           .page-header h1 {
-            font-size: 22px;
+            font-size: 23px;
           }
 
           .header-icon {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
           }
 
           .header-count-badge {

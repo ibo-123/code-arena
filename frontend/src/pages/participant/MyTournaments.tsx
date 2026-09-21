@@ -87,7 +87,7 @@ export const MyTournaments = () => {
         <div className="page-header-glow" />
         <div className="page-header-content">
           <div className="header-icon">
-            <Trophy size={24} />
+            <Trophy size={26} />
           </div>
           <div>
             <h1>My Tournaments</h1>
@@ -140,7 +140,7 @@ export const MyTournaments = () => {
                     {/* Left: Icon + Info */}
                     <div className="row-main">
                       <div className={`row-icon ${isActive ? "active" : "completed"}`}>
-                        {isActive ? <Swords size={22} /> : <Award size={22} />}
+                        {isActive ? <Swords size={24} /> : <Award size={24} />}
                       </div>
 
                       <div className="tournament-info">
@@ -207,7 +207,7 @@ export const MyTournaments = () => {
                       </div>
 
                       <div className="row-arrow">
-                        <ChevronRight size={18} />
+                        <ChevronRight size={20} />
                       </div>
                     </div>
                   </Link>
@@ -245,7 +245,7 @@ export const MyTournaments = () => {
         .my-tournaments {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 28px;
           padding-bottom: 40px;
         }
 
@@ -254,50 +254,50 @@ export const MyTournaments = () => {
         ============================================ */
         .page-header {
           position: relative;
-          padding: 32px;
-          border-radius: 24px;
-          background: linear-gradient(135deg, rgba(41, 121, 255, 0.06), rgba(156, 39, 176, 0.06));
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 36px 40px;
+          border-radius: 28px;
+          background: linear-gradient(135deg, rgba(41, 121, 255, 0.08), rgba(156, 39, 176, 0.08));
+          border: 1px solid rgba(255, 255, 255, 0.08);
           overflow: hidden;
         }
 
         .page-header-glow {
           position: absolute;
-          top: -50%;
+          top: -60%;
           right: -10%;
-          width: 400px;
-          height: 400px;
+          width: 500px;
+          height: 500px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(41, 121, 255, 0.15), transparent 70%);
-          filter: blur(60px);
+          background: radial-gradient(circle, rgba(255, 215, 0, 0.15), transparent 70%);
+          filter: blur(70px);
           pointer-events: none;
         }
 
         .page-header-content {
           display: flex;
           align-items: center;
-          gap: 20px;
+          gap: 22px;
           position: relative;
           z-index: 1;
         }
 
         .header-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 18px;
+          width: 64px;
+          height: 64px;
+          border-radius: 20px;
           background: linear-gradient(135deg, #FFD700, #FFA000);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          box-shadow: 0 12px 32px rgba(255, 215, 0, 0.3);
+          box-shadow: 0 16px 40px rgba(255, 215, 0, 0.35);
           flex-shrink: 0;
         }
 
         .page-header h1 {
-          font-size: 28px;
+          font-size: 30px;
           font-weight: 800;
-          margin: 0 0 4px;
+          margin: 0 0 6px;
           background: linear-gradient(135deg, #FFFFFF, #90CAF9);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -306,7 +306,7 @@ export const MyTournaments = () => {
 
         .page-header .subtitle {
           font-size: 15px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.55);
           margin: 0;
         }
 
@@ -341,10 +341,10 @@ export const MyTournaments = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 8px 16px;
+          padding: 9px 18px;
           border-radius: 100px;
           background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.07);
           color: rgba(255, 255, 255, 0.6);
           font-size: 13px;
           font-weight: 600;
@@ -354,25 +354,25 @@ export const MyTournaments = () => {
         }
 
         .filter-chip:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.07);
+          border-color: rgba(255, 255, 255, 0.14);
           color: white;
         }
 
         .filter-chip.active {
-          background: linear-gradient(135deg, rgba(41, 121, 255, 0.15), rgba(41, 121, 255, 0.06));
-          border-color: rgba(41, 121, 255, 0.3);
+          background: linear-gradient(135deg, rgba(41, 121, 255, 0.18), rgba(41, 121, 255, 0.08));
+          border-color: rgba(41, 121, 255, 0.35);
           color: white;
-          box-shadow: 0 4px 16px rgba(41, 121, 255, 0.15);
+          box-shadow: 0 6px 20px rgba(41, 121, 255, 0.2);
         }
 
         .chip-count {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 20px;
-          height: 20px;
-          padding: 0 6px;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 7px;
           border-radius: 100px;
           background: rgba(255, 255, 255, 0.08);
           font-size: 11px;
@@ -380,7 +380,7 @@ export const MyTournaments = () => {
         }
 
         .filter-chip.active .chip-count {
-          background: rgba(41, 121, 255, 0.3);
+          background: rgba(41, 121, 255, 0.35);
           color: #90CAF9;
         }
 
@@ -390,7 +390,7 @@ export const MyTournaments = () => {
         .tournaments-list {
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          gap: 16px;
         }
 
         .tournament-row {
@@ -399,10 +399,10 @@ export const MyTournaments = () => {
           align-items: center;
           justify-content: space-between;
           gap: 24px;
-          padding: 24px 28px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 20px;
+          padding: 26px 30px;
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 22px;
           text-decoration: none;
           color: inherit;
           transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -414,21 +414,21 @@ export const MyTournaments = () => {
           position: absolute;
           top: -50%;
           right: -10%;
-          width: 250px;
-          height: 250px;
+          width: 300px;
+          height: 300px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(41, 121, 255, 0.12), transparent 70%);
-          filter: blur(60px);
+          background: radial-gradient(circle, rgba(41, 121, 255, 0.15), transparent 70%);
+          filter: blur(70px);
           opacity: 0;
           transition: opacity 0.4s ease;
           pointer-events: none;
         }
 
         .tournament-row:hover {
-          transform: translateY(-3px);
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(41, 121, 255, 0.2);
-          box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+          transform: translateY(-4px);
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(41, 121, 255, 0.25);
+          box-shadow: 0 20px 52px rgba(0, 0, 0, 0.4);
         }
 
         .tournament-row:hover .row-glow {
@@ -438,7 +438,7 @@ export const MyTournaments = () => {
         .row-main {
           display: flex;
           align-items: center;
-          gap: 20px;
+          gap: 22px;
           flex: 1;
           min-width: 0;
           position: relative;
@@ -446,9 +446,9 @@ export const MyTournaments = () => {
         }
 
         .row-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 16px;
+          width: 60px;
+          height: 60px;
+          border-radius: 18px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -457,19 +457,19 @@ export const MyTournaments = () => {
         }
 
         .row-icon.active {
-          background: linear-gradient(135deg, rgba(41, 121, 255, 0.15), rgba(41, 121, 255, 0.05));
-          border: 1px solid rgba(41, 121, 255, 0.25);
+          background: linear-gradient(135deg, rgba(41, 121, 255, 0.18), rgba(41, 121, 255, 0.06));
+          border: 1px solid rgba(41, 121, 255, 0.28);
           color: #64B5F6;
         }
 
         .row-icon.completed {
-          background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.04));
-          border: 1px solid rgba(255, 215, 0, 0.2);
+          background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+          border: 1px solid rgba(255, 215, 0, 0.22);
           color: #FFD700;
         }
 
         .tournament-row:hover .row-icon {
-          transform: scale(1.05) rotate(-3deg);
+          transform: scale(1.06) rotate(-3deg);
         }
 
         .tournament-info {
@@ -477,7 +477,7 @@ export const MyTournaments = () => {
           min-width: 0;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
         }
 
         .tournament-title-row {
@@ -488,7 +488,7 @@ export const MyTournaments = () => {
         }
 
         .tournament-info h3 {
-          font-size: 18px;
+          font-size: 19px;
           font-weight: 700;
           color: white;
           margin: 0;
@@ -500,16 +500,16 @@ export const MyTournaments = () => {
         .live-pill {
           display: inline-flex;
           align-items: center;
-          gap: 5px;
-          padding: 3px 10px;
+          gap: 6px;
+          padding: 4px 12px;
           border-radius: 100px;
-          background: rgba(76, 175, 80, 0.12);
+          background: rgba(76, 175, 80, 0.14);
           color: #4CAF50;
           font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.8px;
-          border: 1px solid rgba(76, 175, 80, 0.2);
+          border: 1px solid rgba(76, 175, 80, 0.22);
         }
 
         .live-pill::before {
@@ -536,12 +536,12 @@ export const MyTournaments = () => {
         .meta-pill {
           display: inline-flex;
           align-items: center;
-          gap: 5px;
-          padding: 4px 10px;
+          gap: 6px;
+          padding: 5px 12px;
           border-radius: 100px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.5);
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.55);
           font-size: 12px;
           font-weight: 600;
         }
@@ -551,8 +551,8 @@ export const MyTournaments = () => {
         }
 
         .group-pill {
-          background: rgba(156, 39, 176, 0.08);
-          border-color: rgba(156, 39, 176, 0.15);
+          background: rgba(156, 39, 176, 0.1);
+          border-color: rgba(156, 39, 176, 0.18);
           color: #CE93D8;
         }
 
@@ -562,8 +562,8 @@ export const MyTournaments = () => {
         }
 
         .stage-pill {
-          background: rgba(41, 121, 255, 0.08);
-          border-color: rgba(41, 121, 255, 0.15);
+          background: rgba(41, 121, 255, 0.1);
+          border-color: rgba(41, 121, 255, 0.18);
           color: #64B5F6;
           text-transform: capitalize;
         }
@@ -577,9 +577,9 @@ export const MyTournaments = () => {
         .tournament-stats {
           display: flex;
           align-items: center;
-          gap: 16px;
-          padding-top: 10px;
-          border-top: 1px solid rgba(255, 255, 255, 0.04);
+          gap: 18px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .mini-stat {
@@ -591,28 +591,28 @@ export const MyTournaments = () => {
         .mini-stat-label {
           font-size: 10px;
           font-weight: 700;
-          color: rgba(255, 255, 255, 0.3);
+          color: rgba(255, 255, 255, 0.35);
           text-transform: uppercase;
           letter-spacing: 0.8px;
         }
 
         .mini-stat-value {
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 800;
           color: white;
         }
 
         .mini-stat-divider {
           width: 1px;
-          height: 12px;
-          background: rgba(255, 255, 255, 0.06);
+          height: 14px;
+          background: rgba(255, 255, 255, 0.07);
         }
 
         /* Right side */
         .row-status {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 18px;
           flex-shrink: 0;
           position: relative;
           z-index: 1;
@@ -624,11 +624,11 @@ export const MyTournaments = () => {
         }
 
         .row-arrow {
-          width: 38px;
-          height: 38px;
+          width: 42px;
+          height: 42px;
           border-radius: 50%;
-          background: rgba(41, 121, 255, 0.08);
-          border: 1px solid rgba(41, 121, 255, 0.15);
+          background: rgba(41, 121, 255, 0.1);
+          border: 1px solid rgba(41, 121, 255, 0.18);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -640,8 +640,8 @@ export const MyTournaments = () => {
           background: linear-gradient(135deg, #2979FF, #1565C0);
           border-color: transparent;
           color: white;
-          transform: translateX(4px);
-          box-shadow: 0 8px 24px rgba(41, 121, 255, 0.4);
+          transform: translateX(5px);
+          box-shadow: 0 10px 28px rgba(41, 121, 255, 0.45);
         }
 
         /* ============================================
@@ -652,44 +652,44 @@ export const MyTournaments = () => {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 80px 24px;
-          gap: 16px;
+          padding: 90px 24px;
+          gap: 18px;
           text-align: center;
-          background: rgba(255, 255, 255, 0.02);
-          border-radius: 24px;
-          border: 1px dashed rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.025);
+          border-radius: 28px;
+          border: 1px dashed rgba(255, 255, 255, 0.1);
         }
 
         .empty-icon {
-          width: 88px;
-          height: 88px;
-          border-radius: 28px;
-          background: rgba(41, 121, 255, 0.06);
-          border: 1px solid rgba(41, 121, 255, 0.1);
+          width: 96px;
+          height: 96px;
+          border-radius: 32px;
+          background: rgba(41, 121, 255, 0.08);
+          border: 1px solid rgba(41, 121, 255, 0.12);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #64B5F6;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
         }
 
         .empty-icon.gold {
-          background: rgba(255, 215, 0, 0.06);
-          border-color: rgba(255, 215, 0, 0.1);
+          background: rgba(255, 215, 0, 0.08);
+          border-color: rgba(255, 215, 0, 0.12);
           color: #FFD700;
         }
 
         .empty-state h3 {
-          font-size: 24px;
+          font-size: 26px;
           font-weight: 700;
-          color: rgba(255, 255, 255, 0.7);
+          color: rgba(255, 255, 255, 0.75);
           margin: 0;
         }
 
         .empty-state p {
-          color: rgba(255, 255, 255, 0.4);
-          margin: 0 0 12px;
-          max-width: 400px;
+          color: rgba(255, 255, 255, 0.45);
+          margin: 0 0 14px;
+          max-width: 420px;
           line-height: 1.6;
         }
 
@@ -698,8 +698,8 @@ export const MyTournaments = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 12px 24px;
-          border-radius: 12px;
+          padding: 13px 26px;
+          border-radius: 14px;
           font-size: 14px;
           font-weight: 600;
           text-decoration: none;
@@ -712,28 +712,28 @@ export const MyTournaments = () => {
         .btn-primary {
           background: linear-gradient(135deg, #2979FF, #1565C0);
           color: white;
-          box-shadow: 0 8px 24px rgba(41, 121, 255, 0.3);
+          box-shadow: 0 10px 28px rgba(41, 121, 255, 0.35);
         }
 
         .btn-primary:hover {
           transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(41, 121, 255, 0.4);
+          box-shadow: 0 14px 36px rgba(41, 121, 255, 0.45);
         }
 
         .btn-large {
-          padding: 14px 28px;
+          padding: 15px 30px;
           font-size: 15px;
         }
 
         .btn-secondary {
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           color: white;
         }
 
         .btn-secondary:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.09);
+          border-color: rgba(255, 255, 255, 0.22);
           transform: translateY(-3px);
         }
 
@@ -744,63 +744,63 @@ export const MyTournaments = () => {
           .tournament-row {
             flex-direction: column;
             align-items: stretch;
-            gap: 16px;
+            gap: 18px;
           }
 
           .row-status {
             justify-content: space-between;
-            padding-top: 16px;
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
           }
 
           .row-arrow {
-            width: 34px;
-            height: 34px;
+            width: 38px;
+            height: 38px;
           }
         }
 
         @media (max-width: 640px) {
           .page-header {
-            padding: 24px;
+            padding: 26px;
           }
 
           .page-header h1 {
-            font-size: 22px;
+            font-size: 23px;
           }
 
           .header-icon {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
           }
 
           .tournament-row {
-            padding: 20px;
+            padding: 22px;
           }
 
           .row-icon {
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
           }
 
           .tournament-info h3 {
-            font-size: 16px;
+            font-size: 17px;
           }
 
           .filter-bar {
             flex-direction: column;
             align-items: flex-start;
-            gap: 12px;
+            gap: 14px;
           }
 
           .tournament-stats {
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 14px;
           }
         }
 
         @media (max-width: 480px) {
           .page-header-content {
-            gap: 14px;
+            gap: 16px;
           }
 
           .tournament-meta {
@@ -809,13 +809,17 @@ export const MyTournaments = () => {
 
           .meta-pill {
             font-size: 11px;
-            padding: 3px 8px;
+            padding: 4px 9px;
           }
 
           .tournament-title-row {
             flex-direction: column;
             align-items: flex-start;
-            gap: 6px;
+            gap: 8px;
+          }
+
+          .row-main {
+            gap: 16px;
           }
         }
       `}</style>
