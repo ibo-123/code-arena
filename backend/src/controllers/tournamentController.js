@@ -1510,16 +1510,15 @@ const getBracket = async (req, res) => {
 // ============================================================
 // GET LEADERBOARD
 // ============================================================
+// ============================================================
+// GET LEADERBOARD
+// ============================================================
 const getLeaderboard = async (req, res) => {
   try {
     const tournamentId =
-      req.params.tournamentId ||
-      req.params.id;
+      req.params.tournamentId || req.params.id;
 
-    const tournament =
-      await Tournament.findById(
-        tournamentId
-      );
+    const tournament = await Tournament.findById(tournamentId).lean();
 
     if (!tournament) {
       return res.status(404).json({
@@ -1528,239 +1527,125 @@ const getLeaderboard = async (req, res) => {
       });
     }
 
-    const participants =
-      await Participant.find({
-        tournamentId,
-      })
-        .populate(
-          "user",
-          "name username codeforcesUsername"
-        )
-        .sort({
-          seed: 1,
-        });
+    // ---- 1. Every approved participant in this tournament ----
+    const participants = await Participant.find({
+      tournamentId,
+      registrationStatus: { $ne: "REJECTED" },
+    })
+      .populate("user", "name username codeforcesUsername")
+      .sort({ group: 1, seed: 1 })
+      .lean();
 
-    const leaderboard =
-      await Promise.all(
-        participants.map(
-          async (participant) => {
-            const latestResult =
-              await Result.findOne({
-                participantId:
-                  participant._id,
-              })
-                .sort({
-                  syncedAt: -1,
-                })
-                .populate(
-                  "contestId",
-                  "name round group tournament codeforcesContestId"
-                );
+    // ---- 2. All contests in this tournament (published) ------
+    const Contest = require("../models/Contest");
+    const contests = await Contest.find({
+      tournamentId,
+      published: true,
+    })
+      .select("_id")
+      .lean();
 
-            return {
-              participantId:
-                participant._id,
+    const contestIds = contests.map((c) => c._id);
 
-              username:
-                participant.user
-                  ?.username ||
-                participant.user
-                  ?.name ||
-                "Unknown",
+    // ---- 3. Sum every Result per participant -----------------
+    const sums = contestIds.length
+      ? await Result.aggregate([
+        {
+          $match: {
+            contestId: { $in: contestIds },
+          },
+        },
+        {
+          $group: {
+            _id: "$participantId",
+            solved: { $sum: "$solvedCount" },
+            score: { $sum: "$points" },
+            penalty: { $sum: "$penalty" },
+            contestCount: { $sum: 1 },
+          },
+        },
+      ])
+      : [];
 
-              name:
-                participant.user?.name,
+    const sumsByParticipant = new Map(
+      sums.map((s) => [String(s._id), s])
+    );
 
-              codeforcesUsername:
-                participant.user
-                  ?.codeforcesUsername ||
-                "",
+    // ---- 4. Build the leaderboard rows -----------------------
+    const leaderboard = participants.map((participant) => {
+      const s = sumsByParticipant.get(String(participant._id));
 
-              group:
-                participant.group ||
-                null,
+      return {
+        participantId: participant._id,
+        username:
+          participant.user?.username ||
+          participant.user?.name ||
+          "Unknown",
+        name: participant.user?.name,
+        codeforcesUsername: participant.user?.codeforcesUsername || "",
+        group: participant.group || null,
+        seed: participant.seed || 9999,
+        groupRank: null,
+        currentStage: participant.currentStage || null,
+        status: participant.status || null,
+        rank: null,
 
-              seed:
-                participant.seed ||
-                9999,
+        // ---- Aggregated across all contests ----
+        solved: s?.solved ?? 0,
+        score: s?.score ?? 0,
+        penalty: s?.penalty ?? 0,
+        contestCount: s?.contestCount ?? 0,
 
-              groupRank:
-                null,
-
-              currentStage:
-                participant.currentStage ||
-                null,
-
-              status:
-                participant.status ||
-                null,
-
-              rank:
-                null,
-
-              latestRank:
-                latestResult?.rank ??
-                null,
-
-              solved:
-                latestResult?.solvedCount ??
-                0,
-
-              score:
-                latestResult?.points ??
-                0,
-
-              penalty:
-                latestResult?.penalty ??
-                0,
-
-              winRate:
-                participant.status ===
-                  "CHAMPION"
-                  ? 100
-                  : null,
-
-              latestResult,
-            };
-          }
-        )
-      );
-
-    const grouped = {};
-
-    for (const entry of leaderboard) {
-      if (!entry.group) continue;
-
-      if (!grouped[entry.group]) {
-        grouped[entry.group] = [];
-      }
-
-      grouped[entry.group].push(
-        entry
-      );
-    }
-
-    for (const entries of Object.values(
-      grouped
-    )) {
-      entries.sort((a, b) => {
-        const scoreA = Number(
-          a.score || 0
-        );
-
-        const scoreB = Number(
-          b.score || 0
-        );
-
-        if (scoreA !== scoreB) {
-          return scoreB - scoreA;
-        }
-
-        const solvedA = Number(
-          a.solved || 0
-        );
-
-        const solvedB = Number(
-          b.solved || 0
-        );
-
-        if (solvedA !== solvedB) {
-          return solvedB - solvedA;
-        }
-
-        const penaltyA = Number(
-          a.penalty || 0
-        );
-
-        const penaltyB = Number(
-          b.penalty || 0
-        );
-
-        return penaltyA - penaltyB;
-      });
-
-      entries.forEach(
-        (entry, index) => {
-          entry.groupRank =
-            index + 1;
-        }
-      );
-    }
-
-    leaderboard.sort((a, b) => {
-      const scoreA = Number(
-        a.score || 0
-      );
-
-      const scoreB = Number(
-        b.score || 0
-      );
-
-      if (scoreA !== scoreB) {
-        return scoreB - scoreA;
-      }
-
-      const solvedA = Number(
-        a.solved || 0
-      );
-
-      const solvedB = Number(
-        b.solved || 0
-      );
-
-      if (solvedA !== solvedB) {
-        return solvedB - solvedA;
-      }
-
-      const penaltyA = Number(
-        a.penalty || 0
-      );
-
-      const penaltyB = Number(
-        b.penalty || 0
-      );
-
-      if (penaltyA !== penaltyB) {
-        return penaltyA - penaltyB;
-      }
-
-      return (
-        Number(a.seed || 9999) -
-        Number(b.seed || 9999)
-      );
+        winRate: participant.status === "CHAMPION" ? 100 : null,
+      };
     });
 
-    leaderboard.forEach(
-      (entry, index) => {
-        entry.rank = index + 1;
-      }
-    );
+    // ---- 5. Group ranks --------------------------------------
+    const grouped = {};
+    for (const entry of leaderboard) {
+      if (!entry.group) continue;
+      (grouped[entry.group] ||= []).push(entry);
+    }
+
+    for (const entries of Object.values(grouped)) {
+      entries.sort((a, b) => {
+        if (a.score !== b.score) return b.score - a.score;
+        if (a.solved !== b.solved) return b.solved - a.solved;
+        if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+        return (a.seed || 9999) - (b.seed || 9999);
+      });
+      entries.forEach((entry, index) => {
+        entry.groupRank = index + 1;
+      });
+    }
+
+    // ---- 6. Global sort + rank -------------------------------
+    leaderboard.sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      if (a.solved !== b.solved) return b.solved - a.solved;
+      if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+      return (a.seed || 9999) - (b.seed || 9999);
+    });
+
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
 
     return res.status(200).json({
       success: true,
-
       tournament: {
         id: tournament._id,
         name: tournament.name,
         status: tournament.status,
-        currentStage:
-          tournament.currentStage,
+        currentStage: tournament.currentStage,
       },
-
-      count:
-        leaderboard.length,
-
+      count: leaderboard.length,
       leaderboard,
     });
   } catch (error) {
-    console.error(
-      "Tournament leaderboard error:",
-      error
-    );
+    console.error("Tournament leaderboard error:", error);
 
-    if (
-      error.name === "CastError"
-    ) {
+    if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
         message: "Invalid tournament ID",
