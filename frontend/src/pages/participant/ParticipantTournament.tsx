@@ -15,6 +15,8 @@ import {
   Hourglass,
   XCircle,
   CheckCircle,
+  GitBranch,
+  Swords as SwordsIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { tournamentApi } from "../../services/tournamentApi";
@@ -35,8 +37,9 @@ export const ParticipantTournament = () => {
     { path: "", label: "Overview", icon: LayoutDashboard },
     { path: "contests", label: "Contests", icon: Swords },
     { path: "standings", label: "Standings", icon: ListOrdered },
+    { path: "bracket", label: "Bracket", icon: GitBranch },
+    { path: "my-match", label: "My Match", icon: SwordsIcon },
   ];
-
   const basePath = `/dashboard/tournaments/${id}`;
   const isBaseRoute = location.pathname === basePath;
 

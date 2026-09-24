@@ -199,22 +199,36 @@ export interface StandingsEntry {
 }
 
 // ============================================================
-// BRACKET TYPES
+// BRACKET / MATCH TYPES
 // ============================================================
-export interface BracketMatch {
-  matchNumber: number;
-  participants: Participant[];
-  winner?: Participant;
-  contest?: Contest;
-  status: 'PENDING' | 'LIVE' | 'COMPLETED';
+// Nested contest info as returned by the bracket endpoint
+export interface BracketMatchContest {
+  _id: string;
+  name?: string;
+  status?: string;
 }
+
+// A single knockout match (as returned by the bracket endpoint)
+export interface Match {
+  _id?: string;
+  matchNumber: number;
+  stage?: string;
+  participants: Participant[];
+  contest?: BracketMatchContest | null;
+  winner?: Participant | null;
+  status?: 'PENDING' | 'LIVE' | 'COMPLETED' | 'TIE';
+  rematchRound?: number;
+}
+
+// Backwards-compatible alias — some pages import BracketMatch
+export type BracketMatch = Match;
 
 export interface Bracket {
   groupStage: Record<string, Participant[]>;
-  quarterFinal: BracketMatch[];
-  semiFinal: BracketMatch[];
-  final?: BracketMatch;
-  champion?: Participant;
+  quarterFinal: Match[];
+  semiFinal: Match[];
+  final: Match | null;
+  champion: Participant | null;
 }
 
 // ============================================================

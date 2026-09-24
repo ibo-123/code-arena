@@ -47,6 +47,16 @@ const ContestDetails = lazy(() =>
 const Standings = lazy(() => import("./pages/participant/Standings"));
 const Invitations = lazy(() => import("./pages/participant/Invitations"));
 const Profile = lazy(() => import("./pages/participant/Profile"));
+const ParticipantBracket = lazy(() =>
+  import("./pages/participant/ParticipantBracket").then((m) => ({
+    default: m.ParticipantBracket,
+  })),
+);
+const ParticipantMatch = lazy(() =>
+  import("./pages/participant/ParticipantMatch").then((m) => ({
+    default: m.ParticipantMatch,
+  })),
+);
 
 // Admin
 const AdminContestResults = lazy(() => import("./pages/admin/AdminContestResults"));
@@ -150,6 +160,8 @@ function App() {
                 <Route path="dashboard/tournaments/:id" element={<ParticipantTournament />}>
                   <Route path="contests" element={<ParticipantContests />} />
                   <Route path="standings" element={<Standings />} />
+                  <Route path="bracket" element={<ParticipantBracket />} />
+                  <Route path="my-match" element={<ParticipantMatch />} />
                 </Route>
 
                 {/* Contest detail under a specific tournament */}
